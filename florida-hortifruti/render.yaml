@@ -29,4 +29,4 @@ databases:
   - name: florida-hortifruti-db
     databaseName: florida_hortifruti
     user: florida
-    plan: basic                    # ~$7/mês — plano atual do Render para PostgreSQL
+    plan: starter                  # plano válido no Render para PostgreSQL pago
