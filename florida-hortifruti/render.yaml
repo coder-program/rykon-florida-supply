@@ -29,4 +29,4 @@ databases:
   - name: florida-hortifruti-db
     databaseName: florida_hortifruti
     user: florida
-    plan: starter                  # ~$7/mês — inclui 1GB storage e backups diários
+    plan: basic                    # ~$7/mês — plano atual do Render para PostgreSQL
