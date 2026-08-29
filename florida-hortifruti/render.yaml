@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: florida-hortifruti-api
+    runtime: node
+    region: ohio          # mais próximo do Brasil com latência aceitável
+    plan: starter         # ~$7/mês — troque por "free" para testes (hiberna após inatividade)
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npm run start:render
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: florida-hortifruti-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true        # Render gera automaticamente um secret seguro
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: PORT
+        value: 3000
+      - key: APP_PUBLIC_URL
+        sync: false                # preencher manualmente com a URL do Render após primeiro deploy
+      - key: ALLOWED_ORIGINS
+        sync: false                # preencher com URLs do Vercel após deploy dos frontends
+
+databases:
+  - name: florida-hortifruti-db
+    databaseName: florida_hortifruti
+    user: florida
+    plan: starter                  # ~$7/mês — inclui 1GB storage e backups diários

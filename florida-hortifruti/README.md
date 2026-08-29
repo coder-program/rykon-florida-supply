@@ -1,0 +1,72 @@
+# Flórida Hortifruti — API
+
+Esqueleto do backend (NestJS + Prisma + PostgreSQL) do sistema de pedidos, vendas,
+controle de estoque e etiquetas/QR Code, baseado no escopo funcional definido.
+
+## Setup inicial
+
+```bash
+npm install
+
+# suba um PostgreSQL local (ou use um serviço gerenciado) e configure a URL
+cp .env.example .env
+# edite o .env com sua DATABASE_URL, JWT_SECRET, etc.
+
+npx prisma migrate dev --name init   # cria as tabelas
+npx prisma db seed                    # cria o usuário admin + produtos de exemplo
+
+npm run start:dev
+```
+
+Login inicial: `admin@floridahortifruti.com.br` / `admin123` (troque depois).
+
+## O que já está pronto
+
+- **Modelo de dados completo** (`prisma/schema.prisma`) cobrindo usuários, clientes,
+  produtos, pedidos, itens, movimentações de estoque, histórico de preço, etiquetas
+  e log de auditoria.
+- **Autenticação JWT** com papéis (`vendedor`, `administrativo`, `administrador`)
+  e um `RolesGuard` reutilizável.
+- **Módulo de clientes** — CRUD completo com busca por nome/CNPJ/telefone.
+- **Módulo de produtos** — CRUD restrito a administrador, leitura liberada.
+- **Módulo de estoque** — entrada, saída, ajuste e histórico, sempre por
+  movimentação (nunca sobrescreve saldo).
+- **Módulo de pedidos** — criação com cálculo automático (subtotal, frete,
+  desconto, total) e fluxo de aprovação que dispara saída de estoque + geração
+  de etiqueta.
+- **Módulo de etiquetas** — geração de QR Code e rota pública (`/p/:token`)
+  que oculta valores financeiros.
+
+## O que falta (de propósito — é a parte que você vai codar)
+
+Marcado com `TODO` no código, mas resumindo o roteiro sugerido:
+
+1. **Transação na aprovação do pedido** (`pedidos.service.ts`) — envolver saída
+   de estoque + mudança de status + geração de etiqueta em `prisma.$transaction`,
+   para não deixar o sistema inconsistente se algo falhar no meio.
+2. **Log de auditoria** — criar um `AuditoriaService` simples e chamá-lo nos
+   pontos-chave: aprovação de pedido, alteração de preço, ajuste de estoque,
+   cancelamento (itens 26 e 29 do escopo).
+3. **Filtro "meus pedidos"** no `PedidosController.findAll` — vendedor só vê
+   os próprios pedidos; administrativo/admin veem todos.
+4. **Histórico de preço por cliente** — ao alterar `valorUnitario` num item de
+   pedido, registrar em `HistoricoPreco` quem alterou (item 7 do escopo).
+5. **Rascunho automático** — no frontend (PWA), salvar o pedido em progresso
+   localmente e sincronizar quando a conexão voltar (item 25 do escopo).
+6. **Geração do PDF/imagem da etiqueta térmica** — usar o `urlPublica` e os
+   dados do pedido para montar o layout final em formato compatível com
+   impressora ESC/POS.
+7. **Dashboard e relatórios** (itens 20 e 21) — endpoints de agregação sobre
+   pedidos/estoque, com filtros por período.
+8. **Testes** — nada de testes ainda; comece pelo `PedidosService`, é onde
+   mora a lógica de cálculo mais sensível a bugs.
+
+## Ordem de implementação sugerida
+
+1. Auth + usuários (já pronto, só ajustar telas)
+2. Clientes + produtos (já prontos)
+3. Pedidos: criação (pronto) → tela de conferência → aprovação (parcial, ver TODOs)
+4. Estoque: entradas manuais → visualização de saldo/histórico
+5. Etiqueta + QR Code (pronto o backend, falta o frontend da página pública e o layout de impressão)
+6. Dashboard e relatórios
+7. Segunda fase: Conta Azul, NF, comissão, offline, etc.

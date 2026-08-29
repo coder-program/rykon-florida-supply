@@ -1,0 +1,245 @@
+// Schema do banco de dados - Sistema de Pedidos, Vendas e Controle de Estoque
+// Flórida Hortifruti
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// USUÁRIOS E PERMISSÕES
+// ==========================================
+
+enum PapelUsuario {
+  VENDEDOR
+  ADMINISTRATIVO
+  ADMINISTRADOR
+}
+
+model Usuario {
+  id           String        @id @default(uuid())
+  nome         String
+  email        String        @unique
+  senhaHash    String
+  papel        PapelUsuario
+  ativo        Boolean       @default(true)
+  criadoEm     DateTime      @default(now())
+
+  pedidosCriados      Pedido[]            @relation("VendedorPedido")
+  ajustesEstoque      MovimentacaoEstoque[]
+  historicoPrecos     HistoricoPreco[]
+  logs                LogAuditoria[]
+
+  @@map("usuarios")
+}
+
+// ==========================================
+// CLIENTES
+// ==========================================
+
+model Cliente {
+  id                  String   @id @default(uuid())
+  razaoSocialOuNome   String
+  nomeFantasia        String?
+  cnpjCpf             String   @unique
+  telefone            String?
+  whatsapp            String?
+  email               String?
+  endereco            String?
+  cidade              String?
+  estado              String?
+  responsavelContato  String?
+  condicaoPagamento   String?
+  formaPagamentoUsual String?
+  necessitaNF         Boolean  @default(false)
+  observacoes         String?
+  ativo               Boolean  @default(true)
+  criadoEm            DateTime @default(now())
+
+  pedidos Pedido[]
+
+  @@map("clientes")
+}
+
+// ==========================================
+// PRODUTOS
+// ==========================================
+
+model Produto {
+  id             String   @id @default(uuid())
+  codigoInterno  String   @unique
+  nome           String
+  categoria      String?
+  unidadeVenda   String   @default("CAIXA")
+  precoSugerido  Decimal  @db.Decimal(10, 2)
+  custo          Decimal? @db.Decimal(10, 2)
+  estoqueMinimo  Decimal? @db.Decimal(10, 2)
+  ativo          Boolean  @default(true)
+  criadoEm       DateTime @default(now())
+
+  itensPedido      ItemPedido[]
+  movimentacoes    MovimentacaoEstoque[]
+  historicoPrecos  HistoricoPreco[]
+
+  @@map("produtos")
+}
+
+// ==========================================
+// PEDIDOS
+// ==========================================
+
+enum StatusPedido {
+  RASCUNHO
+  ENVIADO
+  EM_CONFERENCIA
+  APROVADO
+  SEPARACAO_ENTREGA
+  ENTREGUE
+  FATURADO
+  PAGO
+  CANCELADO
+}
+
+enum FormaPagamento {
+  PIX
+  BOLETO
+  DINHEIRO
+  OUTROS
+}
+
+enum StatusPagamento {
+  PAGO
+  EM_ABERTO
+  VENCIDO
+}
+
+model Pedido {
+  id               String          @id @default(uuid())
+  numero           Int             @unique @default(autoincrement())
+  clienteId        String
+  cliente          Cliente         @relation(fields: [clienteId], references: [id])
+  vendedorId       String
+  vendedor         Usuario         @relation("VendedorPedido", fields: [vendedorId], references: [id])
+  data             DateTime        @default(now())
+
+  status           StatusPedido    @default(RASCUNHO)
+
+  subtotal         Decimal         @db.Decimal(10, 2)
+  valorFrete       Decimal         @default(0) @db.Decimal(10, 2)
+  freteInclusoNoPreco Boolean      @default(false)
+  descontoValor    Decimal         @default(0) @db.Decimal(10, 2)
+  descontoPercentual Decimal?      @db.Decimal(5, 2)
+  totalFinal       Decimal         @db.Decimal(10, 2)
+
+  formaPagamento   FormaPagamento
+  dataVencimento   DateTime?
+  condicaoNegociada String?
+  statusPagamento  StatusPagamento @default(EM_ABERTO)
+
+  necessitaNF      Boolean         @default(false)
+  observacoes      String?
+
+  criadoEm         DateTime        @default(now())
+  atualizadoEm     DateTime        @updatedAt
+
+  itens            ItemPedido[]
+  movimentacoes    MovimentacaoEstoque[]
+  etiqueta         Etiqueta?
+
+  @@map("pedidos")
+}
+
+model ItemPedido {
+  id             String   @id @default(uuid())
+  pedidoId       String
+  pedido         Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  produtoId      String
+  produto        Produto  @relation(fields: [produtoId], references: [id])
+  quantidade     Decimal  @db.Decimal(10, 2)
+  valorUnitario  Decimal  @db.Decimal(10, 2)
+  valorTotal     Decimal  @db.Decimal(10, 2)
+
+  @@map("itens_pedido")
+}
+
+// Registra quem alterou o preço sugerido para um cliente/pedido específico
+model HistoricoPreco {
+  id            String   @id @default(uuid())
+  produtoId     String
+  produto       Produto  @relation(fields: [produtoId], references: [id])
+  usuarioId     String
+  usuario       Usuario  @relation(fields: [usuarioId], references: [id])
+  valorAnterior Decimal  @db.Decimal(10, 2)
+  valorNovo     Decimal  @db.Decimal(10, 2)
+  data          DateTime @default(now())
+
+  @@map("historico_precos")
+}
+
+// ==========================================
+// ESTOQUE
+// ==========================================
+
+enum TipoMovimentacao {
+  ENTRADA
+  SAIDA
+  AJUSTE
+}
+
+model MovimentacaoEstoque {
+  id             String           @id @default(uuid())
+  produtoId      String
+  produto        Produto          @relation(fields: [produtoId], references: [id])
+  tipo           TipoMovimentacao
+  quantidade     Decimal          @db.Decimal(10, 2) // positivo ou negativo
+  origem         String           // ex: "Compra", "Pedido 000123", "Correção"
+  pedidoId       String?
+  pedido         Pedido?          @relation(fields: [pedidoId], references: [id])
+  fornecedor     String?
+  custoTotal     Decimal?         @db.Decimal(10, 2)
+  custoUnitario  Decimal?         @db.Decimal(10, 2)
+  motivoAjuste   String?
+  usuarioId      String
+  usuario        Usuario          @relation(fields: [usuarioId], references: [id])
+  observacao     String?
+  data           DateTime         @default(now())
+
+  @@map("movimentacoes_estoque")
+}
+
+// ==========================================
+// ETIQUETAS / QR CODE
+// ==========================================
+
+model Etiqueta {
+  id            String   @id @default(uuid())
+  pedidoId      String   @unique
+  pedido        Pedido   @relation(fields: [pedidoId], references: [id])
+  tokenPublico  String   @unique @default(uuid()) // usado na URL pública do QR Code
+  ocultarValores Boolean @default(true)
+  geradaEm      DateTime @default(now())
+  reimpressoes  Int      @default(0)
+
+  @@map("etiquetas")
+}
+
+// ==========================================
+// AUDITORIA
+// ==========================================
+
+model LogAuditoria {
+  id         String   @id @default(uuid())
+  usuarioId  String
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id])
+  acao       String   // ex: "APROVAR_PEDIDO", "ALTERAR_PRECO", "AJUSTE_ESTOQUE"
+  entidade   String   // ex: "Pedido", "Produto"
+  entidadeId String
+  detalhes   Json?
+  data       DateTime @default(now())
+
+  @@map("logs_auditoria")
+}
