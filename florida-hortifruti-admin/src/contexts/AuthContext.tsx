@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback } from 'react'
+import type { ReactNode } from 'react'
 import { api } from '../lib/api'
 
 interface Usuario { id: string; nome: string; email: string; papel: string }

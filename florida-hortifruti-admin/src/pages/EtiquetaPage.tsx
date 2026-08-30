@@ -58,7 +58,6 @@ export function EtiquetaPage() {
   }
 
   const p = etiqueta.pedido
-  const c = etiqueta.cliente
 
   return (
     <>

@@ -144,7 +144,7 @@ export function DashboardPage() {
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                     <XAxis type="number" tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
                     <YAxis type="category" dataKey="produto" tick={{ fontSize: 11 }} width={100} />
-                    <Tooltip formatter={(v: number) => formatBRL(v)} />
+                    <Tooltip formatter={(v) => formatBRL(Number(v ?? 0))} />
                     <Bar dataKey="faturamento" fill="#16a34a" radius={4} />
                   </BarChart>
                 </ResponsiveContainer>

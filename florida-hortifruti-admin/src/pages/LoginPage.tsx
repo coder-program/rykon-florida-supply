@@ -1,4 +1,5 @@
-import { useState, FormEvent } from 'react'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Leaf } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'

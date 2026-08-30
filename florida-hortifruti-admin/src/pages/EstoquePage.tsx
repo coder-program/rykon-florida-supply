@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, History, TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react'
+import { Plus, History, Minus, AlertTriangle } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatDate } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -45,11 +45,6 @@ export function EstoquePage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['estoque-saldos'] }); setModalAjuste(false) },
   })
 
-  const tipoIcon: Record<string, any> = {
-    ENTRADA: <TrendingUp className="w-4 h-4 text-green-600" />,
-    SAIDA: <TrendingDown className="w-4 h-4 text-red-500" />,
-    AJUSTE: <Minus className="w-4 h-4 text-yellow-500" />,
-  }
   const tipoCor: Record<string, string> = {
     ENTRADA: 'bg-green-100 text-green-700',
     SAIDA: 'bg-red-100 text-red-700',
