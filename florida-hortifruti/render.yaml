@@ -2,8 +2,9 @@ services:
   - type: web
     name: florida-hortifruti-api
     runtime: node
-    region: ohio          # mais próximo do Brasil com latência aceitável
-    plan: 0.5c-512mb      # plano atual equivalente de entrada para web service
+    region: ohio
+    plan: starter
+    rootDir: florida-hortifruti
     buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npm run start:render
     healthCheckPath: /health
@@ -15,18 +16,18 @@ services:
           name: florida-hortifruti-db
           property: connectionString
       - key: JWT_SECRET
-        generateValue: true        # Render gera automaticamente um secret seguro
+        generateValue: true
       - key: JWT_EXPIRES_IN
         value: 8h
       - key: PORT
         value: 3000
       - key: APP_PUBLIC_URL
-        sync: false                # preencher manualmente com a URL do Render após primeiro deploy
+        sync: false
       - key: ALLOWED_ORIGINS
-        sync: false                # preencher com URLs do Vercel após deploy dos frontends
+        sync: false
 
 databases:
   - name: florida-hortifruti-db
     databaseName: florida_hortifruti
     user: florida
-    plan: basic-256mb              # plano novo (não legado) para Postgres no Render
+    plan: basic
