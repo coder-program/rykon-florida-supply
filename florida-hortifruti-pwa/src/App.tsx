@@ -11,7 +11,7 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 })
 
-function PrivateRoute({ children }: { children: React.ReactNode }) {
+function PrivateRoute({ children }: { children: ReactNode }) {
   const { usuario } = useAuth()
   return usuario ? <>{children}</> : <Navigate to="/login" replace />
 }
