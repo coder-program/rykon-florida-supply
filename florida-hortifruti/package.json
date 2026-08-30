@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "description": "API do sistema de pedidos, vendas e controle de estoque",
   "scripts": {
-    "build": "nest build",
+    "build": "npx nest build",
     "lint": "eslint \"{src,prisma}/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
-    "start:render": "prisma migrate deploy && node dist/main",
+    "start:render": "npx prisma migrate deploy && node dist/main",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
