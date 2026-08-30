@@ -3,7 +3,7 @@ services:
     name: florida-hortifruti-api
     runtime: node
     region: ohio          # mais próximo do Brasil com latência aceitável
-    plan: starter         # ~$7/mês — troque por "free" para testes (hiberna após inatividade)
+    plan: 0.5c-512mb      # plano atual equivalente de entrada para web service
     buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npm run start:render
     healthCheckPath: /health
@@ -29,4 +29,4 @@ databases:
   - name: florida-hortifruti-db
     databaseName: florida_hortifruti
     user: florida
-    plan: starter                  # plano válido no Render para PostgreSQL pago
+    plan: basic-256mb              # plano novo (não legado) para Postgres no Render
