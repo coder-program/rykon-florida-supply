@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, UserX } from 'lucide-react'
+import { Plus, Pencil, UserX, RotateCcw } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatDate } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -38,6 +38,11 @@ export function UsuariosPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['usuarios'] }),
   })
 
+  const reativar = useMutation({
+    mutationFn: (id: string) => api.post(`/usuarios/${id}/reativar`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['usuarios'] }),
+  })
+
   function abrirNovo() { setForm(EMPTY); setEditando(null); setModal(true) }
   function abrirEditar(u: any) { setForm({ ...u, senha: '' }); setEditando(u); setModal(true) }
   function fechar() { setModal(false); setEditando(null) }
@@ -60,28 +65,40 @@ export function UsuariosPage() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">E-mail</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Papel</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Cadastrado em</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Status</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <tr><td colSpan={5} className="text-center py-8 text-gray-400">Carregando...</td></tr>}
+              {isLoading && <tr><td colSpan={6} className="text-center py-8 text-gray-400">Carregando...</td></tr>}
               {usuarios.map((u: any) => (
-                <tr key={u.id} className="hover:bg-gray-50">
+                <tr key={u.id} className={`hover:bg-gray-50 ${u.ativo === false ? 'opacity-60' : ''}`}>
                   <td className="px-4 py-3 font-medium text-gray-900">{u.nome}</td>
                   <td className="px-4 py-3 text-gray-600">{u.email}</td>
                   <td className="px-4 py-3"><Badge className={PAPEL_COLOR[u.papel]}>{u.papel}</Badge></td>
                   <td className="px-4 py-3 text-gray-500">{formatDate(u.criadoEm)}</td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-1">
+                    {u.ativo === false
+                      ? <span className="text-xs font-medium text-red-600">Inativo</span>
+                      : <span className="text-xs font-medium text-green-600">Ativo</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1 justify-end">
                       <Button size="sm" variant="ghost" onClick={() => abrirEditar(u)}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-red-500 hover:bg-red-50"
-                        onClick={() => { if (confirm(`Desativar ${u.nome}?`)) desativar.mutate(u.id) }}
-                      >
-                        <UserX className="w-3.5 h-3.5" />
-                      </Button>
+                      {u.ativo === false ? (
+                        <Button size="sm" variant="ghost" className="text-green-600" onClick={() => reativar.mutate(u.id)}>
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-500 hover:bg-red-50"
+                          onClick={() => { if (confirm(`Desativar ${u.nome}? O usuário deixa de acessar o sistema, mas o histórico permanece.`)) desativar.mutate(u.id) }}
+                        >
+                          <UserX className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -92,7 +109,12 @@ export function UsuariosPage() {
       </div>
 
       <Modal open={modal} onClose={fechar} title={editando ? 'Editar Usuário' : 'Novo Usuário'}>
-        <form onSubmit={(e) => { e.preventDefault(); salvar.mutate(form) }} className="space-y-3">
+        <form onSubmit={(e) => {
+          e.preventDefault()
+          const payload: any = { nome: form.nome, email: form.email, papel: form.papel }
+          if (form.senha) payload.senha = form.senha
+          salvar.mutate(payload)
+        }} className="space-y-3">
           <Input label="Nome *" value={form.nome} onChange={(e) => set('nome', e.target.value)} required />
           <Input label="E-mail *" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} required />
           <Input

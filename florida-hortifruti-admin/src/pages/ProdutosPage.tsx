@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, History } from 'lucide-react'
+import { Plus, Pencil, History, Trash2, RotateCcw } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatBRL, formatDateTime } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -8,7 +8,7 @@ import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Input } from '../components/ui/Input'
 
-const EMPTY = { codigoInterno: '', nome: '', categoria: '', unidadeVenda: 'CAIXA', precoSugerido: '', custo: '' }
+const EMPTY = { codigoInterno: '', nome: '', categoria: '', unidadeVenda: 'CAIXA', precoSugerido: '', custo: '', estoqueMinimo: '' }
 
 export function ProdutosPage() {
   const qc = useQueryClient()
@@ -19,7 +19,7 @@ export function ProdutosPage() {
 
   const { data: produtos = [], isLoading } = useQuery({
     queryKey: ['produtos'],
-    queryFn: () => api.get('/produtos').then((r) => r.data),
+    queryFn: () => api.get('/produtos', { params: { incluirInativos: true } }).then((r) => r.data),
   })
 
   const { data: historico = [] } = useQuery({
@@ -30,13 +30,23 @@ export function ProdutosPage() {
 
   const salvar = useMutation({
     mutationFn: (data: any) => editando
-      ? api.put(`/produtos/${editando.id}`, { ...data, precoSugerido: Number(data.precoSugerido), custo: data.custo ? Number(data.custo) : undefined })
-      : api.post('/produtos', { ...data, precoSugerido: Number(data.precoSugerido), custo: data.custo ? Number(data.custo) : undefined }),
+      ? api.put(`/produtos/${editando.id}`, { ...data, precoSugerido: Number(data.precoSugerido), custo: data.custo ? Number(data.custo) : undefined, estoqueMinimo: data.estoqueMinimo ? Number(data.estoqueMinimo) : undefined })
+      : api.post('/produtos', { ...data, precoSugerido: Number(data.precoSugerido), custo: data.custo ? Number(data.custo) : undefined, estoqueMinimo: data.estoqueMinimo ? Number(data.estoqueMinimo) : undefined }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['produtos'] }); fechar() },
   })
 
+  const excluir = useMutation({
+    mutationFn: (id: string) => api.delete(`/produtos/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['produtos'] }),
+  })
+
+  const reativar = useMutation({
+    mutationFn: (id: string) => api.post(`/produtos/${id}/reativar`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['produtos'] }),
+  })
+
   function abrirNovo() { setForm(EMPTY); setEditando(null); setModal(true) }
-  function abrirEditar(p: any) { setForm({ ...p, precoSugerido: String(p.precoSugerido), custo: String(p.custo ?? '') }); setEditando(p); setModal(true) }
+  function abrirEditar(p: any) { setForm({ ...p, precoSugerido: String(p.precoSugerido), custo: String(p.custo ?? ''), estoqueMinimo: String(p.estoqueMinimo ?? '') }); setEditando(p); setModal(true) }
   function abrirHistorico(p: any) { setEditando(p); setModalHistorico(true) }
   function fechar() { setModal(false); setModalHistorico(false); setEditando(null) }
   function set(k: string, v: any) { setForm((f: any) => ({ ...f, [k]: v })) }
@@ -60,13 +70,14 @@ export function ProdutosPage() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Unidade</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500">Preço Sugerido</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500">Custo</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Status</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <tr><td colSpan={7} className="text-center py-8 text-gray-400">Carregando...</td></tr>}
+              {isLoading && <tr><td colSpan={8} className="text-center py-8 text-gray-400">Carregando...</td></tr>}
               {produtos.map((p: any) => (
-                <tr key={p.id} className="hover:bg-gray-50">
+                <tr key={p.id} className={`hover:bg-gray-50 ${p.ativo === false ? 'opacity-60' : ''}`}>
                   <td className="px-4 py-3 font-mono text-gray-600">{p.codigoInterno}</td>
                   <td className="px-4 py-3 font-medium text-gray-900">{p.nome}</td>
                   <td className="px-4 py-3 text-gray-600">{p.categoria ?? '—'}</td>
@@ -74,9 +85,19 @@ export function ProdutosPage() {
                   <td className="px-4 py-3 text-right text-green-700 font-semibold">{formatBRL(p.precoSugerido)}</td>
                   <td className="px-4 py-3 text-right text-gray-600">{p.custo ? formatBRL(p.custo) : '—'}</td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-1">
+                    {p.ativo === false
+                      ? <span className="text-xs font-medium text-red-600">Inativo</span>
+                      : <span className="text-xs font-medium text-green-600">Ativo</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1 justify-end">
                       <Button size="sm" variant="ghost" onClick={() => abrirEditar(p)}><Pencil className="w-3.5 h-3.5" /></Button>
                       <Button size="sm" variant="ghost" onClick={() => abrirHistorico(p)}><History className="w-3.5 h-3.5" /></Button>
+                      {p.ativo === false ? (
+                        <Button size="sm" variant="ghost" className="text-green-600" onClick={() => reativar.mutate(p.id)}><RotateCcw className="w-3.5 h-3.5" /></Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" className="text-red-500 hover:bg-red-50" onClick={() => { if (confirm(`Desativar ${p.nome}? Pedidos antigos continuam no histórico.`)) excluir.mutate(p.id) }}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -96,6 +117,7 @@ export function ProdutosPage() {
             <Input label="Preço Sugerido (R$) *" type="number" step="0.01" value={form.precoSugerido} onChange={(e) => set('precoSugerido', e.target.value)} required />
             <Input label="Custo (R$)" type="number" step="0.01" value={form.custo} onChange={(e) => set('custo', e.target.value)} />
           </div>
+          <Input label="Estoque mínimo (caixas)" type="number" min="0" value={form.estoqueMinimo} onChange={(e) => set('estoqueMinimo', e.target.value)} />
           <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
             <Button type="button" variant="secondary" onClick={fechar}>Cancelar</Button>
             <Button type="submit" disabled={salvar.isPending}>{salvar.isPending ? 'Salvando...' : 'Salvar'}</Button>

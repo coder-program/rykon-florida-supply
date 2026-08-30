@@ -79,6 +79,14 @@ export function FinanceiroPage() {
     },
   })
 
+  const reabrir = useMutation({
+    mutationFn: (pedidoId: string) => api.post(`/financeiro/reabrir/${pedidoId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contas-a-receber'] })
+      qc.invalidateQueries({ queryKey: ['financeiro-resumo'] })
+    },
+  })
+
   return (
     <div>
       <PageHeader
@@ -211,7 +219,7 @@ export function FinanceiroPage() {
                       <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatBRL(c.totalFinal)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
-                          {c.situacaoCalculada !== 'PAGO' && (
+                          {c.situacaoCalculada !== 'PAGO' ? (
                             <Button
                               size="sm"
                               variant="primary"
@@ -219,6 +227,15 @@ export function FinanceiroPage() {
                               disabled={marcarPago.isPending}
                             >
                               Pago
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => { if (confirm('Reabrir esta conta como em aberto?')) reabrir.mutate(c.id) }}
+                              disabled={reabrir.isPending}
+                            >
+                              Reabrir
                             </Button>
                           )}
                           <button

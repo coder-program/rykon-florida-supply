@@ -32,4 +32,9 @@ export class FinanceiroController {
   marcarPago(@Param('pedidoId') pedidoId: string, @Request() req: any) {
     return this.financeiroService.marcarPago(pedidoId, req.user.id);
   }
+
+  @Post('reabrir/:pedidoId')
+  reabrir(@Param('pedidoId') pedidoId: string, @Request() req: any) {
+    return this.financeiroService.reabrir(pedidoId, req.user.id);
+  }
 }

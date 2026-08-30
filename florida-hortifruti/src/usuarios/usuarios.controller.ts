@@ -37,4 +37,9 @@ export class UsuariosController {
   desativar(@Param('id') id: string) {
     return this.usuariosService.desativar(id);
   }
+
+  @Post(':id/reativar')
+  reativar(@Param('id') id: string) {
+    return this.usuariosService.reativar(id);
+  }
 }

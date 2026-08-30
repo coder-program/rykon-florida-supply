@@ -14,9 +14,9 @@ export class ClientesController {
   }
 
   @Get()
-  findAll(@Query('busca') busca?: string) {
+  findAll(@Query('busca') busca?: string, @Query('incluirInativos') incluirInativos?: string) {
     if (busca) return this.clientesService.search(busca);
-    return this.clientesService.findAll();
+    return this.clientesService.findAll(incluirInativos === 'true');
   }
 
   @Get(':id')
@@ -32,5 +32,10 @@ export class ClientesController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.clientesService.remove(id);
+  }
+
+  @Post(':id/reativar')
+  reativar(@Param('id') id: string) {
+    return this.clientesService.reativar(id);
   }
 }

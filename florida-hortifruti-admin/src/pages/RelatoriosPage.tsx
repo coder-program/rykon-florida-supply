@@ -61,7 +61,7 @@ export function RelatoriosPage() {
     <div>
       <PageHeader
         title="Relatórios"
-        subtitle="Exportação e análise de dados"
+        subtitle="Consulta e exportação — relatórios não são cadastros"
         actions={
           <div className="flex gap-2">
             <Button variant="secondary" size="sm" onClick={() => exportarCsv('vendas')}>

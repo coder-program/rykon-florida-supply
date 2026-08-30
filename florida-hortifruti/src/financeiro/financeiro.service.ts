@@ -144,7 +144,19 @@ export class FinanceiroService {
     });
   }
 
-  // Marcar pedido como pago
+  async reabrir(pedidoId: string, usuarioId: string) {
+    const [pedido] = await this.prisma.$transaction([
+      this.prisma.pedido.update({
+        where: { id: pedidoId },
+        data: { statusPagamento: StatusPagamento.EM_ABERTO },
+      }),
+      this.prisma.logAuditoria.create({
+        data: { usuarioId, acao: 'REABRIR_PAGAMENTO', entidade: 'Pedido', entidadeId: pedidoId },
+      }),
+    ]);
+    return pedido;
+  }
+
   async marcarPago(pedidoId: string, usuarioId: string) {
     const [pedido] = await this.prisma.$transaction([
       this.prisma.pedido.update({

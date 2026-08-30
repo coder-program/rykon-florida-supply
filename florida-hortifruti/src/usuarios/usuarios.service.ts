@@ -22,9 +22,8 @@ export class UsuariosService {
 
   findAll() {
     return this.prisma.usuario.findMany({
-      where: { ativo: true },
       select: { id: true, nome: true, email: true, papel: true, ativo: true, criadoEm: true },
-      orderBy: { nome: 'asc' },
+      orderBy: [{ ativo: 'desc' }, { nome: 'asc' }],
     });
   }
 
@@ -51,12 +50,20 @@ export class UsuariosService {
     });
   }
 
-  // Seção 26: nunca apaga permanentemente — desativa o usuário
   async desativar(id: string) {
     await this.findOne(id);
     return this.prisma.usuario.update({
       where: { id },
       data: { ativo: false },
+      select: { id: true, nome: true, email: true, papel: true, ativo: true },
+    });
+  }
+
+  async reativar(id: string) {
+    await this.findOne(id);
+    return this.prisma.usuario.update({
+      where: { id },
+      data: { ativo: true },
       select: { id: true, nome: true, email: true, papel: true, ativo: true },
     });
   }

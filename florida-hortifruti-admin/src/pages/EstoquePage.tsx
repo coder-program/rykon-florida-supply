@@ -55,7 +55,7 @@ export function EstoquePage() {
     <div>
       <PageHeader
         title="Estoque"
-        subtitle="Saldo atual e movimentações"
+        subtitle="Saldo atual e movimentações — o histórico nunca é apagado"
         actions={
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setModalAjuste(true)}><Minus className="w-4 h-4" /> Ajuste</Button>

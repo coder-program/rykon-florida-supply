@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronDown, QrCode, Printer, Pencil } from 'lucide-react'
+import { Search, ChevronDown, QrCode, Printer, Pencil, Plus } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatBRL, formatDate, STATUS_PEDIDO_LABEL, STATUS_PEDIDO_COLOR, STATUS_PAGAMENTO_COLOR, FORMA_PAGAMENTO_LABEL } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -9,6 +9,7 @@ import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Select } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
+import { NovoPedidoModal } from './NovoPedidoModal'
 
 const STATUS_ACOES: Record<string, { label: string; next: string }[]> = {
   ENVIADO:           [{ label: 'Aprovar', next: 'aprovar' }, { label: 'Cancelar', next: 'cancelar' }],
@@ -25,6 +26,7 @@ export function PedidosPage() {
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
   const [pedidoSelecionado, setPedidoSelecionado] = useState<any>(null)
+  const [novoPedido, setNovoPedido] = useState(false)
   const [editando, setEditando] = useState(false)
   const [formEdit, setFormEdit] = useState({ valorFrete: '', descontoValor: '', formaPagamento: '', dataVencimento: '', necessitaNF: false, observacoes: '' })
 
@@ -63,7 +65,12 @@ export function PedidosPage() {
 
   return (
     <div>
-      <PageHeader title="Pedidos" subtitle={`${pedidos.length} pedido(s) encontrado(s)`} />
+      <PageHeader
+        title="Pedidos"
+        subtitle={`${pedidos.length} pedido(s) encontrado(s)`}
+        actions={<Button onClick={() => setNovoPedido(true)}><Plus className="w-4 h-4" /> Novo Pedido</Button>}
+      />
+      <NovoPedidoModal open={novoPedido} onClose={() => setNovoPedido(false)} />
 
       <div className="p-6 space-y-4">
         {/* Filtros */}

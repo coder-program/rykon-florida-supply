@@ -10,8 +10,11 @@ export class ProdutosService {
     return this.prisma.produto.create({ data: dto });
   }
 
-  findAll() {
-    return this.prisma.produto.findMany({ where: { ativo: true }, orderBy: { nome: 'asc' } });
+  findAll(incluirInativos = false) {
+    return this.prisma.produto.findMany({
+      where: incluirInativos ? {} : { ativo: true },
+      orderBy: [{ ativo: 'desc' }, { nome: 'asc' }],
+    });
   }
 
   async findOne(id: string) {
@@ -41,6 +44,16 @@ export class ProdutosService {
 
     const [produtoAtualizado] = await this.prisma.$transaction(ops);
     return produtoAtualizado;
+  }
+
+  async remove(id: string) {
+    await this.findOne(id);
+    return this.prisma.produto.update({ where: { id }, data: { ativo: false } });
+  }
+
+  async reativar(id: string) {
+    await this.findOne(id);
+    return this.prisma.produto.update({ where: { id }, data: { ativo: true } });
   }
 
   historicoPrecos(produtoId: string) {

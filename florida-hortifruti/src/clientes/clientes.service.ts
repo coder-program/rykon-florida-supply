@@ -10,8 +10,11 @@ export class ClientesService {
     return this.prisma.cliente.create({ data: dto });
   }
 
-  findAll() {
-    return this.prisma.cliente.findMany({ where: { ativo: true } });
+  findAll(incluirInativos = false) {
+    return this.prisma.cliente.findMany({
+      where: incluirInativos ? {} : { ativo: true },
+      orderBy: [{ ativo: 'desc' }, { razaoSocialOuNome: 'asc' }],
+    });
   }
 
   // Item 4 do escopo: pesquisa por nome, CNPJ/CPF ou telefone
@@ -40,9 +43,13 @@ export class ClientesService {
     return this.prisma.cliente.update({ where: { id }, data: dto });
   }
 
-  // Não removemos de verdade (regra 6/8 do escopo: nada some sem histórico)
   async remove(id: string) {
     await this.findOne(id);
     return this.prisma.cliente.update({ where: { id }, data: { ativo: false } });
+  }
+
+  async reativar(id: string) {
+    await this.findOne(id);
+    return this.prisma.cliente.update({ where: { id }, data: { ativo: true } });
   }
 }
