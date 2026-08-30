@@ -12,7 +12,8 @@ export class UsuariosService {
     if (existe) throw new ConflictException('E-mail já cadastrado');
 
     const senhaHash = await bcrypt.hash(dto.senha, 10);
-    const { senha: _, ...dados } = dto;
+    const dados: any = { ...dto };
+    delete dados.senha;
     return this.prisma.usuario.create({
       data: { ...dados, senhaHash },
       select: { id: true, nome: true, email: true, papel: true, ativo: true, criadoEm: true },
