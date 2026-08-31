@@ -1,11 +1,15 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @layer base {
   :root {
     --green: #16a34a;
     --green-dark: #15803d;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
   body {
     @apply bg-gray-50 text-gray-900 antialiased;
+    overflow-x: hidden;
   }
 }

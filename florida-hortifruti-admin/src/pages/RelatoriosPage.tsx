@@ -33,7 +33,18 @@ const STATUS_PAGAMENTO_LABEL: Record<string, string> = {
   VENCIDO: 'Vencido',
 }
 
-const statusPedidoOptions = ['TODOS', 'RASCUNHO', 'ENVIADO', 'EM_CONFERENCIA', 'APROVADO', 'SEPARACAO_ENTREGA', 'ENTREGUE', 'FATURADO', 'PAGO', 'CANCELADO']
+const statusPedidoOptions = [
+  'TODOS',
+  'RASCUNHO',
+  'ENVIADO',
+  'EM_CONFERENCIA',
+  'APROVADO',
+  'SEPARACAO_ENTREGA',
+  'ENTREGUE',
+  'FATURADO',
+  'PAGO',
+  'CANCELADO',
+]
 const statusPagamentoOptions = ['TODOS', 'PAGO', 'EM_ABERTO', 'VENCIDO']
 
 const ABAS: { key: Aba; label: string; icon: LucideIcon }[] = [
@@ -44,8 +55,20 @@ const ABAS: { key: Aba; label: string; icon: LucideIcon }[] = [
   { key: 'financeiro', label: 'Financeiro', icon: DollarSign },
 ]
 
-const FORMATOS_PRINCIPAIS: { id: Formato; label: string; ext: string; hint: string; icon: LucideIcon }[] = [
-  { id: 'excel', label: 'Excel', ext: '.xlsx', hint: 'Melhor para conferir e filtrar', icon: FileSpreadsheet },
+const FORMATOS_PRINCIPAIS: {
+  id: Formato
+  label: string
+  ext: string
+  hint: string
+  icon: LucideIcon
+}[] = [
+  {
+    id: 'excel',
+    label: 'Excel',
+    ext: '.xlsx',
+    hint: 'Melhor para conferir e filtrar',
+    icon: FileSpreadsheet,
+  },
   { id: 'pdf', label: 'PDF', ext: '.pdf', hint: 'Pronto para imprimir ou enviar', icon: FileText },
   { id: 'csv', label: 'CSV', ext: '.csv', hint: 'Abre em qualquer planilha', icon: Download },
 ]
@@ -130,13 +153,26 @@ function MenuExportar({ visao, resumoFiltros }: { visao: Visao; resumoFiltros: s
       if (formato === 'excel') {
         const workbook = new ExcelJS.Workbook()
         const worksheet = workbook.addWorksheet(titulo.slice(0, 31))
-        worksheet.columns = headers.map((header) => ({ header, key: header, width: Math.max(14, header.length + 4) }))
-        worksheet.addRows(excelRows.map((row) => Object.fromEntries(headers.map((header) => [header, row[header] ?? '']))))
+        worksheet.columns = headers.map((header) => ({
+          header,
+          key: header,
+          width: Math.max(14, header.length + 4),
+        }))
+        worksheet.addRows(
+          excelRows.map((row) =>
+            Object.fromEntries(headers.map((header) => [header, row[header] ?? ''])),
+          ),
+        )
         const buffer = await workbook.xlsx.writeBuffer()
-        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+        const blob = new Blob([buffer], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
         downloadBlob(blob, `${nome}.xlsx`)
       } else if (formato === 'csv') {
-        const csv = [headers.join(';'), ...excelRows.map((row) => headers.map((header) => String(row[header] ?? '')).join(';'))].join('\n')
+        const csv = [
+          headers.join(';'),
+          ...excelRows.map((row) => headers.map((header) => String(row[header] ?? '')).join(';')),
+        ].join('\n')
         downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `${nome}.csv`)
       } else if (formato === 'pdf') {
         const doc = new jsPDF({ orientation: headers.length > 5 ? 'landscape' : 'portrait' })
@@ -145,7 +181,11 @@ function MenuExportar({ visao, resumoFiltros }: { visao: Visao; resumoFiltros: s
         doc.setFontSize(9)
         doc.setTextColor(90)
         doc.text(resumoFiltros, 14, 22)
-        doc.text(`${visao.contagem} registro(s) · gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 27)
+        doc.text(
+          `${visao.contagem} registro(s) · gerado em ${new Date().toLocaleString('pt-BR')}`,
+          14,
+          27,
+        )
         doc.setTextColor(0)
         autoTable(doc, {
           startY: 32,
@@ -157,11 +197,16 @@ function MenuExportar({ visao, resumoFiltros }: { visao: Visao; resumoFiltros: s
         doc.save(`${nome}.pdf`)
       } else if (formato === 'json') {
         downloadBlob(
-          new Blob([JSON.stringify(excelRows, null, 2)], { type: 'application/json;charset=utf-8' }),
+          new Blob([JSON.stringify(excelRows, null, 2)], {
+            type: 'application/json;charset=utf-8',
+          }),
           `${nome}.json`,
         )
       } else {
-        downloadBlob(new Blob([buildXml(visao.slug, excelRows)], { type: 'application/xml;charset=utf-8' }), `${nome}.xml`)
+        downloadBlob(
+          new Blob([buildXml(visao.slug, excelRows)], { type: 'application/xml;charset=utf-8' }),
+          `${nome}.xml`,
+        )
       }
       setAberto(false)
     } catch {
@@ -189,12 +234,15 @@ function MenuExportar({ visao, resumoFiltros }: { visao: Visao; resumoFiltros: s
       {aberto && (
         <div
           role="menu"
-          className="absolute right-0 z-20 mt-2 w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+          className="absolute right-0 z-20 mt-2 w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
         >
           <div className="border-b border-gray-100 px-3.5 py-3">
-            <p className="text-sm font-semibold text-gray-900">Exportar {visao.titulo.toLowerCase()}</p>
+            <p className="text-sm font-semibold text-gray-900">
+              Exportar {visao.titulo.toLowerCase()}
+            </p>
             <p className="mt-0.5 text-xs leading-relaxed text-gray-500">
-              {visao.contagem} registro{visao.contagem === 1 ? '' : 's'} desta tela, com os filtros atuais
+              {visao.contagem} registro{visao.contagem === 1 ? '' : 's'} desta tela, com os filtros
+              atuais
             </p>
           </div>
 
@@ -208,7 +256,9 @@ function MenuExportar({ visao, resumoFiltros }: { visao: Visao; resumoFiltros: s
                 onClick={() => exportar(f.id)}
                 className="flex w-full items-start gap-3 rounded-lg px-2.5 py-2 text-left hover:bg-gray-50 disabled:opacity-50"
               >
-                <div className={`mt-0.5 rounded-lg p-1.5 ${i === 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                <div
+                  className={`mt-0.5 rounded-lg p-1.5 ${i === 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}
+                >
                   <f.icon className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -221,7 +271,9 @@ function MenuExportar({ visao, resumoFiltros }: { visao: Visao; resumoFiltros: s
                       </span>
                     )}
                   </p>
-                  <p className="text-xs text-gray-500">{exportando === f.id ? 'Gerando…' : f.hint}</p>
+                  <p className="text-xs text-gray-500">
+                    {exportando === f.id ? 'Gerando…' : f.hint}
+                  </p>
                 </div>
                 {i === 0 && <Check className="mt-1 h-3.5 w-3.5 text-green-600" />}
               </button>
@@ -229,7 +281,9 @@ function MenuExportar({ visao, resumoFiltros }: { visao: Visao; resumoFiltros: s
           </div>
 
           <div className="border-t border-gray-100 p-1.5">
-            <p className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Integração</p>
+            <p className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+              Integração
+            </p>
             {FORMATOS_INTEGRACAO.map((f) => (
               <button
                 key={f.id}
@@ -261,14 +315,17 @@ export function RelatoriosPage() {
   const [vendedorId, setVendedorId] = useState('')
   const [produtoId, setProdutoId] = useState('')
 
-  const params = useMemo(() => ({
-    dataInicio: dataInicio || undefined,
-    dataFim: dataFim || undefined,
-    status: status === 'TODOS' ? undefined : status,
-    statusPagamento: statusPagamento === 'TODOS' ? undefined : statusPagamento,
-    vendedorId: vendedorId || undefined,
-    produtoId: produtoId || undefined,
-  }), [dataInicio, dataFim, status, statusPagamento, vendedorId, produtoId])
+  const params = useMemo(
+    () => ({
+      dataInicio: dataInicio || undefined,
+      dataFim: dataFim || undefined,
+      status: status === 'TODOS' ? undefined : status,
+      statusPagamento: statusPagamento === 'TODOS' ? undefined : statusPagamento,
+      vendedorId: vendedorId || undefined,
+      produtoId: produtoId || undefined,
+    }),
+    [dataInicio, dataFim, status, statusPagamento, vendedorId, produtoId],
+  )
 
   const { data: vendedores = [] } = useQuery({
     queryKey: ['usuarios-relatorios'],
@@ -322,7 +379,8 @@ export function RelatoriosPage() {
       partes.push('Todo o período')
     }
     if (status !== 'TODOS') partes.push(STATUS_PEDIDO_LABEL[status] ?? status)
-    if (statusPagamento !== 'TODOS') partes.push(STATUS_PAGAMENTO_LABEL[statusPagamento] ?? statusPagamento)
+    if (statusPagamento !== 'TODOS')
+      partes.push(STATUS_PAGAMENTO_LABEL[statusPagamento] ?? statusPagamento)
     if (nomeVendedor) partes.push(nomeVendedor)
     if (nomeProduto) partes.push(nomeProduto)
     return partes.join(' · ')
@@ -398,9 +456,21 @@ export function RelatoriosPage() {
     if (aba === 'financeiro') {
       const blocos = financeiro
         ? [
-            { Situação: 'Recebidos (pagos)', Total: Number(financeiro.pagos?.total ?? 0), Pedidos: Number(financeiro.pagos?.quantidade ?? 0) },
-            { Situação: 'Em aberto', Total: Number(financeiro.emAberto?.total ?? 0), Pedidos: Number(financeiro.emAberto?.quantidade ?? 0) },
-            { Situação: 'Vencidos', Total: Number(financeiro.vencidos?.total ?? 0), Pedidos: Number(financeiro.vencidos?.quantidade ?? 0) },
+            {
+              Situação: 'Recebidos (pagos)',
+              Total: Number(financeiro.pagos?.total ?? 0),
+              Pedidos: Number(financeiro.pagos?.quantidade ?? 0),
+            },
+            {
+              Situação: 'Em aberto',
+              Total: Number(financeiro.emAberto?.total ?? 0),
+              Pedidos: Number(financeiro.emAberto?.quantidade ?? 0),
+            },
+            {
+              Situação: 'Vencidos',
+              Total: Number(financeiro.vencidos?.total ?? 0),
+              Pedidos: Number(financeiro.vencidos?.quantidade ?? 0),
+            },
           ]
         : []
       return {
@@ -437,7 +507,19 @@ export function RelatoriosPage() {
         formatBRL(v.totalFinal),
       ]),
     }
-  }, [aba, vendas, estoque, porProduto, porVendedor, financeiro, loadVendas, loadEstoque, loadProduto, loadVendedor, loadFinanceiro])
+  }, [
+    aba,
+    vendas,
+    estoque,
+    porProduto,
+    porVendedor,
+    financeiro,
+    loadVendas,
+    loadEstoque,
+    loadProduto,
+    loadVendedor,
+    loadFinanceiro,
+  ])
 
   function limparFiltros() {
     setDataInicio('')
@@ -450,44 +532,89 @@ export function RelatoriosPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Relatórios"
-        subtitle="Consulta e exportação da visualização atual"
-      />
+      <PageHeader title="Relatórios" subtitle="Consulta e exportação da visualização atual" />
 
-      <div className="space-y-4 p-6">
-        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-4">
-          <Input label="Data início" type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="w-40" />
-          <Input label="Data fim" type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="w-40" />
-          <Select label="Status do pedido" value={status} onChange={(e) => setStatus(e.target.value)} className="w-48">
+      <div className="space-y-4 p-4 md:p-6">
+        <div className="flex flex-col flex-wrap items-stretch gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-end">
+          <Input
+            label="Data início"
+            type="date"
+            value={dataInicio}
+            onChange={(e) => setDataInicio(e.target.value)}
+            className="w-full sm:w-40"
+          />
+          <Input
+            label="Data fim"
+            type="date"
+            value={dataFim}
+            onChange={(e) => setDataFim(e.target.value)}
+            className="w-full sm:w-40"
+          />
+          <Select
+            label="Status do pedido"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="w-full sm:w-48"
+          >
             {statusPedidoOptions.map((item) => (
-              <option key={item} value={item}>{item === 'TODOS' ? 'Todos' : (STATUS_PEDIDO_LABEL[item] ?? item)}</option>
+              <option key={item} value={item}>
+                {item === 'TODOS' ? 'Todos' : (STATUS_PEDIDO_LABEL[item] ?? item)}
+              </option>
             ))}
           </Select>
-          <Select label="Status do pagamento" value={statusPagamento} onChange={(e) => setStatusPagamento(e.target.value)} className="w-48">
+          <Select
+            label="Status do pagamento"
+            value={statusPagamento}
+            onChange={(e) => setStatusPagamento(e.target.value)}
+            className="w-full sm:w-48"
+          >
             {statusPagamentoOptions.map((item) => (
-              <option key={item} value={item}>{item === 'TODOS' ? 'Todos' : (STATUS_PAGAMENTO_LABEL[item] ?? item)}</option>
+              <option key={item} value={item}>
+                {item === 'TODOS' ? 'Todos' : (STATUS_PAGAMENTO_LABEL[item] ?? item)}
+              </option>
             ))}
           </Select>
-          <Select label="Vendedor" value={vendedorId} onChange={(e) => setVendedorId(e.target.value)} className="w-52">
+          <Select
+            label="Vendedor"
+            value={vendedorId}
+            onChange={(e) => setVendedorId(e.target.value)}
+            className="w-full sm:w-52"
+          >
             <option value="">Todos</option>
-            {vendedores.map((v: any) => <option key={v.id} value={v.id}>{v.nome}</option>)}
+            {vendedores.map((v: any) => (
+              <option key={v.id} value={v.id}>
+                {v.nome}
+              </option>
+            ))}
           </Select>
-          <Select label="Produto" value={produtoId} onChange={(e) => setProdutoId(e.target.value)} className="w-52">
+          <Select
+            label="Produto"
+            value={produtoId}
+            onChange={(e) => setProdutoId(e.target.value)}
+            className="w-full sm:w-52"
+          >
             <option value="">Todos</option>
-            {produtos.map((p: any) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            {produtos.map((p: any) => (
+              <option key={p.id} value={p.id}>
+                {p.nome}
+              </option>
+            ))}
           </Select>
-          <Button variant="ghost" size="sm" onClick={limparFiltros}>Limpar</Button>
+          <Button variant="ghost" size="sm" onClick={limparFiltros}>
+            Limpar
+          </Button>
         </div>
 
-        <div className="flex gap-1 border-b border-gray-200">
+        <div className="-mx-4 flex gap-1 overflow-x-auto border-b border-gray-200 px-4 md:mx-0 md:px-0">
           {ABAS.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               type="button"
               onClick={() => setAba(key)}
-              className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                aba === key ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+              className={`flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors sm:px-4 ${
+                aba === key
+                  ? 'border-green-600 text-green-700'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
               <Icon className="h-4 w-4" /> {label}
@@ -508,31 +635,53 @@ export function RelatoriosPage() {
         </div>
 
         {aba === 'vendas' && (
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <table className="w-full min-w-[640px] text-sm">
               <thead className="border-b border-gray-200 bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Nº</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Data</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Cliente</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Vendedor</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Pagamento</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                    Vendedor
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                    Pagamento
+                  </th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {loadVendas && <tr><td colSpan={6} className="py-8 text-center text-gray-400">Carregando...</td></tr>}
+                {loadVendas && (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-gray-400">
+                      Carregando...
+                    </td>
+                  </tr>
+                )}
                 {vendas.map((v: any) => (
                   <tr key={v.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-gray-600">#{String(v.numero).padStart(6, '0')}</td>
+                    <td className="px-4 py-3 font-mono text-gray-600">
+                      #{String(v.numero).padStart(6, '0')}
+                    </td>
                     <td className="px-4 py-3 text-gray-600">{formatDate(v.data)}</td>
                     <td className="px-4 py-3 text-gray-700">{v.cliente?.razaoSocialOuNome}</td>
                     <td className="px-4 py-3 text-gray-600">{v.vendedor?.nome}</td>
-                    <td className="px-4 py-3 text-gray-600">{FORMA_PAGAMENTO_LABEL[v.formaPagamento] ?? v.formaPagamento}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatBRL(v.totalFinal)}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {FORMA_PAGAMENTO_LABEL[v.formaPagamento] ?? v.formaPagamento}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                      {formatBRL(v.totalFinal)}
+                    </td>
                   </tr>
                 ))}
-                {!loadVendas && vendas.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-gray-400">Nenhum dado no período</td></tr>}
+                {!loadVendas && vendas.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-gray-400">
+                      Nenhum dado no período
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -540,30 +689,56 @@ export function RelatoriosPage() {
 
         {aba === 'estoque' && (
           <Card>
-            <CardHeader><CardTitle>Estoque atual</CardTitle></CardHeader>
-            <CardContent className="p-0">
-              <table className="w-full text-sm">
+            <CardHeader>
+              <CardTitle>Estoque atual</CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto p-0">
+              <table className="w-full min-w-[520px] text-sm">
                 <thead className="border-b border-gray-100 bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Produto</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Código</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Categoria</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Saldo</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Unidade</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                      Produto
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                      Código
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                      Categoria
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">
+                      Saldo
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                      Unidade
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {loadEstoque && <tr><td colSpan={5} className="py-8 text-center text-gray-400">Carregando...</td></tr>}
+                  {loadEstoque && (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-gray-400">
+                        Carregando...
+                      </td>
+                    </tr>
+                  )}
                   {estoque.map((item: any) => (
                     <tr key={item.produtoId}>
                       <td className="px-4 py-3 font-medium">{item.nome}</td>
                       <td className="px-4 py-3 text-gray-600">{item.codigoInterno}</td>
                       <td className="px-4 py-3 text-gray-600">{item.categoria ?? '—'}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-gray-900">{Number(item.saldoAtual ?? 0)}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                        {Number(item.saldoAtual ?? 0)}
+                      </td>
                       <td className="px-4 py-3 text-gray-600">{item.unidadeVenda}</td>
                     </tr>
                   ))}
-                  {!loadEstoque && estoque.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-gray-400">Nenhum dado no período</td></tr>}
+                  {!loadEstoque && estoque.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-gray-400">
+                        Nenhum dado no período
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </CardContent>
@@ -572,28 +747,56 @@ export function RelatoriosPage() {
 
         {aba === 'produto' && (
           <Card>
-            <CardHeader><CardTitle>Faturamento por produto</CardTitle></CardHeader>
-            <CardContent className="p-0">
-              <table className="w-full text-sm">
+            <CardHeader>
+              <CardTitle>Faturamento por produto</CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto p-0">
+              <table className="w-full min-w-[520px] text-sm">
                 <thead className="border-b border-gray-100 bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Produto</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Qtd vendida</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Preço médio</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Faturamento</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                      Produto
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">
+                      Qtd vendida
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">
+                      Preço médio
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">
+                      Faturamento
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {loadProduto && <tr><td colSpan={4} className="py-8 text-center text-gray-400">Carregando...</td></tr>}
+                  {loadProduto && (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-gray-400">
+                        Carregando...
+                      </td>
+                    </tr>
+                  )}
                   {porProduto.map((p: any) => (
                     <tr key={p.codigoInterno ?? p.produto}>
                       <td className="px-4 py-3 font-medium">{p.produto}</td>
-                      <td className="px-4 py-3 text-right">{Number(p.quantidadeVendida).toFixed(0)} cx</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{formatBRL(p.precoMedioVenda)}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-green-700">{formatBRL(p.faturamento)}</td>
+                      <td className="px-4 py-3 text-right">
+                        {Number(p.quantidadeVendida).toFixed(0)} cx
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600">
+                        {formatBRL(p.precoMedioVenda)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-green-700">
+                        {formatBRL(p.faturamento)}
+                      </td>
                     </tr>
                   ))}
-                  {!loadProduto && porProduto.length === 0 && <tr><td colSpan={4} className="py-8 text-center text-gray-400">Nenhum dado no período</td></tr>}
+                  {!loadProduto && porProduto.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-gray-400">
+                        Nenhum dado no período
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </CardContent>
@@ -602,41 +805,75 @@ export function RelatoriosPage() {
 
         {aba === 'vendedor' && (
           <Card>
-            <CardHeader><CardTitle>Vendas por vendedor</CardTitle></CardHeader>
-            <CardContent className="p-0">
-              <table className="w-full text-sm">
+            <CardHeader>
+              <CardTitle>Vendas por vendedor</CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto p-0">
+              <table className="w-full min-w-[520px] text-sm">
                 <thead className="border-b border-gray-100 bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Vendedor</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Pedidos</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Total vendido</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                      Vendedor
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">
+                      Pedidos
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">
+                      Total vendido
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {loadVendedor && <tr><td colSpan={3} className="py-8 text-center text-gray-400">Carregando...</td></tr>}
+                  {loadVendedor && (
+                    <tr>
+                      <td colSpan={3} className="py-8 text-center text-gray-400">
+                        Carregando...
+                      </td>
+                    </tr>
+                  )}
                   {porVendedor.map((v: any, i: number) => (
                     <tr key={i}>
                       <td className="px-4 py-3 font-medium">{v.vendedor}</td>
                       <td className="px-4 py-3 text-right">{v.totalPedidos}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-green-700">{formatBRL(v.totalVendido)}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-green-700">
+                        {formatBRL(v.totalVendido)}
+                      </td>
                     </tr>
                   ))}
-                  {!loadVendedor && porVendedor.length === 0 && <tr><td colSpan={3} className="py-8 text-center text-gray-400">Nenhum dado no período</td></tr>}
+                  {!loadVendedor && porVendedor.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="py-8 text-center text-gray-400">
+                        Nenhum dado no período
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </CardContent>
           </Card>
         )}
 
-        {aba === 'financeiro' && (
-          loadFinanceiro ? (
+        {aba === 'financeiro' &&
+          (loadFinanceiro ? (
             <p className="py-8 text-center text-sm text-gray-400">Carregando...</p>
           ) : financeiro ? (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {[
-                { label: 'Recebidos (pagos)', data: financeiro.pagos, color: 'text-green-700 border-green-200 bg-green-50' },
-                { label: 'Em aberto', data: financeiro.emAberto, color: 'text-yellow-700 border-yellow-200 bg-yellow-50' },
-                { label: 'Vencidos', data: financeiro.vencidos, color: 'text-red-700 border-red-200 bg-red-50' },
+                {
+                  label: 'Recebidos (pagos)',
+                  data: financeiro.pagos,
+                  color: 'text-green-700 border-green-200 bg-green-50',
+                },
+                {
+                  label: 'Em aberto',
+                  data: financeiro.emAberto,
+                  color: 'text-yellow-700 border-yellow-200 bg-yellow-50',
+                },
+                {
+                  label: 'Vencidos',
+                  data: financeiro.vencidos,
+                  color: 'text-red-700 border-red-200 bg-red-50',
+                },
               ].map(({ label, data, color }) => (
                 <div key={label} className={`rounded-xl border p-5 ${color}`}>
                   <p className="mb-1 text-xs font-medium opacity-70">{label}</p>
@@ -647,8 +884,7 @@ export function RelatoriosPage() {
             </div>
           ) : (
             <p className="py-8 text-center text-sm text-gray-400">Nenhum dado no período</p>
-          )
-        )}
+          ))}
       </div>
     </div>
   )

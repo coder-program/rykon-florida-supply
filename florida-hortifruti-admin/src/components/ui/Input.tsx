@@ -13,13 +13,13 @@ export function Input({ label, error, className, type, ...props }: InputProps) {
   const isPassword = type === 'password'
 
   return (
-    <div className="space-y-1">
+    <div className="w-full space-y-1">
       {label && <label className="block text-xs font-medium text-gray-700">{label}</label>}
       <div className="relative">
         <input
           type={isPassword ? (showPassword ? 'text' : 'password') : type}
           className={cn(
-            'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white placeholder-gray-400',
+            'min-h-11 w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg bg-white placeholder-gray-400',
             'focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent',
             isPassword && 'pr-10',
             error && 'border-red-400',
@@ -56,9 +56,12 @@ export function MoneyInput({
   required?: boolean
   placeholder?: string
 }) {
-  const display = value === '' || value === undefined || value === null || value === 0
-    ? (value === 0 ? '0,00' : '')
-    : formatBRLInput(value)
+  const display =
+    value === '' || value === undefined || value === null || value === 0
+      ? value === 0
+        ? '0,00'
+        : ''
+      : formatBRLInput(value)
 
   return (
     <Input
@@ -72,13 +75,18 @@ export function MoneyInput({
   )
 }
 
-export function Select({ label, children, className, ...props }: { label?: string; children: React.ReactNode } & React.SelectHTMLAttributes<HTMLSelectElement>) {
+export function Select({
+  label,
+  children,
+  className,
+  ...props
+}: { label?: string; children: React.ReactNode } & React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <div className="space-y-1">
+    <div className="w-full space-y-1">
       {label && <label className="block text-xs font-medium text-gray-700">{label}</label>}
       <select
         className={cn(
-          'w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white',
+          'min-h-11 w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg bg-white',
           'focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent',
           className,
         )}

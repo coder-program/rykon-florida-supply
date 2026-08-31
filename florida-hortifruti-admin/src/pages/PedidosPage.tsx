@@ -24,6 +24,7 @@ import {
   FORMA_PAGAMENTO_LABEL,
 } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
+import { TableScroll } from '../components/ui/TableScroll'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Select } from '../components/ui/Input'
@@ -207,10 +208,10 @@ export function PedidosPage() {
       />
       <NovoPedidoModal open={novoPedido} onClose={() => setNovoPedido(false)} />
 
-      <div className="p-6 space-y-4">
+      <div className="space-y-4 p-4 md:p-6">
         {/* Filtros */}
-        <div className="flex gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-48">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <div className="relative min-w-0 flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               value={busca}
@@ -219,7 +220,7 @@ export function PedidosPage() {
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </div>
-          <div className="w-48">
+          <div className="w-full sm:w-48">
             <Select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
               <option value="">Todos os status</option>
               {Object.entries(STATUS_PEDIDO_LABEL).map(([k, v]) => (
@@ -231,72 +232,117 @@ export function PedidosPage() {
           </div>
         </div>
 
-        {/* Tabela */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Nº / Data</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Cliente</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Vendedor</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Status</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Pagamento</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500">Total</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {isLoading && (
+        <div className="space-y-3 md:hidden">
+          {isLoading && <p className="py-8 text-center text-sm text-gray-400">Carregando...</p>}
+          {!isLoading && pedidosFiltrados.length === 0 && (
+            <p className="py-8 text-center text-sm text-gray-400">Nenhum pedido encontrado</p>
+          )}
+          {pedidosFiltrados.map((p: any) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setPedidoSelecionado(p)}
+              className="w-full rounded-xl border border-gray-200 bg-white p-4 text-left"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-gray-900">
+                    #{String(p.numero).padStart(6, '0')}
+                  </p>
+                  <p className="text-sm text-gray-700">{p.cliente?.razaoSocialOuNome}</p>
+                  <p className="mt-1 text-xs text-gray-400">
+                    {formatDate(p.data)} · {p.vendedor?.nome}
+                  </p>
+                </div>
+                <p className="shrink-0 text-sm font-semibold text-gray-900">
+                  {formatBRL(p.totalFinal)}
+                </p>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <Badge className={STATUS_PEDIDO_COLOR[p.status]}>
+                  {STATUS_PEDIDO_LABEL[p.status]}
+                </Badge>
+                <Badge className={STATUS_PAGAMENTO_COLOR[p.statusPagamento]}>
+                  {p.statusPagamento?.replace('_', ' ')}
+                </Badge>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div className="hidden md:block">
+          <TableScroll>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-gray-400">
-                    Carregando...
-                  </td>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">
+                    Nº / Data
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Cliente</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">
+                    Vendedor
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Status</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">
+                    Pagamento
+                  </th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500">Total</th>
+                  <th className="px-4 py-3" />
                 </tr>
-              )}
-              {!isLoading && pedidosFiltrados.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="text-center py-8 text-gray-400">
-                    Nenhum pedido encontrado
-                  </td>
-                </tr>
-              )}
-              {pedidosFiltrados.map((p: any) => (
-                <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900">
-                      #{String(p.numero).padStart(6, '0')}
-                    </p>
-                    <p className="text-xs text-gray-400">{formatDate(p.data)}</p>
-                  </td>
-                  <td className="px-4 py-3 text-gray-700 max-w-45 truncate">
-                    {p.cliente?.razaoSocialOuNome}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{p.vendedor?.nome}</td>
-                  <td className="px-4 py-3">
-                    <Badge className={STATUS_PEDIDO_COLOR[p.status]}>
-                      {STATUS_PEDIDO_LABEL[p.status]}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="text-xs text-gray-600">
-                      {FORMA_PAGAMENTO_LABEL[p.formaPagamento]}
-                    </p>
-                    <Badge className={`mt-0.5 ${STATUS_PAGAMENTO_COLOR[p.statusPagamento]}`}>
-                      {p.statusPagamento?.replace('_', ' ')}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                    {formatBRL(p.totalFinal)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Button size="sm" variant="ghost" onClick={() => setPedidoSelecionado(p)}>
-                      <ChevronDown className="w-3.5 h-3.5" /> Ações
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {isLoading && (
+                  <tr>
+                    <td colSpan={7} className="text-center py-8 text-gray-400">
+                      Carregando...
+                    </td>
+                  </tr>
+                )}
+                {!isLoading && pedidosFiltrados.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="text-center py-8 text-gray-400">
+                      Nenhum pedido encontrado
+                    </td>
+                  </tr>
+                )}
+                {pedidosFiltrados.map((p: any) => (
+                  <tr key={p.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-900">
+                        #{String(p.numero).padStart(6, '0')}
+                      </p>
+                      <p className="text-xs text-gray-400">{formatDate(p.data)}</p>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700 max-w-45 truncate">
+                      {p.cliente?.razaoSocialOuNome}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{p.vendedor?.nome}</td>
+                    <td className="px-4 py-3">
+                      <Badge className={STATUS_PEDIDO_COLOR[p.status]}>
+                        {STATUS_PEDIDO_LABEL[p.status]}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-xs text-gray-600">
+                        {FORMA_PAGAMENTO_LABEL[p.formaPagamento]}
+                      </p>
+                      <Badge className={`mt-0.5 ${STATUS_PAGAMENTO_COLOR[p.statusPagamento]}`}>
+                        {p.statusPagamento?.replace('_', ' ')}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                      {formatBRL(p.totalFinal)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Button size="sm" variant="ghost" onClick={() => setPedidoSelecionado(p)}>
+                        <ChevronDown className="w-3.5 h-3.5" /> Ações
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         </div>
       </div>
 
@@ -309,7 +355,7 @@ export function PedidosPage() {
       >
         {pedidoSelecionado && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 sm:gap-4">
               <div>
                 <span className="text-gray-500">Cliente:</span>{' '}
                 <strong>{pedidoSelecionado.cliente?.razaoSocialOuNome}</strong>
@@ -333,68 +379,74 @@ export function PedidosPage() {
             </div>
 
             {/* Itens */}
-            <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">Produto</th>
-                  <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">Qtd</th>
-                  <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">
-                    Unitário
-                  </th>
-                  <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {pedidoSelecionado.itens?.map((i: any) => (
-                  <tr key={i.id}>
-                    <td className="px-3 py-2">{i.produto?.nome}</td>
-                    <td className="px-3 py-2 text-right">{Number(i.quantidade).toFixed(0)} cx</td>
-                    <td className="px-3 py-2 text-right">{formatBRL(i.valorUnitario)}</td>
-                    <td className="px-3 py-2 text-right font-semibold">
-                      {formatBRL(i.valorTotal)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot className="bg-gray-50 text-sm">
-                <tr>
-                  <td colSpan={3} className="px-3 py-1.5 text-right text-gray-500">
-                    Subtotal
-                  </td>
-                  <td className="px-3 py-1.5 text-right">
-                    {formatBRL(pedidoSelecionado.subtotal)}
-                  </td>
-                </tr>
-                {Number(pedidoSelecionado.valorFrete) > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[420px] text-sm border border-gray-200 rounded-lg overflow-hidden">
+                <thead className="bg-gray-50">
                   <tr>
-                    <td colSpan={3} className="px-3 py-1 text-right text-gray-500">
-                      Frete
-                    </td>
-                    <td className="px-3 py-1 text-right">
-                      +{formatBRL(pedidoSelecionado.valorFrete)}
-                    </td>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">
+                      Produto
+                    </th>
+                    <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">Qtd</th>
+                    <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">
+                      Unitário
+                    </th>
+                    <th className="text-right px-3 py-2 text-xs font-medium text-gray-500">
+                      Total
+                    </th>
                   </tr>
-                )}
-                {Number(pedidoSelecionado.descontoValor) > 0 && (
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {pedidoSelecionado.itens?.map((i: any) => (
+                    <tr key={i.id}>
+                      <td className="px-3 py-2">{i.produto?.nome}</td>
+                      <td className="px-3 py-2 text-right">{Number(i.quantidade).toFixed(0)} cx</td>
+                      <td className="px-3 py-2 text-right">{formatBRL(i.valorUnitario)}</td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        {formatBRL(i.valorTotal)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-gray-50 text-sm">
                   <tr>
-                    <td colSpan={3} className="px-3 py-1 text-right text-gray-500">
-                      Desconto
+                    <td colSpan={3} className="px-3 py-1.5 text-right text-gray-500">
+                      Subtotal
                     </td>
-                    <td className="px-3 py-1 text-right text-red-600">
-                      -{formatBRL(pedidoSelecionado.descontoValor)}
+                    <td className="px-3 py-1.5 text-right">
+                      {formatBRL(pedidoSelecionado.subtotal)}
                     </td>
                   </tr>
-                )}
-                <tr className="font-bold">
-                  <td colSpan={3} className="px-3 py-2 text-right">
-                    Total
-                  </td>
-                  <td className="px-3 py-2 text-right text-green-700">
-                    {formatBRL(pedidoSelecionado.totalFinal)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+                  {Number(pedidoSelecionado.valorFrete) > 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-3 py-1 text-right text-gray-500">
+                        Frete
+                      </td>
+                      <td className="px-3 py-1 text-right">
+                        +{formatBRL(pedidoSelecionado.valorFrete)}
+                      </td>
+                    </tr>
+                  )}
+                  {Number(pedidoSelecionado.descontoValor) > 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-3 py-1 text-right text-gray-500">
+                        Desconto
+                      </td>
+                      <td className="px-3 py-1 text-right text-red-600">
+                        -{formatBRL(pedidoSelecionado.descontoValor)}
+                      </td>
+                    </tr>
+                  )}
+                  <tr className="font-bold">
+                    <td colSpan={3} className="px-3 py-2 text-right">
+                      Total
+                    </td>
+                    <td className="px-3 py-2 text-right text-green-700">
+                      {formatBRL(pedidoSelecionado.totalFinal)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
 
             {/* Edição antes de aprovar */}
             {['ENVIADO', 'EM_CONFERENCIA', 'RASCUNHO'].includes(pedidoSelecionado.status) &&
@@ -419,7 +471,7 @@ export function PedidosPage() {
                 className="pt-2 border-t border-gray-100 space-y-3"
               >
                 <p className="text-xs font-semibold text-gray-500 uppercase">Editar Pedido</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Frete (R$)
@@ -447,7 +499,7 @@ export function PedidosPage() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Pagamento

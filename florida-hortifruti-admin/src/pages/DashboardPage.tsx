@@ -373,11 +373,11 @@ export function DashboardPage() {
   if (isLoading) {
     return (
       <div>
-        <div className="border-b border-gray-200 bg-white px-6 py-6">
+        <div className="border-b border-gray-200 bg-white px-4 py-5 md:px-6 md:py-6">
           <div className="h-7 w-56 animate-pulse rounded-lg bg-gray-200" />
           <div className="mt-2 h-4 w-40 animate-pulse rounded bg-gray-100" />
         </div>
-        <div className="space-y-6 p-6">
+        <div className="space-y-6 p-4 md:p-6">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="h-36 animate-pulse rounded-2xl bg-gray-200" />
@@ -418,7 +418,7 @@ export function DashboardPage() {
 
   return (
     <div>
-      <header className="border-b border-gray-200 bg-white px-6 py-6">
+      <header className="border-b border-gray-200 bg-white px-4 py-5 md:px-6 md:py-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-green-700">
@@ -435,7 +435,7 @@ export function DashboardPage() {
               {(isFetching || lucroAtualizando) && (
                 <span className="text-xs text-gray-400">Atualizando…</span>
               )}
-              <div className="flex flex-wrap rounded-xl bg-gray-100 p-1">
+              <div className="flex w-full flex-wrap rounded-xl bg-gray-100 p-1 sm:w-auto">
                 {PERIODOS.map((p) => (
                   <button
                     key={p.value}
@@ -474,7 +474,7 @@ export function DashboardPage() {
         </div>
       </header>
 
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 md:p-6">
         {(zerados > 0 || vencidos > 0) && (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {zerados > 0 && (

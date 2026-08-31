@@ -291,7 +291,7 @@ export function EstoquePage() {
         }
       />
 
-      <div className="p-6 space-y-4">
+      <div className="space-y-4 p-4 md:p-6">
         {saldos.some((s: any) => s.abaixoMinimo) && (
           <div className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
