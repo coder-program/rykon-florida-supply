@@ -99,6 +99,67 @@ function isTelefoneValido(valor: string) {
   return true
 }
 
+function formatarCpfCnpj(valor: string) {
+  const digits = somenteDigitos(valor).slice(0, 14)
+  if (digits.length <= 11) {
+    const partes = []
+    if (digits.length > 0) partes.push(digits.slice(0, Math.min(3, digits.length)))
+    if (digits.length > 3) partes.push(digits.slice(3, Math.min(6, digits.length)))
+    if (digits.length > 6) partes.push(digits.slice(6, Math.min(9, digits.length)))
+    const sufixo = digits.length > 9 ? digits.slice(9, 11) : ''
+    let formatted = partes.join('.')
+    if (digits.length > 9) formatted += `-${sufixo}`
+    return formatted
+  }
+
+  const partes = []
+  if (digits.length > 0) partes.push(digits.slice(0, Math.min(2, digits.length)))
+  if (digits.length > 2) partes.push(digits.slice(2, Math.min(5, digits.length)))
+  if (digits.length > 5) partes.push(digits.slice(5, Math.min(8, digits.length)))
+  const bloco = digits.length > 8 ? digits.slice(8, Math.min(12, digits.length)) : ''
+  const sufixo = digits.length > 12 ? digits.slice(12, 14) : ''
+  let formatted = partes.join('.')
+  if (digits.length > 8) formatted += `/${bloco}`
+  if (digits.length > 12) formatted += `-${sufixo}`
+  return formatted
+}
+
+function formatarTelefone(valor: string) {
+  const digits = somenteDigitos(valor).slice(0, 11)
+  if (!digits) return ''
+  if (digits.length <= 2) return `(${digits}`
+
+  const ddd = digits.slice(0, 2)
+  const restante = digits.slice(2)
+  if (restante.length <= 4) return `(${ddd}) ${restante}`
+  if (restante.length <= 8) return `(${ddd}) ${restante.slice(0, 4)}-${restante.slice(4)}`
+  return `(${ddd}) ${restante.slice(0, 5)}-${restante.slice(5, 9)}`
+}
+
+function formatarNumeroBR(valor: number, casas = 2) {
+  return Number(valor || 0).toLocaleString('pt-BR', {
+    minimumFractionDigits: casas,
+    maximumFractionDigits: casas,
+  })
+}
+
+function parseNumeroBR(valor: string) {
+  const limpo = valor.replace(/[^\d,.-]/g, '').trim()
+  if (!limpo) return 0
+
+  const temVirgula = limpo.includes(',')
+  if (temVirgula) {
+    const normalizado = limpo.replace(/\./g, '').replace(',', '.')
+    return Number(normalizado) || 0
+  }
+
+  const partes = limpo.split('.')
+  if (partes.length > 2) return Number(partes.join('')) || 0
+  if (partes.length === 2 && partes[1].length === 3) return Number(partes.join('')) || 0
+
+  return Number(limpo) || 0
+}
+
 function validarNovoCliente(form: NovoClienteForm): NovoClienteErros {
   const erros: NovoClienteErros = {}
   const nome = form.razaoSocialOuNome.trim()
@@ -328,10 +389,10 @@ function EtapaExtras({
         <div className="flex items-center gap-3">
           <label className="text-sm text-gray-600">Valor (R$)</label>
           <input
-            type="number"
-            step="0.01"
-            value={dados.valorFrete || ''}
-            onChange={(e) => onChange({ valorFrete: Number(e.target.value) })}
+            type="text"
+            inputMode="decimal"
+            value={dados.valorFrete ? formatarNumeroBR(dados.valorFrete) : ''}
+            onChange={(e) => onChange({ valorFrete: parseNumeroBR(e.target.value) })}
             placeholder="0,00"
             className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-base text-right focus:outline-none focus:ring-2 focus:ring-green-500"
           />
@@ -366,20 +427,19 @@ function EtapaExtras({
         </div>
         {dados.usarPercentual ? (
           <input
-            type="number"
-            step="0.1"
-            max="100"
-            value={dados.descontoPercentual || ''}
-            onChange={(e) => onChange({ descontoPercentual: Number(e.target.value) })}
+            type="text"
+            inputMode="decimal"
+            value={dados.descontoPercentual ? formatarNumeroBR(dados.descontoPercentual, 1) : ''}
+            onChange={(e) => onChange({ descontoPercentual: parseNumeroBR(e.target.value) })}
             placeholder="0"
             className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base text-right focus:outline-none focus:ring-2 focus:ring-green-500"
           />
         ) : (
           <input
-            type="number"
-            step="0.01"
-            value={dados.descontoValor || ''}
-            onChange={(e) => onChange({ descontoValor: Number(e.target.value) })}
+            type="text"
+            inputMode="decimal"
+            value={dados.descontoValor ? formatarNumeroBR(dados.descontoValor) : ''}
+            onChange={(e) => onChange({ descontoValor: parseNumeroBR(e.target.value) })}
             placeholder="0,00"
             className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base text-right focus:outline-none focus:ring-2 focus:ring-green-500"
           />
@@ -690,11 +750,12 @@ export function NovoPedidoPage() {
               <input
                 placeholder="CNPJ / CPF (opcional)"
                 value={formCliente.cnpjCpf}
-                maxLength={18}
                 onChange={(e) => {
                   setClienteErroApi('')
-                  setFormCliente((f) => ({ ...f, cnpjCpf: e.target.value }))
+                  setFormCliente((f) => ({ ...f, cnpjCpf: formatarCpfCnpj(e.target.value) }))
                 }}
+                inputMode="numeric"
+                maxLength={18}
                 className={`w-full border rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-green-500 ${clienteTentouSalvar && errosCliente.cnpjCpf ? 'border-red-400' : 'border-gray-300'}`}
               />
               {clienteTentouSalvar && errosCliente.cnpjCpf && (
@@ -705,11 +766,12 @@ export function NovoPedidoPage() {
               <input
                 placeholder="Telefone *"
                 value={formCliente.telefone}
-                maxLength={20}
                 onChange={(e) => {
                   setClienteErroApi('')
-                  setFormCliente((f) => ({ ...f, telefone: e.target.value }))
+                  setFormCliente((f) => ({ ...f, telefone: formatarTelefone(e.target.value) }))
                 }}
+                inputMode="numeric"
+                maxLength={16}
                 className={`w-full border rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-green-500 ${clienteTentouSalvar && errosCliente.telefone ? 'border-red-400' : 'border-gray-300'}`}
               />
               {clienteTentouSalvar && errosCliente.telefone && (
