@@ -40,12 +40,22 @@ export function EstoquePage() {
 
   const entrada = useMutation({
     mutationFn: (d: any) => api.post('/estoque/entrada', { ...d, quantidade: Number(d.quantidade), custoTotal: Number(d.custoTotal) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['estoque-saldos'] }); setModalEntrada(false) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['estoque-saldos'] })
+      qc.invalidateQueries({ queryKey: ['produtos'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      setModalEntrada(false)
+    },
   })
 
   const ajuste = useMutation({
     mutationFn: (d: any) => api.post('/estoque/ajuste', { ...d, quantidade: Number(d.quantidade) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['estoque-saldos'] }); setModalAjuste(false) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['estoque-saldos'] })
+      qc.invalidateQueries({ queryKey: ['produtos'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      setModalAjuste(false)
+    },
   })
 
   const tipoCor: Record<string, string> = {

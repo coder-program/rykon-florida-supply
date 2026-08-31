@@ -12,56 +12,81 @@ import { RelatoriosService } from './relatorios.service';
 export class RelatoriosController {
   constructor(private relatoriosService: RelatoriosService) {}
 
-  // Seção 20: dashboard com período selecionável
   @Get('dashboard')
-  dashboard(@Query('dataInicio') dataInicio?: string, @Query('dataFim') dataFim?: string) {
-    return this.relatoriosService.dashboard(dataInicio, dataFim);
+  dashboard(@Query() query: Record<string, string | undefined>) {
+    return this.relatoriosService.dashboard(query ?? {});
   }
 
-  // Seção 21: relatórios de vendas
   @Get('relatorios/vendas')
-  vendasPorPeriodo(@Query('dataInicio') dataInicio?: string, @Query('dataFim') dataFim?: string) {
-    return this.relatoriosService.vendasPorPeriodo(dataInicio, dataFim);
+  vendasPorPeriodo(@Query() query: Record<string, string | undefined>) {
+    return this.relatoriosService.vendasPorPeriodo(query ?? {});
   }
 
   @Get('relatorios/vendas/por-vendedor')
-  vendasPorVendedor(@Query('dataInicio') dataInicio?: string, @Query('dataFim') dataFim?: string) {
-    return this.relatoriosService.vendasPorVendedor(dataInicio, dataFim);
+  vendasPorVendedor(@Query() query: Record<string, string | undefined>) {
+    return this.relatoriosService.vendasPorVendedor(query ?? {});
   }
 
   @Get('relatorios/vendas/por-produto')
-  vendasPorProduto(@Query('dataInicio') dataInicio?: string, @Query('dataFim') dataFim?: string) {
-    return this.relatoriosService.vendasPorProduto(dataInicio, dataFim);
+  vendasPorProduto(@Query() query: Record<string, string | undefined>) {
+    return this.relatoriosService.vendasPorProduto(query ?? {});
   }
 
   @Get('relatorios/financeiro')
-  financeiro(@Query('dataInicio') dataInicio?: string, @Query('dataFim') dataFim?: string) {
-    return this.relatoriosService.financeiro(dataInicio, dataFim);
+  financeiro(@Query() query: Record<string, string | undefined>) {
+    return this.relatoriosService.financeiro(query ?? {});
   }
 
   @Get('relatorios/estoque')
-  estoqueAtual() {
-    return this.relatoriosService.estoqueAtual();
+  estoqueAtual(@Query() query: Record<string, string | undefined>) {
+    return this.relatoriosService.estoqueAtual(query ?? {});
   }
 
-  // Seção 21: exportação CSV
   @Get('relatorios/vendas/csv')
-  async exportarVendasCsv(
-    @Query('dataInicio') dataInicio: string,
-    @Query('dataFim') dataFim: string,
-    @Res() res: Response,
-  ) {
-    const csv = await this.relatoriosService.gerarCsvVendas(dataInicio, dataFim);
+  async exportarVendasCsv(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
+    const csv = await this.relatoriosService.gerarCsvVendas(query ?? {});
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="vendas.csv"');
-    res.send('\uFEFF' + csv); // BOM para Excel reconhecer UTF-8
+    res.send('\uFEFF' + csv);
+  }
+
+  @Get('relatorios/vendas/json')
+  async exportarVendasJson(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
+    const json = await this.relatoriosService.gerarJsonVendas(query ?? {});
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="vendas.json"');
+    res.send(json);
+  }
+
+  @Get('relatorios/vendas/xml')
+  async exportarVendasXml(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
+    const xml = await this.relatoriosService.gerarXmlVendas(query ?? {});
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="vendas.xml"');
+    res.send(xml);
   }
 
   @Get('relatorios/estoque/csv')
-  async exportarEstoqueCsv(@Res() res: Response) {
-    const csv = await this.relatoriosService.gerarCsvEstoque();
+  async exportarEstoqueCsv(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
+    const csv = await this.relatoriosService.gerarCsvEstoque(query ?? {});
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="estoque.csv"');
     res.send('\uFEFF' + csv);
+  }
+
+  @Get('relatorios/estoque/json')
+  async exportarEstoqueJson(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
+    const json = await this.relatoriosService.gerarJsonEstoque(query ?? {});
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="estoque.json"');
+    res.send(json);
+  }
+
+  @Get('relatorios/estoque/xml')
+  async exportarEstoqueXml(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
+    const xml = await this.relatoriosService.gerarXmlEstoque(query ?? {});
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="estoque.xml"');
+    res.send(xml);
   }
 }

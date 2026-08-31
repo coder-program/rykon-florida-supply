@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, History, Trash2, RotateCcw, FileSpreadsheet, FileText } from 'lucide-react'
+import { Plus, Pencil, History, Trash2, RotateCcw, FileSpreadsheet, FileText, Search } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
@@ -9,9 +9,12 @@ import { formatBRL, formatDateTime } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
-import { Input, MoneyInput } from '../components/ui/Input'
+import { Input, MoneyInput, Select } from '../components/ui/Input'
 
 const EMPTY = { codigoInterno: '', nome: '', categoria: '', unidadeVenda: 'CAIXA', precoSugerido: '', custo: '', estoqueMinimo: '' }
+
+type StatusFiltro = 'ativos' | 'inativos' | 'todos'
+type EstoqueFiltro = 'todos' | 'sem-estoque' | 'baixo' | 'normal'
 
 export function ProdutosPage() {
   const qc = useQueryClient()
@@ -19,11 +22,47 @@ export function ProdutosPage() {
   const [modalHistorico, setModalHistorico] = useState(false)
   const [editando, setEditando] = useState<any>(null)
   const [form, setForm] = useState<any>(EMPTY)
+  const [busca, setBusca] = useState('')
+  const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>('ativos')
+  const [categoriaFiltro, setCategoriaFiltro] = useState('')
+  const [estoqueFiltro, setEstoqueFiltro] = useState<EstoqueFiltro>('todos')
 
   const { data: produtos = [], isLoading } = useQuery({
-    queryKey: ['produtos'],
-    queryFn: () => api.get('/produtos', { params: { incluirInativos: true } }).then((r) => r.data),
+    queryKey: ['produtos', statusFiltro],
+    queryFn: () => api.get('/produtos', { params: { incluirInativos: statusFiltro === 'todos' || statusFiltro === 'inativos' } }).then((r) => {
+      console.log('[DEBUG] ProdutosPage produtos carregados', r.data)
+      return r.data
+    }),
   })
+
+  const categorias = useMemo<string[]>(() => {
+    const valores = (produtos as any[])
+      .map((p: any) => p.categoria)
+      .filter((categoria): categoria is string => typeof categoria === 'string' && categoria.trim().length > 0)
+
+    return Array.from(new Set(valores)).sort((a: string, b: string) => a.localeCompare(b))
+  }, [produtos])
+
+  const produtosFiltrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase()
+
+    return (produtos || []).filter((p: any) => {
+      const matchBusca = !termo || [p.nome, p.codigoInterno, p.categoria ?? ''].join(' ').toLowerCase().includes(termo)
+      const matchCategoria = !categoriaFiltro || p.categoria === categoriaFiltro
+      const estoqueAtual = Number(p.estoqueAtual ?? 0)
+      const estoqueMinimo = Number(p.estoqueMinimo ?? 0)
+      const matchEstoque = (() => {
+        if (estoqueFiltro === 'todos') return true
+        if (estoqueFiltro === 'sem-estoque') return estoqueAtual <= 0
+        if (estoqueFiltro === 'baixo') return estoqueAtual > 0 && estoqueAtual <= (estoqueMinimo || 1)
+        return estoqueAtual > (estoqueMinimo || 1)
+      })()
+
+      if (statusFiltro === 'ativos') return p.ativo !== false && matchBusca && matchCategoria && matchEstoque
+      if (statusFiltro === 'inativos') return p.ativo === false && matchBusca && matchCategoria && matchEstoque
+      return matchBusca && matchCategoria && matchEstoque
+    })
+  }, [produtos, busca, categoriaFiltro, estoqueFiltro, statusFiltro])
 
   const { data: historico = [] } = useQuery({
     queryKey: ['historico-precos', editando?.id],
@@ -68,7 +107,7 @@ export function ProdutosPage() {
   }
 
   function exportarExcel() {
-    const linhas = produtos.map((p: any) => ({
+    const linhas = produtosFiltrados.map((p: any) => ({
       Código: p.codigoInterno ?? '',
       Nome: p.nome ?? '',
       Categoria: p.categoria ?? '',
@@ -76,6 +115,7 @@ export function ProdutosPage() {
       'Preço Sugerido': Number(p.precoSugerido ?? 0),
       Custo: Number(p.custo ?? 0),
       Estoque: Number(p.estoqueAtual ?? 0),
+      'Estoque Mínimo': Number(p.estoqueMinimo ?? 0),
       Status: p.ativo === false ? 'Inativo' : 'Ativo',
     }))
 
@@ -94,12 +134,13 @@ export function ProdutosPage() {
 
     autoTable(doc, {
       startY: 26,
-      head: [['Código', 'Nome', 'Categoria', 'Unidade', 'Preço', 'Custo', 'Status']],
-      body: produtos.map((p: any) => [
+      head: [['Código', 'Nome', 'Categoria', 'Unidade', 'Estoque', 'Preço', 'Custo', 'Status']],
+      body: produtosFiltrados.map((p: any) => [
         p.codigoInterno ?? '',
         p.nome ?? '',
         p.categoria ?? '',
         p.unidadeVenda ?? '',
+        Number(p.estoqueAtual ?? 0),
         formatBRL(p.precoSugerido),
         p.custo ? formatBRL(p.custo) : '—',
         p.ativo === false ? 'Inativo' : 'Ativo',
@@ -116,13 +157,13 @@ export function ProdutosPage() {
     <div>
       <PageHeader
         title="Produtos"
-        subtitle={`${produtos.length} produto(s) ativo(s)`}
+        subtitle={`${produtosFiltrados.length} produto(s) exibido(s) • Status padrão: ativos`}
         actions={
           <div className="flex flex-wrap gap-2 justify-end">
-            <Button variant="secondary" onClick={exportarExcel} disabled={produtos.length === 0}>
+            <Button variant="secondary" onClick={exportarExcel} disabled={produtosFiltrados.length === 0}>
               <FileSpreadsheet className="w-4 h-4" /> Exportar Excel
             </Button>
-            <Button variant="secondary" onClick={exportarPdf} disabled={produtos.length === 0}>
+            <Button variant="secondary" onClick={exportarPdf} disabled={produtosFiltrados.length === 0}>
               <FileText className="w-4 h-4" /> Exportar PDF
             </Button>
             <Button onClick={abrirNovo}><Plus className="w-4 h-4" /> Novo Produto</Button>
@@ -130,7 +171,44 @@ export function ProdutosPage() {
         }
       />
 
-      <div className="p-6">
+      <div className="p-6 space-y-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 items-end">
+            <div className="relative xl:col-span-2">
+              <label className="block text-xs font-medium text-gray-700 mb-1">Buscar</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Nome, código ou categoria"
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+            </div>
+
+            <Select label="Status" value={statusFiltro} onChange={(e) => setStatusFiltro(e.target.value as StatusFiltro)}>
+              <option value="ativos">Ativos</option>
+              <option value="inativos">Inativos</option>
+              <option value="todos">Todos</option>
+            </Select>
+
+            <Select label="Categoria" value={categoriaFiltro} onChange={(e) => setCategoriaFiltro(e.target.value)}>
+              <option value="">Todas</option>
+              {categorias.map((categoria) => (
+                <option key={categoria} value={categoria}>{categoria}</option>
+              ))}
+            </Select>
+
+            <Select label="Estoque" value={estoqueFiltro} onChange={(e) => setEstoqueFiltro(e.target.value as EstoqueFiltro)}>
+              <option value="todos">Todos</option>
+              <option value="sem-estoque">Sem estoque</option>
+              <option value="baixo">Baixo</option>
+              <option value="normal">Normal</option>
+            </Select>
+          </div>
+        </div>
+
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -139,6 +217,7 @@ export function ProdutosPage() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Nome</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Categoria</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Unidade</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500">Estoque</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500">Preço Sugerido</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500">Custo</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Status</th>
@@ -146,13 +225,15 @@ export function ProdutosPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <tr><td colSpan={8} className="text-center py-8 text-gray-400">Carregando...</td></tr>}
-              {produtos.map((p: any) => (
+              {isLoading && <tr><td colSpan={9} className="text-center py-8 text-gray-400">Carregando...</td></tr>}
+              {!isLoading && produtosFiltrados.length === 0 && <tr><td colSpan={9} className="text-center py-8 text-gray-400">Nenhum produto encontrado</td></tr>}
+              {produtosFiltrados.map((p: any) => (
                 <tr key={p.id} className={`hover:bg-gray-50 ${p.ativo === false ? 'opacity-60' : ''}`}>
                   <td className="px-4 py-3 font-mono text-gray-600">{p.codigoInterno}</td>
                   <td className="px-4 py-3 font-medium text-gray-900">{p.nome}</td>
                   <td className="px-4 py-3 text-gray-600">{p.categoria ?? '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{p.unidadeVenda}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-900">{Number(p.estoqueAtual ?? 0)}</td>
                   <td className="px-4 py-3 text-right text-green-700 font-semibold">{formatBRL(p.precoSugerido)}</td>
                   <td className="px-4 py-3 text-right text-gray-600">{p.custo ? formatBRL(p.custo) : '—'}</td>
                   <td className="px-4 py-3">

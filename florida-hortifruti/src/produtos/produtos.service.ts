@@ -10,11 +10,37 @@ export class ProdutosService {
     return this.prisma.produto.create({ data: dto });
   }
 
-  findAll(incluirInativos = false) {
-    return this.prisma.produto.findMany({
+  async findAll(incluirInativos = false) {
+    const produtos = await this.prisma.produto.findMany({
       where: incluirInativos ? {} : { ativo: true },
       orderBy: [{ ativo: 'desc' }, { nome: 'asc' }],
     });
+
+    const produtosComEstoque = await Promise.all(
+      produtos.map(async (produto) => {
+        const saldo = await this.prisma.movimentacaoEstoque.aggregate({
+          where: { produtoId: produto.id },
+          _sum: { quantidade: true },
+        });
+
+        const estoqueAtual = Number(saldo._sum.quantidade ?? 0);
+
+        console.log('[DEBUG] ProdutosService.findAll', {
+          produtoId: produto.id,
+          codigoInterno: produto.codigoInterno,
+          nome: produto.nome,
+          estoqueAtual,
+          saldoBruto: saldo._sum.quantidade,
+        });
+
+        return {
+          ...produto,
+          estoqueAtual,
+        };
+      }),
+    );
+
+    return produtosComEstoque;
   }
 
   async findOne(id: string) {

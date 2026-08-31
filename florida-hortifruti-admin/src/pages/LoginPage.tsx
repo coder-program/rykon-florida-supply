@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Leaf } from 'lucide-react'
 import { Input } from '../components/ui/Input'
-import { useAuth } from '../contexts/AuthContext'
+import { useAuth } from '../contexts/useAuth'
 
 export function LoginPage() {
   const { login, usuario } = useAuth()

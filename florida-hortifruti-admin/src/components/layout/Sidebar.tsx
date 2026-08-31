@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ShoppingCart, Users, Package, Warehouse,
   BarChart3, UserCog, LogOut, Leaf, Banknote,
 } from 'lucide-react'
-import { useAuth } from '../../contexts/AuthContext'
+import { useAuth } from '../../contexts/useAuth'
 import { cn } from '../../lib/utils'
 
 const navItems = [

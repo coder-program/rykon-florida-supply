@@ -2,6 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { StatusPedido, StatusPagamento } from '@prisma/client';
 
+type RelatorioQuery = {
+  dataInicio?: string;
+  dataFim?: string;
+  status?: string;
+  statusPagamento?: string;
+  vendedorId?: string;
+  produtoId?: string;
+  categoria?: string;
+  tipoMovimento?: string;
+};
+
 @Injectable()
 export class RelatoriosService {
   constructor(private prisma: PrismaService) {}
@@ -13,13 +24,35 @@ export class RelatoriosService {
     return Object.keys(data).length ? data : undefined;
   }
 
-  // Seção 21: relatório de vendas por período
-  async vendasPorPeriodo(dataInicio?: string, dataFim?: string) {
+  private buildPedidoWhere(query: RelatorioQuery = {}) {
+    const { dataInicio, dataFim, status, statusPagamento, vendedorId } = query;
     const data = this.periodoWhere(dataInicio, dataFim);
+    const statusValue = status && status !== 'TODOS' ? status : undefined;
+    const pagamentoValue = statusPagamento && statusPagamento !== 'TODOS' ? statusPagamento : undefined;
+
+    return {
+      ...(statusValue ? { status: statusValue as StatusPedido } : { status: { notIn: [StatusPedido.RASCUNHO, StatusPedido.CANCELADO] } }),
+      ...(pagamentoValue ? { statusPagamento: pagamentoValue as StatusPagamento } : {}),
+      ...(vendedorId ? { vendedorId } : {}),
+      ...(data ? { data } : {}),
+    };
+  }
+
+  private sanitizeString(value?: string | null) {
+    return value ? value.toString().trim() : undefined;
+  }
+
+  private csvEscape(value: unknown): string {
+    const text = String(value ?? '').replace(/"/g, '""');
+    return `"${text}"`;
+  }
+
+  async vendasPorPeriodo(query: RelatorioQuery = {}) {
+    const { produtoId } = query;
     return this.prisma.pedido.findMany({
       where: {
-        status: { notIn: [StatusPedido.RASCUNHO, StatusPedido.CANCELADO] },
-        ...(data ? { data } : {}),
+        ...(produtoId ? { itens: { some: { produtoId } } } : {}),
+        ...this.buildPedidoWhere(query),
       },
       include: {
         cliente: { select: { razaoSocialOuNome: true, nomeFantasia: true } },
@@ -30,15 +63,10 @@ export class RelatoriosService {
     });
   }
 
-  // Seção 21: relatório de vendas agrupado por vendedor
-  async vendasPorVendedor(dataInicio?: string, dataFim?: string) {
-    const data = this.periodoWhere(dataInicio, dataFim);
+  async vendasPorVendedor(query: RelatorioQuery = {}) {
     const pedidos = await this.prisma.pedido.groupBy({
       by: ['vendedorId'],
-      where: {
-        status: { notIn: [StatusPedido.RASCUNHO, StatusPedido.CANCELADO] },
-        ...(data ? { data } : {}),
-      },
+      where: this.buildPedidoWhere(query),
       _sum: { totalFinal: true },
       _count: { id: true },
     });
@@ -55,16 +83,13 @@ export class RelatoriosService {
     }));
   }
 
-  // Seção 21: relatório de vendas agrupado por produto
-  async vendasPorProduto(dataInicio?: string, dataFim?: string) {
-    const data = this.periodoWhere(dataInicio, dataFim);
+  async vendasPorProduto(query: RelatorioQuery = {}) {
+    const { produtoId } = query;
     const itens = await this.prisma.itemPedido.groupBy({
       by: ['produtoId'],
       where: {
-        pedido: {
-          status: { notIn: [StatusPedido.RASCUNHO, StatusPedido.CANCELADO] },
-          ...(data ? { data } : {}),
-        },
+        ...(produtoId ? { produtoId } : {}),
+        pedido: this.buildPedidoWhere(query),
       },
       _sum: { quantidade: true, valorTotal: true },
       _avg: { valorUnitario: true },
@@ -89,13 +114,8 @@ export class RelatoriosService {
     });
   }
 
-  // Seção 21: relatório financeiro — recebidos, em aberto, vencidos
-  async financeiro(dataInicio?: string, dataFim?: string) {
-    const data = this.periodoWhere(dataInicio, dataFim);
-    const base = {
-      status: { notIn: [StatusPedido.RASCUNHO, StatusPedido.CANCELADO] },
-      ...(data ? { data } : {}),
-    };
+  async financeiro(query: RelatorioQuery = {}) {
+    const base = this.buildPedidoWhere(query);
 
     const [pagos, emAberto, vencidos] = await Promise.all([
       this.prisma.pedido.aggregate({ where: { ...base, statusPagamento: StatusPagamento.PAGO }, _sum: { totalFinal: true }, _count: { id: true } }),
@@ -110,41 +130,52 @@ export class RelatoriosService {
     };
   }
 
-  // Seção 21: estoque atual com histórico de movimentações
-  async estoqueAtual() {
-    const produtos = await this.prisma.produto.findMany({ where: { ativo: true }, orderBy: { nome: 'asc' } });
+  async estoqueAtual(query: RelatorioQuery = {}) {
+    const { categoria, produtoId, tipoMovimento } = query;
+    const produtos = await this.prisma.produto.findMany({
+      where: {
+        ativo: true,
+        ...(categoria ? { categoria: { contains: categoria, mode: 'insensitive' } } : {}),
+        ...(produtoId ? { id: produtoId } : {}),
+      },
+      orderBy: { nome: 'asc' },
+    });
 
     return Promise.all(
       produtos.map(async (p) => {
+        const where: any = { produtoId: p.id };
+        if (tipoMovimento) where.tipo = tipoMovimento;
+
         const resultado = await this.prisma.movimentacaoEstoque.aggregate({
-          where: { produtoId: p.id },
+          where,
           _sum: { quantidade: true },
         });
+
+        const saldoAtual = Number(resultado._sum.quantidade ?? 0);
+        const estoqueMinimo = p.estoqueMinimo ? Number(p.estoqueMinimo) : null;
         return {
           produtoId: p.id,
           codigoInterno: p.codigoInterno,
           nome: p.nome,
-          saldoAtual: resultado._sum.quantidade ?? 0,
+          categoria: p.categoria,
+          saldoAtual,
           unidadeVenda: p.unidadeVenda,
+          estoqueMinimo,
+          abaixoMinimo: estoqueMinimo !== null && saldoAtual < estoqueMinimo,
         };
       }),
     );
   }
 
-  // Seção 20: dados do dashboard com período selecionável
-  async dashboard(dataInicio?: string, dataFim?: string) {
-    const data = this.periodoWhere(dataInicio, dataFim);
-    const base = {
-      status: { notIn: [StatusPedido.RASCUNHO, StatusPedido.CANCELADO] },
-      ...(data ? { data } : {}),
-    };
+  async dashboard(query: RelatorioQuery = {}) {
+    const base = this.buildPedidoWhere(query);
 
     const [totalVendas, totalPedidos, emAberto, vencidos, estoque] = await Promise.all([
       this.prisma.pedido.aggregate({ where: base, _sum: { totalFinal: true } }),
       this.prisma.pedido.count({ where: base }),
       this.prisma.pedido.aggregate({ where: { ...base, statusPagamento: StatusPagamento.EM_ABERTO }, _sum: { totalFinal: true } }),
       this.prisma.pedido.aggregate({ where: { ...base, statusPagamento: StatusPagamento.VENCIDO }, _sum: { totalFinal: true } }),
-      this.estoqueAtual(),
+      this.estoqueAtual(query),
     ]);
 
     const caixasVendidas = await this.prisma.itemPedido.aggregate({
@@ -162,9 +193,8 @@ export class RelatoriosService {
     };
   }
 
-  // Gera CSV simples para exportação (seção 21)
-  async gerarCsvVendas(dataInicio?: string, dataFim?: string): Promise<string> {
-    const pedidos = await this.vendasPorPeriodo(dataInicio, dataFim);
+  async gerarCsvVendas(query: RelatorioQuery = {}): Promise<string> {
+    const pedidos = await this.vendasPorPeriodo(query);
     const linhas: string[] = ['Número,Data,Cliente,Vendedor,Subtotal,Frete,Desconto,Total,Pagamento,StatusPagamento,NF'];
 
     for (const p of pedidos) {
@@ -172,8 +202,8 @@ export class RelatoriosService {
         [
           p.numero,
           new Date(p.data).toLocaleDateString('pt-BR'),
-          `"${p.cliente.razaoSocialOuNome}"`,
-          `"${p.vendedor.nome}"`,
+          this.csvEscape(p.cliente?.razaoSocialOuNome ?? ''),
+          this.csvEscape(p.vendedor?.nome ?? ''),
           p.subtotal,
           p.valorFrete,
           p.descontoValor,
@@ -188,30 +218,68 @@ export class RelatoriosService {
     return linhas.join('\n');
   }
 
-  async gerarCsvEstoque(): Promise<string> {
-    const movs = await this.prisma.movimentacaoEstoque.findMany({
-      include: {
-        produto: { select: { nome: true, codigoInterno: true } },
-        usuario: { select: { nome: true } },
-      },
-      orderBy: { data: 'asc' },
-    });
+  async gerarCsvEstoque(query: RelatorioQuery = {}): Promise<string> {
+    const itens = await this.estoqueAtual(query);
+    const linhas: string[] = ['Produto,Código,Categoria,Saldo Atual,Unidade'];
 
-    const linhas: string[] = ['Data,Tipo,Produto,Código,Quantidade,Origem,Usuário'];
-    for (const m of movs) {
+    for (const item of itens) {
       linhas.push(
         [
-          new Date(m.data).toLocaleDateString('pt-BR'),
-          m.tipo,
-          `"${m.produto.nome}"`,
-          m.produto.codigoInterno,
-          m.quantidade,
-          `"${m.origem}"`,
-          `"${m.usuario.nome}"`,
+          this.csvEscape(item.nome),
+          this.csvEscape(item.codigoInterno ?? ''),
+          this.csvEscape(item.categoria ?? ''),
+          item.saldoAtual,
+          item.unidadeVenda ?? '',
         ].join(','),
       );
     }
 
     return linhas.join('\n');
+  }
+
+  async gerarJsonVendas(query: RelatorioQuery = {}) {
+    const dados = await this.vendasPorPeriodo(query);
+    return JSON.stringify(dados, null, 2);
+  }
+
+  async gerarJsonEstoque(query: RelatorioQuery = {}) {
+    const dados = await this.estoqueAtual(query);
+    return JSON.stringify(dados, null, 2);
+  }
+
+  async gerarXmlVendas(query: RelatorioQuery = {}) {
+    const dados = await this.vendasPorPeriodo(query);
+    const itens = dados.map((p) => `
+      <pedido>
+        <numero>${this.sanitizeString(String(p.numero)) ?? ''}</numero>
+        <data>${new Date(p.data).toISOString()}</data>
+        <cliente>${this.sanitizeString(p.cliente?.razaoSocialOuNome) ?? ''}</cliente>
+        <vendedor>${this.sanitizeString(p.vendedor?.nome) ?? ''}</vendedor>
+        <total>${Number(p.totalFinal ?? 0)}</total>
+        <statusPagamento>${this.sanitizeString(p.statusPagamento) ?? ''}</statusPagamento>
+      </pedido>`).join('');
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<relatorio>
+  <tipo>vendas</tipo>
+  <pedidos>${itens}</pedidos>
+</relatorio>`;
+  }
+
+  async gerarXmlEstoque(query: RelatorioQuery = {}) {
+    const dados = await this.estoqueAtual(query);
+    const itens = dados.map((item) => `
+      <produto>
+        <codigo>${this.sanitizeString(item.codigoInterno) ?? ''}</codigo>
+        <nome>${this.sanitizeString(item.nome) ?? ''}</nome>
+        <categoria>${this.sanitizeString(item.categoria) ?? ''}</categoria>
+        <saldoAtual>${Number(item.saldoAtual ?? 0)}</saldoAtual>
+      </produto>`).join('');
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<relatorio>
+  <tipo>estoque</tipo>
+  <produtos>${itens}</produtos>
+</relatorio>`;
   }
 }
