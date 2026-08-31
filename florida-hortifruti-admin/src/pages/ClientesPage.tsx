@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, Pencil, Trash2, RotateCcw } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, RotateCcw, FileSpreadsheet, FileText } from 'lucide-react'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import * as XLSX from 'xlsx'
 import { api } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Button } from '../components/ui/Button'
@@ -9,14 +12,33 @@ import { Input, Select } from '../components/ui/Input'
 
 const EMPTY_FORM = { razaoSocialOuNome: '', nomeFantasia: '', cnpjCpf: '', telefone: '', whatsapp: '', email: '', endereco: '', cidade: '', estado: '', responsavelContato: '', condicaoPagamento: '', formaPagamentoUsual: '', necessitaNF: false, observacoes: '' }
 
+type Cliente = {
+  id: string
+  razaoSocialOuNome: string
+  nomeFantasia?: string | null
+  cnpjCpf?: string | null
+  telefone?: string | null
+  whatsapp?: string | null
+  email?: string | null
+  endereco?: string | null
+  cidade?: string | null
+  estado?: string | null
+  responsavelContato?: string | null
+  condicaoPagamento?: string | null
+  formaPagamentoUsual?: string | null
+  necessitaNF?: boolean
+  observacoes?: string | null
+  ativo?: boolean
+}
+
 export function ClientesPage() {
   const qc = useQueryClient()
   const [busca, setBusca] = useState('')
   const [modal, setModal] = useState(false)
-  const [editando, setEditando] = useState<any>(null)
+  const [editando, setEditando] = useState<Cliente | null>(null)
   const [form, setForm] = useState<any>(EMPTY_FORM)
 
-  const { data: clientes = [], isLoading } = useQuery({
+  const { data: clientes = [], isLoading } = useQuery<Cliente[]>({
     queryKey: ['clientes', busca],
     queryFn: () => api.get('/clientes', { params: busca ? { busca } : { incluirInativos: true } }).then((r) => r.data),
   })
@@ -37,16 +59,87 @@ export function ClientesPage() {
   })
 
   function abrirNovo() { setForm(EMPTY_FORM); setEditando(null); setModal(true) }
-  function abrirEditar(c: any) { setForm({ ...c }); setEditando(c); setModal(true) }
+  function abrirEditar(c: Cliente) { setForm({ ...c }); setEditando(c); setModal(true) }
   function fecharModal() { setModal(false); setEditando(null) }
   function set(k: string, v: any) { setForm((f: any) => ({ ...f, [k]: v })) }
+
+  function formatarDataArquivo() {
+    return new Date().toISOString().slice(0, 10)
+  }
+
+  function exportarExcel() {
+    const linhas = clientes.map((c) => ({
+      Nome: c.razaoSocialOuNome ?? '',
+      Fantasia: c.nomeFantasia ?? '',
+      'CNPJ/CPF': c.cnpjCpf ?? '',
+      Telefone: c.telefone ?? '',
+      WhatsApp: c.whatsapp ?? '',
+      Email: c.email ?? '',
+      Cidade: c.cidade ?? '',
+      Estado: c.estado ?? '',
+      Pagamento: c.formaPagamentoUsual ?? '',
+      'Necessita NF': c.necessitaNF ? 'Sim' : 'Nao',
+      Status: c.ativo === false ? 'Inativo' : 'Ativo',
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(linhas)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Clientes')
+    XLSX.writeFile(wb, `clientes-${formatarDataArquivo()}.xlsx`)
+  }
+
+  function exportarPdf() {
+    const doc = new jsPDF({ orientation: 'landscape' })
+    doc.setFontSize(14)
+    doc.text('Relatorio de Clientes', 14, 14)
+    doc.setFontSize(10)
+    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 20)
+
+    autoTable(doc, {
+      startY: 26,
+      head: [[
+        'Nome',
+        'Fantasia',
+        'CNPJ/CPF',
+        'Telefone',
+        'Cidade/UF',
+        'Pagamento',
+        'NF',
+        'Status',
+      ]],
+      body: clientes.map((c) => [
+        c.razaoSocialOuNome ?? '',
+        c.nomeFantasia ?? '',
+        c.cnpjCpf ?? '',
+        c.telefone ?? '',
+        `${c.cidade ?? ''}${c.estado ? `/${c.estado}` : ''}`,
+        c.formaPagamentoUsual ?? '',
+        c.necessitaNF ? 'Sim' : 'Nao',
+        c.ativo === false ? 'Inativo' : 'Ativo',
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [22, 163, 74] },
+    })
+
+    doc.save(`clientes-${formatarDataArquivo()}.pdf`)
+  }
 
   return (
     <div>
       <PageHeader
         title="Clientes"
         subtitle={`${clientes.length} cliente(s) cadastrado(s)`}
-        actions={<Button onClick={abrirNovo}><Plus className="w-4 h-4" /> Novo Cliente</Button>}
+        actions={
+          <div className="flex flex-wrap gap-2 justify-end">
+            <Button variant="secondary" onClick={exportarExcel} disabled={clientes.length === 0}>
+              <FileSpreadsheet className="w-4 h-4" /> Exportar Excel
+            </Button>
+            <Button variant="secondary" onClick={exportarPdf} disabled={clientes.length === 0}>
+              <FileText className="w-4 h-4" /> Exportar PDF
+            </Button>
+            <Button onClick={abrirNovo}><Plus className="w-4 h-4" /> Novo Cliente</Button>
+          </div>
+        }
       />
 
       <div className="p-6 space-y-4">
