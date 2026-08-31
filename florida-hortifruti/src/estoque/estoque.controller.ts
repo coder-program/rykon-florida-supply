@@ -14,12 +14,35 @@ export class EstoqueController {
 
   @Post('entrada')
   registrarEntrada(@Body() dto: EntradaEstoqueDto, @Request() req: any) {
+    const bruto =
+      Array.isArray(dto.itens) && dto.itens.length
+        ? dto.itens
+        : Array.isArray(req.body?.itens)
+          ? req.body.itens
+          : [];
+
+    const itens = bruto.length
+      ? bruto.map((item: any) => ({
+          produtoId: String(item.produtoId ?? ''),
+          quantidade: Number(item.quantidade),
+          valorProduto: Number(item.valorProduto ?? item.custoTotal ?? 0),
+        }))
+      : dto.produtoId
+        ? [
+            {
+              produtoId: dto.produtoId,
+              quantidade: Number(dto.quantidade),
+              valorProduto: Number(dto.custoTotal ?? 0),
+            },
+          ]
+        : [];
+
     return this.estoqueService.registrarEntrada({
       fornecedor: dto.fornecedor,
       valorFrete: dto.valorFrete,
       valorComissao: dto.valorComissao,
       observacao: dto.observacao,
-      itens: dto.itens,
+      itens,
       usuarioId: req.user.id,
     });
   }

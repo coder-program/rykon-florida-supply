@@ -1,25 +1,10 @@
-import { Type } from 'class-transformer';
-import {
-  ArrayMinSize,
-  IsArray,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Min,
-  ValidateNested,
-} from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsArray, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
-export class ItemEntradaEstoqueDto {
-  @IsString()
-  produtoId: string;
-
-  @IsNumber()
-  @Min(0.01)
-  quantidade: number;
-
-  @IsNumber()
-  @Min(0)
-  valorProduto: number;
+function paraNumero(value: unknown) {
+  if (value === '' || value === null || value === undefined) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
 }
 
 export class EntradaEstoqueDto {
@@ -27,24 +12,46 @@ export class EntradaEstoqueDto {
   fornecedor: string;
 
   @IsOptional()
+  @IsString()
+  observacao?: string;
+
+  @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(0)
   valorFrete?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(0)
   valorComissao?: number;
 
   @IsOptional()
   @IsString()
-  observacao?: string;
+  produtoId?: string;
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  quantidade?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  custoTotal?: number;
+
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
-  @ValidateNested({ each: true })
-  @Type(() => ItemEntradaEstoqueDto)
-  itens: ItemEntradaEstoqueDto[];
+  @Transform(({ value }) => {
+    if (!Array.isArray(value)) return [];
+    return value.map((item) => ({
+      produtoId: item?.produtoId != null ? String(item.produtoId) : '',
+      quantidade: paraNumero(item?.quantidade) ?? 0,
+      valorProduto: paraNumero(item?.valorProduto ?? item?.custoTotal) ?? 0,
+    }));
+  })
+  itens?: Array<{ produtoId: string; quantidade: number; valorProduto: number }>;
 }
 
 export class AjusteEstoqueDto {

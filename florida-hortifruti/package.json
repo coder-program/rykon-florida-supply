@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "API do sistema de pedidos, vendas e controle de estoque",
   "scripts": {
-    "build": "npx nest build",
+    "build": "npx nest build --builder tsc",
     "lint": "eslint \"{src,prisma}/**/*.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.build.json",
     "start": "nest start",
