@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, History, Minus, AlertTriangle } from 'lucide-react'
+import { Plus, History, Minus, AlertTriangle, FileSpreadsheet, FileText } from 'lucide-react'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import * as XLSX from 'xlsx'
 import { api } from '../lib/api'
 import { formatDate } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -51,13 +54,63 @@ export function EstoquePage() {
     AJUSTE: 'bg-yellow-100 text-yellow-700',
   }
 
+  function formatarDataArquivo() {
+    return new Date().toISOString().slice(0, 10)
+  }
+
+  function exportarExcel() {
+    const linhas = saldos.map((s: any) => ({
+      Produto: s.nome ?? '',
+      Unidade: s.unidadeVenda ?? '',
+      Saldo: Number(s.saldoAtual ?? 0),
+      'Estoque mínimo': Number(s.estoqueMinimo ?? 0),
+      Status: s.abaixoMinimo ? 'Abaixo do mínimo' : Number(s.saldoAtual) <= 0 ? 'Sem estoque' : 'Normal',
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(linhas)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Estoque')
+    XLSX.writeFile(wb, `estoque-${formatarDataArquivo()}.xlsx`)
+  }
+
+  function exportarPdf() {
+    const doc = new jsPDF({ orientation: 'landscape' })
+    doc.setFontSize(14)
+    doc.text('Relatório de Estoque', 14, 14)
+    doc.setFontSize(10)
+    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 20)
+
+    autoTable(doc, {
+      startY: 26,
+      head: [['Produto', 'Unidade', 'Saldo Atual', 'Estoque Mínimo', 'Status']],
+      body: saldos.map((s: any) => [
+        s.nome ?? '',
+        s.unidadeVenda ?? '',
+        Number(s.saldoAtual ?? 0).toFixed(0),
+        Number(s.estoqueMinimo ?? 0).toFixed(0),
+        s.abaixoMinimo ? 'Abaixo do mínimo' : Number(s.saldoAtual) <= 0 ? 'Sem estoque' : 'Normal',
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [22, 163, 74] },
+      margin: { left: 10, right: 10 },
+    })
+
+    doc.save(`estoque-${formatarDataArquivo()}.pdf`)
+  }
+
   return (
     <div>
       <PageHeader
         title="Estoque"
         subtitle="Saldo atual e movimentações — o histórico nunca é apagado"
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={exportarExcel} disabled={saldos.length === 0}>
+              <FileSpreadsheet className="w-4 h-4" /> Exportar Excel
+            </Button>
+            <Button variant="secondary" onClick={exportarPdf} disabled={saldos.length === 0}>
+              <FileText className="w-4 h-4" /> Exportar PDF
+            </Button>
             <Button variant="secondary" onClick={() => setModalAjuste(true)}><Minus className="w-4 h-4" /> Ajuste</Button>
             <Button onClick={() => setModalEntrada(true)}><Plus className="w-4 h-4" /> Registrar Entrada</Button>
           </div>

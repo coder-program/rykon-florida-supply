@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, History, Trash2, RotateCcw } from 'lucide-react'
+import { Plus, Pencil, History, Trash2, RotateCcw, FileSpreadsheet, FileText } from 'lucide-react'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import * as XLSX from 'xlsx'
 import { api } from '../lib/api'
 import { formatBRL, formatDateTime } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -60,12 +63,71 @@ export function ProdutosPage() {
   function fechar() { setModal(false); setModalHistorico(false); setEditando(null) }
   function set(k: string, v: any) { setForm((f: any) => ({ ...f, [k]: v })) }
 
+  function formatarDataArquivo() {
+    return new Date().toISOString().slice(0, 10)
+  }
+
+  function exportarExcel() {
+    const linhas = produtos.map((p: any) => ({
+      Código: p.codigoInterno ?? '',
+      Nome: p.nome ?? '',
+      Categoria: p.categoria ?? '',
+      Unidade: p.unidadeVenda ?? '',
+      'Preço Sugerido': Number(p.precoSugerido ?? 0),
+      Custo: Number(p.custo ?? 0),
+      Estoque: Number(p.estoqueAtual ?? 0),
+      Status: p.ativo === false ? 'Inativo' : 'Ativo',
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(linhas)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Produtos')
+    XLSX.writeFile(wb, `produtos-${formatarDataArquivo()}.xlsx`)
+  }
+
+  function exportarPdf() {
+    const doc = new jsPDF({ orientation: 'landscape' })
+    doc.setFontSize(14)
+    doc.text('Relatório de Produtos', 14, 14)
+    doc.setFontSize(10)
+    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 20)
+
+    autoTable(doc, {
+      startY: 26,
+      head: [['Código', 'Nome', 'Categoria', 'Unidade', 'Preço', 'Custo', 'Status']],
+      body: produtos.map((p: any) => [
+        p.codigoInterno ?? '',
+        p.nome ?? '',
+        p.categoria ?? '',
+        p.unidadeVenda ?? '',
+        formatBRL(p.precoSugerido),
+        p.custo ? formatBRL(p.custo) : '—',
+        p.ativo === false ? 'Inativo' : 'Ativo',
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [22, 163, 74] },
+      margin: { left: 10, right: 10 },
+    })
+
+    doc.save(`produtos-${formatarDataArquivo()}.pdf`)
+  }
+
   return (
     <div>
       <PageHeader
         title="Produtos"
         subtitle={`${produtos.length} produto(s) ativo(s)`}
-        actions={<Button onClick={abrirNovo}><Plus className="w-4 h-4" /> Novo Produto</Button>}
+        actions={
+          <div className="flex flex-wrap gap-2 justify-end">
+            <Button variant="secondary" onClick={exportarExcel} disabled={produtos.length === 0}>
+              <FileSpreadsheet className="w-4 h-4" /> Exportar Excel
+            </Button>
+            <Button variant="secondary" onClick={exportarPdf} disabled={produtos.length === 0}>
+              <FileText className="w-4 h-4" /> Exportar PDF
+            </Button>
+            <Button onClick={abrirNovo}><Plus className="w-4 h-4" /> Novo Produto</Button>
+          </div>
+        }
       />
 
       <div className="p-6">

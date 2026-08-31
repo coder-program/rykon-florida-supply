@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronDown, QrCode, Printer, Pencil, Plus } from 'lucide-react'
+import { Search, ChevronDown, QrCode, Printer, Pencil, Plus, FileSpreadsheet, FileText } from 'lucide-react'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import * as XLSX from 'xlsx'
 import { api } from '../lib/api'
 import { formatBRL, formatDate, STATUS_PEDIDO_LABEL, STATUS_PEDIDO_COLOR, STATUS_PAGAMENTO_COLOR, FORMA_PAGAMENTO_LABEL } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -63,12 +66,69 @@ export function PedidosPage() {
     p.vendedor?.nome?.toLowerCase().includes(busca.toLowerCase())
   )
 
+  function formatarDataArquivo() {
+    return new Date().toISOString().slice(0, 10)
+  }
+
+  function exportarExcel() {
+    const linhas = pedidosFiltrados.map((p: any) => ({
+      'Nº Pedido': p.numero ?? '',
+      Data: p.data ? formatDate(p.data) : '',
+      Cliente: p.cliente?.razaoSocialOuNome ?? '',
+      Vendedor: p.vendedor?.nome ?? '',
+      Status: STATUS_PEDIDO_LABEL[p.status] ?? p.status,
+      Pagamento: FORMA_PAGAMENTO_LABEL[p.formaPagamento] ?? p.formaPagamento,
+      Total: Number(p.totalFinal ?? 0),
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(linhas)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Pedidos')
+    XLSX.writeFile(wb, `pedidos-${formatarDataArquivo()}.xlsx`)
+  }
+
+  function exportarPdf() {
+    const doc = new jsPDF({ orientation: 'landscape' })
+    doc.setFontSize(14)
+    doc.text('Relatório de Pedidos', 14, 14)
+    doc.setFontSize(10)
+    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 20)
+
+    autoTable(doc, {
+      startY: 26,
+      head: [['Nº', 'Cliente', 'Vendedor', 'Status', 'Pagamento', 'Total']],
+      body: pedidosFiltrados.map((p: any) => [
+        `#${String(p.numero ?? '').padStart(6, '0')}`,
+        p.cliente?.razaoSocialOuNome ?? '',
+        p.vendedor?.nome ?? '',
+        STATUS_PEDIDO_LABEL[p.status] ?? p.status,
+        FORMA_PAGAMENTO_LABEL[p.formaPagamento] ?? p.formaPagamento,
+        formatBRL(p.totalFinal),
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [22, 163, 74] },
+      margin: { left: 10, right: 10 },
+    })
+
+    doc.save(`pedidos-${formatarDataArquivo()}.pdf`)
+  }
+
   return (
     <div>
       <PageHeader
         title="Pedidos"
         subtitle={`${pedidos.length} pedido(s) encontrado(s)`}
-        actions={<Button onClick={() => setNovoPedido(true)}><Plus className="w-4 h-4" /> Novo Pedido</Button>}
+        actions={
+          <div className="flex flex-wrap gap-2 justify-end">
+            <Button variant="secondary" onClick={exportarExcel} disabled={pedidosFiltrados.length === 0}>
+              <FileSpreadsheet className="w-4 h-4" /> Exportar Excel
+            </Button>
+            <Button variant="secondary" onClick={exportarPdf} disabled={pedidosFiltrados.length === 0}>
+              <FileText className="w-4 h-4" /> Exportar PDF
+            </Button>
+            <Button onClick={() => setNovoPedido(true)}><Plus className="w-4 h-4" /> Novo Pedido</Button>
+          </div>
+        }
       />
       <NovoPedidoModal open={novoPedido} onClose={() => setNovoPedido(false)} />
 

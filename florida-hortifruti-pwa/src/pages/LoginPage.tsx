@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 export function LoginPage() {
   const { login, usuario } = useAuth()
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -43,11 +45,21 @@ export function LoginPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Senha</label>
-            <input
-              type="password" value={senha} onChange={(e) => setSenha(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="••••••••" required autoComplete="current-password"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'} value={senha} onChange={(e) => setSenha(e.target.value)}
+                className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="••••••••" required autoComplete="current-password"
+              />
+              <button
+                type="button"
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                onClick={() => setShowPassword((value) => !value)}
+                className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+              >
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
           </div>
           {error && <p className="text-sm text-red-600 text-center">{error}</p>}
           <button

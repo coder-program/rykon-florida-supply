@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Leaf } from 'lucide-react'
+import { Input } from '../components/ui/Input'
 import { useAuth } from '../contexts/AuthContext'
 
 export function LoginPage() {
@@ -51,17 +52,14 @@ export function LoginPage() {
               required
             />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Senha</label>
-            <input
-              type="password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="••••••••"
-              required
-            />
-          </div>
+          <Input
+            label="Senha"
+            type="password"
+            value={senha}
+            onChange={(e) => setSenha(e.target.value)}
+            placeholder="••••••••"
+            required
+          />
           {error && <p className="text-xs text-red-600">{error}</p>}
           <button
             type="submit"

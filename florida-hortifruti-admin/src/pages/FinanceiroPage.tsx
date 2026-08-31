@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { DollarSign, AlertCircle, Clock, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
+import { DollarSign, AlertCircle, Clock, CheckCircle2, ChevronDown, ChevronUp, FileSpreadsheet, FileText } from 'lucide-react'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import * as XLSX from 'xlsx'
 import { api } from '../lib/api'
 import { formatBRL, formatDate, FORMA_PAGAMENTO_LABEL } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -87,24 +90,80 @@ export function FinanceiroPage() {
     },
   })
 
+  function formatarDataArquivo() {
+    return new Date().toISOString().slice(0, 10)
+  }
+
+  function exportarExcel() {
+    const linhas = contas.map((c: any) => ({
+      Pedido: `#${String(c.numero ?? '').padStart(6, '0')}`,
+      Cliente: c.cliente?.razaoSocialOuNome ?? '',
+      Vendedor: c.vendedor?.nome ?? '',
+      Forma: FORMA_PAGAMENTO_LABEL[c.formaPagamento] ?? c.formaPagamento,
+      Vencimento: c.dataVencimento ? formatDate(c.dataVencimento) : '',
+      Situacao: SITUACAO_CONFIG[c.situacaoCalculada]?.label ?? c.situacaoCalculada,
+      Valor: Number(c.totalFinal ?? 0),
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(linhas)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Financeiro')
+    XLSX.writeFile(wb, `financeiro-${formatarDataArquivo()}.xlsx`)
+  }
+
+  function exportarPdf() {
+    const doc = new jsPDF({ orientation: 'landscape' })
+    doc.setFontSize(14)
+    doc.text('Relatório Financeiro', 14, 14)
+    doc.setFontSize(10)
+    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 20)
+
+    autoTable(doc, {
+      startY: 26,
+      head: [['Pedido', 'Cliente', 'Vendedor', 'Forma', 'Vencimento', 'Situação', 'Valor']],
+      body: contas.map((c: any) => [
+        `#${String(c.numero ?? '').padStart(6, '0')}`,
+        c.cliente?.razaoSocialOuNome ?? '',
+        c.vendedor?.nome ?? '',
+        FORMA_PAGAMENTO_LABEL[c.formaPagamento] ?? c.formaPagamento,
+        c.dataVencimento ? formatDate(c.dataVencimento) : '',
+        SITUACAO_CONFIG[c.situacaoCalculada]?.label ?? c.situacaoCalculada,
+        formatBRL(c.totalFinal),
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [22, 163, 74] },
+      margin: { left: 10, right: 10 },
+    })
+
+    doc.save(`financeiro-${formatarDataArquivo()}.pdf`)
+  }
+
   return (
     <div>
       <PageHeader
         title="Financeiro"
         subtitle="Contas a receber e fluxo de caixa"
         actions={
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-            {PERIODOS.map((p) => (
-              <button
-                key={p.value}
-                onClick={() => setPeriodo(p.value)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                  periodo === p.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+              {PERIODOS.map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => setPeriodo(p.value)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    periodo === p.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <Button variant="secondary" onClick={exportarExcel} disabled={contas.length === 0}>
+              <FileSpreadsheet className="w-4 h-4" /> Excel
+            </Button>
+            <Button variant="secondary" onClick={exportarPdf} disabled={contas.length === 0}>
+              <FileText className="w-4 h-4" /> PDF
+            </Button>
           </div>
         }
       />
