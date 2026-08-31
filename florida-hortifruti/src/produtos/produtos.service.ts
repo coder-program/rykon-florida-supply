@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateProdutoDto, UpdateProdutoDto } from './dto/produto.dto';
 
@@ -26,6 +26,11 @@ export class ProdutosService {
   // Item 7 do escopo: registra HistoricoPreco quando o preço sugerido é alterado
   async update(id: string, dto: UpdateProdutoDto, usuarioId: string) {
     const produto = await this.findOne(id);
+
+    if (dto.codigoInterno && dto.codigoInterno !== produto.codigoInterno) {
+      const existe = await this.prisma.produto.findUnique({ where: { codigoInterno: dto.codigoInterno } });
+      if (existe) throw new ConflictException('Já existe um produto com este código interno');
+    }
 
     const ops: any[] = [this.prisma.produto.update({ where: { id }, data: dto })];
 

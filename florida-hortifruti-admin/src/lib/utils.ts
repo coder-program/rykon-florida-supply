@@ -9,6 +9,21 @@ export function formatBRL(value: number | string) {
   return Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+/** Formata número como 1.200,00 (sem o prefixo R$) */
+export function formatBRLInput(value: number | string) {
+  if (value === '' || value === undefined || value === null) return ''
+  const n = typeof value === 'string' ? parseBRLInput(value) : Number(value)
+  if (Number.isNaN(n)) return ''
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+/** Converte "1.200,00" ou dígitos em número */
+export function parseBRLInput(raw: string): number {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return 0
+  return Number(digits) / 100
+}
+
 export function formatDate(date: string | Date) {
   return new Date(date).toLocaleDateString('pt-BR')
 }

@@ -1,5 +1,5 @@
 import type { InputHTMLAttributes } from 'react'
-import { cn } from '../../lib/utils'
+import { cn, formatBRLInput, parseBRLInput } from '../../lib/utils'
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string
@@ -21,6 +21,35 @@ export function Input({ label, error, className, ...props }: InputProps) {
       />
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
+  )
+}
+
+export function MoneyInput({
+  label,
+  value,
+  onValueChange,
+  required,
+  placeholder = '0,00',
+}: {
+  label?: string
+  value: number | string
+  onValueChange: (value: number) => void
+  required?: boolean
+  placeholder?: string
+}) {
+  const display = value === '' || value === undefined || value === null || value === 0
+    ? (value === 0 ? '0,00' : '')
+    : formatBRLInput(value)
+
+  return (
+    <Input
+      label={label}
+      inputMode="numeric"
+      placeholder={placeholder}
+      required={required}
+      value={value === '' || value === undefined || value === null ? '' : display}
+      onChange={(e) => onValueChange(parseBRLInput(e.target.value))}
+    />
   )
 }
 

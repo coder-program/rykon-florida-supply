@@ -6,7 +6,7 @@ import { formatBRL, formatDateTime } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
-import { Input } from '../components/ui/Input'
+import { Input, MoneyInput } from '../components/ui/Input'
 
 const EMPTY = { codigoInterno: '', nome: '', categoria: '', unidadeVenda: 'CAIXA', precoSugerido: '', custo: '', estoqueMinimo: '' }
 
@@ -29,9 +29,18 @@ export function ProdutosPage() {
   })
 
   const salvar = useMutation({
-    mutationFn: (data: any) => editando
-      ? api.put(`/produtos/${editando.id}`, { ...data, precoSugerido: Number(data.precoSugerido), custo: data.custo ? Number(data.custo) : undefined, estoqueMinimo: data.estoqueMinimo ? Number(data.estoqueMinimo) : undefined })
-      : api.post('/produtos', { ...data, precoSugerido: Number(data.precoSugerido), custo: data.custo ? Number(data.custo) : undefined, estoqueMinimo: data.estoqueMinimo ? Number(data.estoqueMinimo) : undefined }),
+    mutationFn: (data: any) => {
+      const payload = {
+        codigoInterno: data.codigoInterno,
+        nome: data.nome,
+        categoria: data.categoria || undefined,
+        unidadeVenda: data.unidadeVenda || 'CAIXA',
+        precoSugerido: Number(data.precoSugerido) || 0,
+        custo: data.custo ? Number(data.custo) : undefined,
+        estoqueMinimo: data.estoqueMinimo ? Number(data.estoqueMinimo) : undefined,
+      }
+      return editando ? api.put(`/produtos/${editando.id}`, payload) : api.post('/produtos', payload)
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['produtos'] }); fechar() },
   })
 
@@ -46,7 +55,7 @@ export function ProdutosPage() {
   })
 
   function abrirNovo() { setForm(EMPTY); setEditando(null); setModal(true) }
-  function abrirEditar(p: any) { setForm({ ...p, precoSugerido: String(p.precoSugerido), custo: String(p.custo ?? ''), estoqueMinimo: String(p.estoqueMinimo ?? '') }); setEditando(p); setModal(true) }
+  function abrirEditar(p: any) { setForm({ ...p, precoSugerido: Number(p.precoSugerido) || '', custo: p.custo != null ? Number(p.custo) : '', estoqueMinimo: String(p.estoqueMinimo ?? '') }); setEditando(p); setModal(true) }
   function abrirHistorico(p: any) { setEditando(p); setModalHistorico(true) }
   function fechar() { setModal(false); setModalHistorico(false); setEditando(null) }
   function set(k: string, v: any) { setForm((f: any) => ({ ...f, [k]: v })) }
@@ -114,8 +123,8 @@ export function ProdutosPage() {
           <Input label="Categoria" value={form.categoria} onChange={(e) => set('categoria', e.target.value)} />
           <Input label="Unidade de Venda" value={form.unidadeVenda} onChange={(e) => set('unidadeVenda', e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Preço Sugerido (R$) *" type="number" step="0.01" value={form.precoSugerido} onChange={(e) => set('precoSugerido', e.target.value)} required />
-            <Input label="Custo (R$)" type="number" step="0.01" value={form.custo} onChange={(e) => set('custo', e.target.value)} />
+            <MoneyInput label="Preço Sugerido (R$) *" value={form.precoSugerido} onValueChange={(v) => set('precoSugerido', v)} required />
+            <MoneyInput label="Custo (R$)" value={form.custo} onValueChange={(v) => set('custo', v)} />
           </div>
           <Input label="Estoque mínimo (caixas)" type="number" min="0" value={form.estoqueMinimo} onChange={(e) => set('estoqueMinimo', e.target.value)} />
           <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">

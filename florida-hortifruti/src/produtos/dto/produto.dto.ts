@@ -25,10 +25,16 @@ export class CreateProdutoDto {
 
 export class UpdateProdutoDto {
   @IsOptional() @IsString()
+  codigoInterno?: string;
+
+  @IsOptional() @IsString()
   nome?: string;
 
   @IsOptional() @IsString()
   categoria?: string;
+
+  @IsOptional() @IsString()
+  unidadeVenda?: string;
 
   @IsOptional() @IsNumber() @Min(0)
   precoSugerido?: number;
