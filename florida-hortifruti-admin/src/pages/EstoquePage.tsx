@@ -122,6 +122,15 @@ export function EstoquePage() {
     [formEntrada.itens, formEntrada.valorFrete, formEntrada.valorComissao],
   )
 
+  const totalProdutos = rateio.reduce((acc, item) => acc + item.valorProduto, 0)
+  const totalCompra = Number(
+    (
+      totalProdutos +
+      Number(formEntrada.valorFrete || 0) +
+      Number(formEntrada.valorComissao || 0)
+    ).toFixed(2),
+  )
+
   const entrada = useMutation({
     mutationFn: () =>
       api.post('/estoque/entrada', {
@@ -440,9 +449,9 @@ export function EstoquePage() {
                   </div>
                   {preview && (
                     <p className="text-xs text-gray-500">
-                      Custo da caixa:{' '}
-                      <strong className="text-gray-800">{formatBRL(preview.custoCaixa)}</strong>
-                      {' · '}produto {formatBRL(preview.valorProduto)}
+                      Total do item:{' '}
+                      <strong className="text-gray-800">{formatBRL(preview.custoTotal)}</strong>
+                      {' · '}custo da caixa {formatBRL(preview.custoCaixa)}
                       {preview.rateioFrete > 0 ? ` · frete ${formatBRL(preview.rateioFrete)}` : ''}
                       {preview.rateioComissao > 0
                         ? ` · comissão ${formatBRL(preview.rateioComissao)}`
@@ -455,13 +464,27 @@ export function EstoquePage() {
           </div>
 
           {rateio.length > 0 && (
-            <div className="rounded-xl bg-gray-50 px-4 py-3 text-xs text-gray-600 space-y-1">
+            <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-3 space-y-2">
               {rateio.map((item) => (
-                <p key={`${item.produtoId}-${item.quantidade}`}>
-                  {nomeProduto(item.produtoId)}: {item.quantidade} cx → {formatBRL(item.custoCaixa)}{' '}
-                  / caixa
+                <p key={`${item.produtoId}-${item.quantidade}`} className="text-xs text-gray-600">
+                  {nomeProduto(item.produtoId)}: {item.quantidade} cx → {formatBRL(item.custoTotal)}{' '}
+                  ({formatBRL(item.custoCaixa)} / caixa)
                 </p>
               ))}
+              <div className="flex flex-wrap items-end justify-between gap-2 border-t border-green-200 pt-2">
+                <div className="text-xs text-gray-600 space-y-0.5">
+                  <p>Produtos {formatBRL(totalProdutos)}</p>
+                  {Number(formEntrada.valorFrete || 0) > 0 && (
+                    <p>Frete {formatBRL(formEntrada.valorFrete)}</p>
+                  )}
+                  {Number(formEntrada.valorComissao || 0) > 0 && (
+                    <p>Comissão {formatBRL(formEntrada.valorComissao)}</p>
+                  )}
+                </div>
+                <p className="text-sm font-semibold text-green-800">
+                  Valor total {formatBRL(totalCompra)}
+                </p>
+              </div>
             </div>
           )}
 
