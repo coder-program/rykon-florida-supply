@@ -7,7 +7,12 @@ export class ClientesService {
   constructor(private prisma: PrismaService) {}
 
   create(dto: CreateClienteDto) {
-    return this.prisma.cliente.create({ data: dto });
+    return this.prisma.cliente.create({
+      data: {
+        ...dto,
+        cnpjCpf: dto.cnpjCpf ?? `SEM-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      },
+    });
   }
 
   findAll(incluirInativos = false) {

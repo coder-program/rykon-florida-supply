@@ -14,7 +14,14 @@ export class EstoqueController {
 
   @Post('entrada')
   registrarEntrada(@Body() dto: EntradaEstoqueDto, @Request() req: any) {
-    return this.estoqueService.registrarEntrada({ ...dto, usuarioId: req.user.id });
+    return this.estoqueService.registrarEntrada({
+      fornecedor: dto.fornecedor,
+      valorFrete: dto.valorFrete,
+      valorComissao: dto.valorComissao,
+      observacao: dto.observacao,
+      itens: dto.itens,
+      usuarioId: req.user.id,
+    });
   }
 
   @Post('ajuste')

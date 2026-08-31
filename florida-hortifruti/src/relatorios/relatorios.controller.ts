@@ -32,6 +32,11 @@ export class RelatoriosController {
     return this.relatoriosService.vendasPorProduto(query ?? {});
   }
 
+  @Get('relatorios/lucro-diario')
+  lucroDiario(@Query() query: Record<string, string | undefined>) {
+    return this.relatoriosService.lucroDiario(query ?? {});
+  }
+
   @Get('relatorios/financeiro')
   financeiro(@Query() query: Record<string, string | undefined>) {
     return this.relatoriosService.financeiro(query ?? {});
@@ -43,7 +48,10 @@ export class RelatoriosController {
   }
 
   @Get('relatorios/vendas/csv')
-  async exportarVendasCsv(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
+  async exportarVendasCsv(
+    @Query() query: Record<string, string | undefined>,
+    @Res() res: Response,
+  ) {
     const csv = await this.relatoriosService.gerarCsvVendas(query ?? {});
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="vendas.csv"');
@@ -51,7 +59,10 @@ export class RelatoriosController {
   }
 
   @Get('relatorios/vendas/json')
-  async exportarVendasJson(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
+  async exportarVendasJson(
+    @Query() query: Record<string, string | undefined>,
+    @Res() res: Response,
+  ) {
     const json = await this.relatoriosService.gerarJsonVendas(query ?? {});
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="vendas.json"');
@@ -59,7 +70,10 @@ export class RelatoriosController {
   }
 
   @Get('relatorios/vendas/xml')
-  async exportarVendasXml(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
+  async exportarVendasXml(
+    @Query() query: Record<string, string | undefined>,
+    @Res() res: Response,
+  ) {
     const xml = await this.relatoriosService.gerarXmlVendas(query ?? {});
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="vendas.xml"');
@@ -67,7 +81,10 @@ export class RelatoriosController {
   }
 
   @Get('relatorios/estoque/csv')
-  async exportarEstoqueCsv(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
+  async exportarEstoqueCsv(
+    @Query() query: Record<string, string | undefined>,
+    @Res() res: Response,
+  ) {
     const csv = await this.relatoriosService.gerarCsvEstoque(query ?? {});
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="estoque.csv"');
@@ -75,7 +92,10 @@ export class RelatoriosController {
   }
 
   @Get('relatorios/estoque/json')
-  async exportarEstoqueJson(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
+  async exportarEstoqueJson(
+    @Query() query: Record<string, string | undefined>,
+    @Res() res: Response,
+  ) {
     const json = await this.relatoriosService.gerarJsonEstoque(query ?? {});
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="estoque.json"');
@@ -83,7 +103,10 @@ export class RelatoriosController {
   }
 
   @Get('relatorios/estoque/xml')
-  async exportarEstoqueXml(@Query() query: Record<string, string | undefined>, @Res() res: Response) {
+  async exportarEstoqueXml(
+    @Query() query: Record<string, string | undefined>,
+    @Res() res: Response,
+  ) {
     const xml = await this.relatoriosService.gerarXmlEstoque(query ?? {});
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="estoque.xml"');

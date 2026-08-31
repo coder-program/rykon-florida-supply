@@ -7,7 +7,7 @@
     "lint": "eslint \"{src,prisma}/**/*.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.build.json",
     "start": "nest start",
-    "start:dev": "nest start --watch",
+    "start:dev": "nest start --watch --builder tsc",
     "start:prod": "node dist/main",
     "start:render": "npx prisma migrate deploy && node dist/main",
     "prisma:generate": "prisma generate",

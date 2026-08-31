@@ -17,10 +17,16 @@ type RelatorioQuery = {
 export class RelatoriosService {
   constructor(private prisma: PrismaService) {}
 
+  private parseLocalDate(value: string, endOfDay = false) {
+    const [y, m, d] = value.split('-').map(Number);
+    if (!y || !m || !d) return new Date(value);
+    return endOfDay ? new Date(y, m - 1, d, 23, 59, 59, 999) : new Date(y, m - 1, d, 0, 0, 0, 0);
+  }
+
   private periodoWhere(dataInicio?: string, dataFim?: string) {
     const data: any = {};
-    if (dataInicio) data.gte = new Date(dataInicio);
-    if (dataFim) data.lte = new Date(dataFim);
+    if (dataInicio) data.gte = this.parseLocalDate(dataInicio);
+    if (dataFim) data.lte = this.parseLocalDate(dataFim, true);
     return Object.keys(data).length ? data : undefined;
   }
 
@@ -28,10 +34,13 @@ export class RelatoriosService {
     const { dataInicio, dataFim, status, statusPagamento, vendedorId } = query;
     const data = this.periodoWhere(dataInicio, dataFim);
     const statusValue = status && status !== 'TODOS' ? status : undefined;
-    const pagamentoValue = statusPagamento && statusPagamento !== 'TODOS' ? statusPagamento : undefined;
+    const pagamentoValue =
+      statusPagamento && statusPagamento !== 'TODOS' ? statusPagamento : undefined;
 
     return {
-      ...(statusValue ? { status: statusValue as StatusPedido } : { status: { notIn: [StatusPedido.RASCUNHO, StatusPedido.CANCELADO] } }),
+      ...(statusValue
+        ? { status: statusValue as StatusPedido }
+        : { status: { notIn: [StatusPedido.RASCUNHO, StatusPedido.CANCELADO] } }),
       ...(pagamentoValue ? { statusPagamento: pagamentoValue as StatusPagamento } : {}),
       ...(vendedorId ? { vendedorId } : {}),
       ...(data ? { data } : {}),
@@ -118,9 +127,21 @@ export class RelatoriosService {
     const base = this.buildPedidoWhere(query);
 
     const [pagos, emAberto, vencidos] = await Promise.all([
-      this.prisma.pedido.aggregate({ where: { ...base, statusPagamento: StatusPagamento.PAGO }, _sum: { totalFinal: true }, _count: { id: true } }),
-      this.prisma.pedido.aggregate({ where: { ...base, statusPagamento: StatusPagamento.EM_ABERTO }, _sum: { totalFinal: true }, _count: { id: true } }),
-      this.prisma.pedido.aggregate({ where: { ...base, statusPagamento: StatusPagamento.VENCIDO }, _sum: { totalFinal: true }, _count: { id: true } }),
+      this.prisma.pedido.aggregate({
+        where: { ...base, statusPagamento: StatusPagamento.PAGO },
+        _sum: { totalFinal: true },
+        _count: { id: true },
+      }),
+      this.prisma.pedido.aggregate({
+        where: { ...base, statusPagamento: StatusPagamento.EM_ABERTO },
+        _sum: { totalFinal: true },
+        _count: { id: true },
+      }),
+      this.prisma.pedido.aggregate({
+        where: { ...base, statusPagamento: StatusPagamento.VENCIDO },
+        _sum: { totalFinal: true },
+        _count: { id: true },
+      }),
     ]);
 
     return {
@@ -173,8 +194,14 @@ export class RelatoriosService {
     const [totalVendas, totalPedidos, emAberto, vencidos, estoque] = await Promise.all([
       this.prisma.pedido.aggregate({ where: base, _sum: { totalFinal: true } }),
       this.prisma.pedido.count({ where: base }),
-      this.prisma.pedido.aggregate({ where: { ...base, statusPagamento: StatusPagamento.EM_ABERTO }, _sum: { totalFinal: true } }),
-      this.prisma.pedido.aggregate({ where: { ...base, statusPagamento: StatusPagamento.VENCIDO }, _sum: { totalFinal: true } }),
+      this.prisma.pedido.aggregate({
+        where: { ...base, statusPagamento: StatusPagamento.EM_ABERTO },
+        _sum: { totalFinal: true },
+      }),
+      this.prisma.pedido.aggregate({
+        where: { ...base, statusPagamento: StatusPagamento.VENCIDO },
+        _sum: { totalFinal: true },
+      }),
       this.estoqueAtual(query),
     ]);
 
@@ -193,9 +220,85 @@ export class RelatoriosService {
     };
   }
 
+  async lucroDiario(query: RelatorioQuery = {}) {
+    const base = this.buildPedidoWhere(query);
+
+    const itens = await this.prisma.itemPedido.groupBy({
+      by: ['produtoId'],
+      where: { pedido: base },
+      _sum: { quantidade: true, valorTotal: true },
+      orderBy: { produtoId: 'asc' },
+    });
+
+    const produtos = await this.prisma.produto.findMany({
+      where: { id: { in: itens.map((item) => item.produtoId) } },
+      select: { id: true, nome: true, categoria: true, custo: true },
+    });
+
+    const porProduto = itens
+      .map((item) => {
+        const produto = produtos.find((p) => p.id === item.produtoId);
+        const nome = produto?.nome ?? item.produtoId;
+        const quantidade = Number(item._sum.quantidade ?? 0);
+        const faturamento = Number(item._sum.valorTotal ?? 0);
+        const custoUnitario = Number(produto?.custo ?? 0);
+        const custoTotal = custoUnitario * quantidade;
+        const lucro = faturamento - custoTotal;
+
+        return {
+          produtoId: item.produtoId,
+          produto: nome,
+          quantidade,
+          faturamento,
+          custoTotal,
+          lucro,
+          margemPercentual: faturamento > 0 ? (lucro / faturamento) * 100 : 0,
+        };
+      })
+      .sort((a, b) => b.faturamento - a.faturamento);
+
+    const porTipoMorango = porProduto.filter((item) => /morango/i.test(item.produto));
+
+    const resumo = itens.reduce(
+      (acc, item) => {
+        const produto = produtos.find((p) => p.id === item.produtoId);
+        const quantidade = Number(item._sum.quantidade ?? 0);
+        const faturamento = Number(item._sum.valorTotal ?? 0);
+        const custoUnitario = Number(produto?.custo ?? 0);
+        const custoTotal = custoUnitario * quantidade;
+
+        acc.totalVendido += faturamento;
+        acc.custoTotal += custoTotal;
+        acc.quantidadeTotal += quantidade;
+        return acc;
+      },
+      { totalVendido: 0, custoTotal: 0, quantidadeTotal: 0 },
+    );
+
+    const lucroTotal = resumo.totalVendido - resumo.custoTotal;
+
+    return {
+      periodo: {
+        dataInicio: query.dataInicio,
+        dataFim: query.dataFim,
+      },
+      geral: {
+        totalVendido: resumo.totalVendido,
+        custoTotal: resumo.custoTotal,
+        lucroTotal,
+        margemPercentual: resumo.totalVendido > 0 ? (lucroTotal / resumo.totalVendido) * 100 : 0,
+        quantidadeTotal: resumo.quantidadeTotal,
+      },
+      porProduto,
+      porTipoMorango,
+    };
+  }
+
   async gerarCsvVendas(query: RelatorioQuery = {}): Promise<string> {
     const pedidos = await this.vendasPorPeriodo(query);
-    const linhas: string[] = ['Número,Data,Cliente,Vendedor,Subtotal,Frete,Desconto,Total,Pagamento,StatusPagamento,NF'];
+    const linhas: string[] = [
+      'Número,Data,Cliente,Vendedor,Subtotal,Frete,Desconto,Total,Pagamento,StatusPagamento,NF',
+    ];
 
     for (const p of pedidos) {
       linhas.push(
@@ -249,7 +352,9 @@ export class RelatoriosService {
 
   async gerarXmlVendas(query: RelatorioQuery = {}) {
     const dados = await this.vendasPorPeriodo(query);
-    const itens = dados.map((p) => `
+    const itens = dados
+      .map(
+        (p) => `
       <pedido>
         <numero>${this.sanitizeString(String(p.numero)) ?? ''}</numero>
         <data>${new Date(p.data).toISOString()}</data>
@@ -257,7 +362,9 @@ export class RelatoriosService {
         <vendedor>${this.sanitizeString(p.vendedor?.nome) ?? ''}</vendedor>
         <total>${Number(p.totalFinal ?? 0)}</total>
         <statusPagamento>${this.sanitizeString(p.statusPagamento) ?? ''}</statusPagamento>
-      </pedido>`).join('');
+      </pedido>`,
+      )
+      .join('');
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <relatorio>
@@ -268,13 +375,17 @@ export class RelatoriosService {
 
   async gerarXmlEstoque(query: RelatorioQuery = {}) {
     const dados = await this.estoqueAtual(query);
-    const itens = dados.map((item) => `
+    const itens = dados
+      .map(
+        (item) => `
       <produto>
         <codigo>${this.sanitizeString(item.codigoInterno) ?? ''}</codigo>
         <nome>${this.sanitizeString(item.nome) ?? ''}</nome>
         <categoria>${this.sanitizeString(item.categoria) ?? ''}</categoria>
         <saldoAtual>${Number(item.saldoAtual ?? 0)}</saldoAtual>
-      </produto>`).join('');
+      </produto>`,
+      )
+      .join('');
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <relatorio>

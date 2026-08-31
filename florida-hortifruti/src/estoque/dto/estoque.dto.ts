@@ -1,6 +1,15 @@
-import { IsString, IsNumber, IsOptional, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
-export class EntradaEstoqueDto {
+export class ItemEntradaEstoqueDto {
   @IsString()
   produtoId: string;
 
@@ -8,15 +17,34 @@ export class EntradaEstoqueDto {
   @Min(0.01)
   quantidade: number;
 
+  @IsNumber()
+  @Min(0)
+  valorProduto: number;
+}
+
+export class EntradaEstoqueDto {
   @IsString()
   fornecedor: string;
 
+  @IsOptional()
   @IsNumber()
   @Min(0)
-  custoTotal: number;
+  valorFrete?: number;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  valorComissao?: number;
+
+  @IsOptional()
+  @IsString()
   observacao?: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ItemEntradaEstoqueDto)
+  itens: ItemEntradaEstoqueDto[];
 }
 
 export class AjusteEstoqueDto {
@@ -24,11 +52,12 @@ export class AjusteEstoqueDto {
   produtoId: string;
 
   @IsNumber()
-  quantidade: number; // positivo = entrada, negativo = saída
+  quantidade: number;
 
   @IsString()
-  motivo: string; // ex: 'Perda', 'Avaria', 'Contagem física', 'Ajuste inicial'
+  motivo: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   observacao?: string;
 }

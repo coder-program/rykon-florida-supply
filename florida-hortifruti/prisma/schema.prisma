@@ -31,6 +31,7 @@ model Usuario {
 
   pedidosCriados      Pedido[]            @relation("VendedorPedido")
   ajustesEstoque      MovimentacaoEstoque[]
+  comprasEstoque      CompraEstoque[]
   historicoPrecos     HistoricoPreco[]
   logs                LogAuditoria[]
 
@@ -83,6 +84,7 @@ model Produto {
 
   itensPedido      ItemPedido[]
   movimentacoes    MovimentacaoEstoque[]
+  itensCompra      ItemCompraEstoque[]
   historicoPrecos  HistoricoPreco[]
 
   @@map("produtos")
@@ -207,8 +209,40 @@ model MovimentacaoEstoque {
   usuario        Usuario          @relation(fields: [usuarioId], references: [id])
   observacao     String?
   data           DateTime         @default(now())
+  itemCompra     ItemCompraEstoque?
 
   @@map("movimentacoes_estoque")
+}
+
+model CompraEstoque {
+  id            String   @id @default(uuid())
+  fornecedor    String
+  valorFrete    Decimal  @default(0) @db.Decimal(10, 2)
+  valorComissao Decimal  @default(0) @db.Decimal(10, 2)
+  observacao    String?
+  data          DateTime @default(now())
+  usuarioId     String
+  usuario       Usuario  @relation(fields: [usuarioId], references: [id])
+  itens         ItemCompraEstoque[]
+
+  @@map("compras_estoque")
+}
+
+model ItemCompraEstoque {
+  id                    String   @id @default(uuid())
+  compraId              String
+  compra                CompraEstoque @relation(fields: [compraId], references: [id], onDelete: Cascade)
+  produtoId             String
+  produto               Produto  @relation(fields: [produtoId], references: [id])
+  quantidade            Decimal  @db.Decimal(10, 2)
+  valorProdutoInformado Decimal  @db.Decimal(10, 2)
+  rateioFrete           Decimal  @db.Decimal(10, 2)
+  rateioComissao        Decimal  @db.Decimal(10, 2)
+  custoUnitarioFinal    Decimal  @db.Decimal(12, 4)
+  movimentacaoId        String?  @unique
+  movimentacao          MovimentacaoEstoque? @relation(fields: [movimentacaoId], references: [id])
+
+  @@map("itens_compra_estoque")
 }
 
 // ==========================================

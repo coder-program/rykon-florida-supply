@@ -7,7 +7,12 @@ async function bootstrap() {
 
   const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-    : ['http://localhost:5173', 'http://localhost:5176', 'http://localhost:5200'];
+    : [
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://localhost:5176',
+        'http://localhost:5200',
+      ];
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -26,7 +31,9 @@ async function bootstrap() {
 
   // Health check público para o Render monitorar
   const httpAdapter = app.getHttpAdapter();
-  httpAdapter.get('/health', (_req: any, res: any) => res.json({ status: 'ok', ts: new Date().toISOString() }));
+  httpAdapter.get('/health', (_req: any, res: any) =>
+    res.json({ status: 'ok', ts: new Date().toISOString() }),
+  );
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port, '0.0.0.0');
