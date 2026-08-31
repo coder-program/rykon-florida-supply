@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Search, Plus, Pencil, Trash2, RotateCcw, FileSpreadsheet, FileText } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { api } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Button } from '../components/ui/Button'
@@ -67,7 +67,7 @@ export function ClientesPage() {
     return new Date().toISOString().slice(0, 10)
   }
 
-  function exportarExcel() {
+  async function exportarExcel() {
     const linhas = clientes.map((c) => ({
       Nome: c.razaoSocialOuNome ?? '',
       Fantasia: c.nomeFantasia ?? '',
@@ -82,10 +82,31 @@ export function ClientesPage() {
       Status: c.ativo === false ? 'Inativo' : 'Ativo',
     }))
 
-    const ws = XLSX.utils.json_to_sheet(linhas)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Clientes')
-    XLSX.writeFile(wb, `clientes-${formatarDataArquivo()}.xlsx`)
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Clientes')
+    worksheet.columns = [
+      { header: 'Nome', key: 'Nome', width: 24 },
+      { header: 'Fantasia', key: 'Fantasia', width: 20 },
+      { header: 'CNPJ/CPF', key: 'CNPJ/CPF', width: 18 },
+      { header: 'Telefone', key: 'Telefone', width: 16 },
+      { header: 'WhatsApp', key: 'WhatsApp', width: 16 },
+      { header: 'Email', key: 'Email', width: 26 },
+      { header: 'Cidade', key: 'Cidade', width: 16 },
+      { header: 'Estado', key: 'Estado', width: 10 },
+      { header: 'Pagamento', key: 'Pagamento', width: 18 },
+      { header: 'Necessita NF', key: 'Necessita NF', width: 14 },
+      { header: 'Status', key: 'Status', width: 12 },
+    ]
+    worksheet.addRows(linhas)
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `clientes-${formatarDataArquivo()}.xlsx`
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   function exportarPdf() {

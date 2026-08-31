@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { api } from '../lib/api'
 import { formatBRL, formatDate, FORMA_PAGAMENTO_LABEL, STATUS_PEDIDO_LABEL } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -128,15 +128,16 @@ function MenuExportar({ visao, resumoFiltros }: { visao: Visao; resumoFiltros: s
       const { excelRows, pdfRows, headers, titulo } = visao
 
       if (formato === 'excel') {
-        const ws = XLSX.utils.json_to_sheet(excelRows)
-        const wb = XLSX.utils.book_new()
-        XLSX.utils.book_append_sheet(wb, ws, titulo.slice(0, 31))
-        XLSX.writeFile(wb, `${nome}.xlsx`)
+        const workbook = new ExcelJS.Workbook()
+        const worksheet = workbook.addWorksheet(titulo.slice(0, 31))
+        worksheet.columns = headers.map((header) => ({ header, key: header, width: Math.max(14, header.length + 4) }))
+        worksheet.addRows(excelRows.map((row) => Object.fromEntries(headers.map((header) => [header, row[header] ?? '']))))
+        const buffer = await workbook.xlsx.writeBuffer()
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+        downloadBlob(blob, `${nome}.xlsx`)
       } else if (formato === 'csv') {
-        const ws = XLSX.utils.json_to_sheet(excelRows)
-        const wb = XLSX.utils.book_new()
-        XLSX.utils.book_append_sheet(wb, ws, titulo.slice(0, 31))
-        XLSX.writeFile(wb, `${nome}.csv`)
+        const csv = [headers.join(';'), ...excelRows.map((row) => headers.map((header) => String(row[header] ?? '')).join(';'))].join('\n')
+        downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `${nome}.csv`)
       } else if (formato === 'pdf') {
         const doc = new jsPDF({ orientation: headers.length > 5 ? 'landscape' : 'portrait' })
         doc.setFontSize(14)

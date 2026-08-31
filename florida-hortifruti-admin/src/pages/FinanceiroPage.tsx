@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { DollarSign, AlertCircle, Clock, CheckCircle2, ChevronDown, ChevronUp, FileSpreadsheet, FileText } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { api } from '../lib/api'
 import { formatBRL, formatDate, FORMA_PAGAMENTO_LABEL } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -94,7 +94,7 @@ export function FinanceiroPage() {
     return new Date().toISOString().slice(0, 10)
   }
 
-  function exportarExcel() {
+  async function exportarExcel() {
     const linhas = contas.map((c: any) => ({
       Pedido: `#${String(c.numero ?? '').padStart(6, '0')}`,
       Cliente: c.cliente?.razaoSocialOuNome ?? '',
@@ -105,10 +105,27 @@ export function FinanceiroPage() {
       Valor: Number(c.totalFinal ?? 0),
     }))
 
-    const ws = XLSX.utils.json_to_sheet(linhas)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Financeiro')
-    XLSX.writeFile(wb, `financeiro-${formatarDataArquivo()}.xlsx`)
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Financeiro')
+    worksheet.columns = [
+      { header: 'Pedido', key: 'Pedido', width: 16 },
+      { header: 'Cliente', key: 'Cliente', width: 26 },
+      { header: 'Vendedor', key: 'Vendedor', width: 20 },
+      { header: 'Forma', key: 'Forma', width: 18 },
+      { header: 'Vencimento', key: 'Vencimento', width: 14 },
+      { header: 'Situacao', key: 'Situacao', width: 20 },
+      { header: 'Valor', key: 'Valor', width: 16 },
+    ]
+    worksheet.addRows(linhas)
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `financeiro-${formatarDataArquivo()}.xlsx`
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   function exportarPdf() {

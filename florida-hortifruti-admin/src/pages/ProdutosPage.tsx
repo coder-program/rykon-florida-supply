@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, History, Trash2, RotateCcw, FileSpreadsheet, FileText, Search } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { api } from '../lib/api'
 import { formatBRL, formatDateTime } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -106,7 +106,7 @@ export function ProdutosPage() {
     return new Date().toISOString().slice(0, 10)
   }
 
-  function exportarExcel() {
+  async function exportarExcel() {
     const linhas = produtosFiltrados.map((p: any) => ({
       Código: p.codigoInterno ?? '',
       Nome: p.nome ?? '',
@@ -119,10 +119,29 @@ export function ProdutosPage() {
       Status: p.ativo === false ? 'Inativo' : 'Ativo',
     }))
 
-    const ws = XLSX.utils.json_to_sheet(linhas)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Produtos')
-    XLSX.writeFile(wb, `produtos-${formatarDataArquivo()}.xlsx`)
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Produtos')
+    worksheet.columns = [
+      { header: 'Código', key: 'Código', width: 16 },
+      { header: 'Nome', key: 'Nome', width: 28 },
+      { header: 'Categoria', key: 'Categoria', width: 18 },
+      { header: 'Unidade', key: 'Unidade', width: 12 },
+      { header: 'Preço Sugerido', key: 'Preço Sugerido', width: 18 },
+      { header: 'Custo', key: 'Custo', width: 14 },
+      { header: 'Estoque', key: 'Estoque', width: 12 },
+      { header: 'Estoque Mínimo', key: 'Estoque Mínimo', width: 18 },
+      { header: 'Status', key: 'Status', width: 12 },
+    ]
+    worksheet.addRows(linhas)
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `produtos-${formatarDataArquivo()}.xlsx`
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   function exportarPdf() {

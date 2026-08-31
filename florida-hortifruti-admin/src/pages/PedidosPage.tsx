@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Search, ChevronDown, QrCode, Printer, Pencil, Plus, FileSpreadsheet, FileText } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { api } from '../lib/api'
 import { formatBRL, formatDate, STATUS_PEDIDO_LABEL, STATUS_PEDIDO_COLOR, STATUS_PAGAMENTO_COLOR, FORMA_PAGAMENTO_LABEL } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -70,7 +70,7 @@ export function PedidosPage() {
     return new Date().toISOString().slice(0, 10)
   }
 
-  function exportarExcel() {
+  async function exportarExcel() {
     const linhas = pedidosFiltrados.map((p: any) => ({
       'Nº Pedido': p.numero ?? '',
       Data: p.data ? formatDate(p.data) : '',
@@ -81,10 +81,27 @@ export function PedidosPage() {
       Total: Number(p.totalFinal ?? 0),
     }))
 
-    const ws = XLSX.utils.json_to_sheet(linhas)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Pedidos')
-    XLSX.writeFile(wb, `pedidos-${formatarDataArquivo()}.xlsx`)
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Pedidos')
+    worksheet.columns = [
+      { header: 'Nº Pedido', key: 'Nº Pedido', width: 14 },
+      { header: 'Data', key: 'Data', width: 16 },
+      { header: 'Cliente', key: 'Cliente', width: 28 },
+      { header: 'Vendedor', key: 'Vendedor', width: 20 },
+      { header: 'Status', key: 'Status', width: 22 },
+      { header: 'Pagamento', key: 'Pagamento', width: 18 },
+      { header: 'Total', key: 'Total', width: 16 },
+    ]
+    worksheet.addRows(linhas)
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `pedidos-${formatarDataArquivo()}.xlsx`
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   function exportarPdf() {
