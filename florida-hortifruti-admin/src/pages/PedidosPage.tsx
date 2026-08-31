@@ -196,7 +196,7 @@ export function PedidosPage() {
                     <p className="font-medium text-gray-900">#{String(p.numero).padStart(6, '0')}</p>
                     <p className="text-xs text-gray-400">{formatDate(p.data)}</p>
                   </td>
-                  <td className="px-4 py-3 text-gray-700 max-w-[180px] truncate">{p.cliente?.razaoSocialOuNome}</td>
+                  <td className="px-4 py-3 text-gray-700 max-w-45 truncate">{p.cliente?.razaoSocialOuNome}</td>
                   <td className="px-4 py-3 text-gray-600">{p.vendedor?.nome}</td>
                   <td className="px-4 py-3">
                     <Badge className={STATUS_PEDIDO_COLOR[p.status]}>{STATUS_PEDIDO_LABEL[p.status]}</Badge>

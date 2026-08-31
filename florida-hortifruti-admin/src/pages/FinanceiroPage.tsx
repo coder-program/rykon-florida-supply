@@ -278,7 +278,7 @@ export function FinanceiroPage() {
                         <p className="font-mono text-xs text-gray-500">#{String(c.numero).padStart(6, '0')}</p>
                         <p className="text-xs text-gray-400">{formatDate(c.data)}</p>
                       </td>
-                      <td className="px-4 py-3 max-w-[160px]">
+                      <td className="px-4 py-3 max-w-40">
                         <p className="font-medium text-gray-900 truncate">{c.cliente?.razaoSocialOuNome}</p>
                         {c.cliente?.nomeFantasia && <p className="text-xs text-gray-400 truncate">{c.cliente.nomeFantasia}</p>}
                       </td>

@@ -130,7 +130,7 @@ function KpiCard({
     <div
       className={`relative overflow-hidden rounded-2xl border p-5 transition-shadow ${
         emphasize
-          ? 'border-green-200 bg-gradient-to-br from-green-600 to-green-700 text-white shadow-sm'
+          ? 'border-green-200 bg-linear-to-br from-green-600 to-green-700 text-white shadow-sm'
           : 'border-gray-200 bg-white hover:shadow-sm'
       } ${to ? 'cursor-pointer' : ''}`}
     >
@@ -392,7 +392,7 @@ export function DashboardPage() {
                   </Link>
                 </div>
               ) : (
-                <ul className="max-h-[380px] divide-y divide-gray-50 overflow-auto">
+                <ul className="max-h-95 divide-y divide-gray-50 overflow-auto">
                   {estoque.map((e) => {
                     const status = statusEstoque(e)
                     const saldo = Number(e.saldoAtual)
@@ -444,7 +444,7 @@ export function DashboardPage() {
             </CardHeader>
             <CardContent>
               {chartData.length === 0 ? (
-                <div className="flex h-[280px] flex-col items-center justify-center px-6 text-center">
+                <div className="flex h-70 flex-col items-center justify-center px-6 text-center">
                   <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
                     <BarChart3 className="h-6 w-6 text-gray-400" />
                   </div>

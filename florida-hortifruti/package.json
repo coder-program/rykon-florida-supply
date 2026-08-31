@@ -5,6 +5,7 @@
   "scripts": {
     "build": "npx nest build",
     "lint": "eslint \"{src,prisma}/**/*.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.build.json",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",

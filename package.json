@@ -1,0 +1,17 @@
+{
+  "name": "florida-hortifruti-sistemas",
+  "private": true,
+  "scripts": {
+    "prepare": "husky",
+    "lint": "npm run lint --prefix florida-hortifruti && npm run lint --prefix florida-hortifruti-admin && npm run lint --prefix florida-hortifruti-pwa",
+    "typecheck": "npm run typecheck --prefix florida-hortifruti && npm run typecheck --prefix florida-hortifruti-admin && npm run typecheck --prefix florida-hortifruti-pwa",
+    "check": "npm run lint && npm run typecheck",
+    "format": "prettier --write \"florida-hortifruti/{src,prisma}/**/*.{ts,js,cjs,json}\" \"florida-hortifruti-admin/src/**/*.{ts,tsx,css}\" \"florida-hortifruti-pwa/src/**/*.{ts,tsx,css}\"",
+    "format:check": "prettier --check \"florida-hortifruti/{src,prisma}/**/*.{ts,js,cjs,json}\" \"florida-hortifruti-admin/src/**/*.{ts,tsx,css}\" \"florida-hortifruti-pwa/src/**/*.{ts,tsx,css}\""
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.9.6"
+  }
+}

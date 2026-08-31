@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, LogOut, RefreshCw } from 'lucide-react'
 import { api } from '../lib/api'
-import { useAuth } from '../contexts/AuthContext'
+import { useAuth } from '../contexts/useAuth'
 import { formatBRL, formatDate, STATUS_LABEL, STATUS_COLOR } from '../lib/utils'
 import { carregarRascunho } from '../lib/draft'
 
@@ -11,7 +11,11 @@ export function HomePage() {
   const navigate = useNavigate()
   const temRascunho = !!carregarRascunho()
 
-  const { data: pedidos = [], isLoading, refetch } = useQuery({
+  const {
+    data: pedidos = [],
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ['meus-pedidos'],
     queryFn: () => api.get('/pedidos').then((r) => r.data),
   })
@@ -26,10 +30,16 @@ export function HomePage() {
             <h1 className="text-white font-bold text-lg leading-tight">{usuario?.nome}</h1>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => refetch()} className="w-9 h-9 bg-green-500 rounded-full flex items-center justify-center text-white">
+            <button
+              onClick={() => refetch()}
+              className="w-9 h-9 bg-green-500 rounded-full flex items-center justify-center text-white"
+            >
               <RefreshCw className="w-4 h-4" />
             </button>
-            <button onClick={logout} className="w-9 h-9 bg-green-500 rounded-full flex items-center justify-center text-white">
+            <button
+              onClick={logout}
+              className="w-9 h-9 bg-green-500 rounded-full flex items-center justify-center text-white"
+            >
               <LogOut className="w-4 h-4" />
             </button>
           </div>
@@ -84,7 +94,11 @@ export function HomePage() {
         {!isLoading && pedidos.length === 0 && (
           <div className="text-center py-12">
             <p className="text-4xl mb-3">📦</p>
-            <p className="text-gray-500 text-sm">Nenhum pedido ainda.<br />Toque em "Novo Pedido" para começar.</p>
+            <p className="text-gray-500 text-sm">
+              Nenhum pedido ainda.
+              <br />
+              Toque em "Novo Pedido" para começar.
+            </p>
           </div>
         )}
 
@@ -97,12 +111,18 @@ export function HomePage() {
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono text-xs text-gray-400">#{String(p.numero).padStart(6, '0')}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[p.status]}`}>
+                  <span className="font-mono text-xs text-gray-400">
+                    #{String(p.numero).padStart(6, '0')}
+                  </span>
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[p.status]}`}
+                  >
                     {STATUS_LABEL[p.status]}
                   </span>
                 </div>
-                <p className="font-semibold text-gray-900 text-sm truncate">{p.cliente?.razaoSocialOuNome}</p>
+                <p className="font-semibold text-gray-900 text-sm truncate">
+                  {p.cliente?.razaoSocialOuNome}
+                </p>
                 <p className="text-xs text-gray-400 mt-0.5">{formatDate(p.data)}</p>
               </div>
               <p className="font-bold text-green-700 text-sm shrink-0">{formatBRL(p.totalFinal)}</p>
