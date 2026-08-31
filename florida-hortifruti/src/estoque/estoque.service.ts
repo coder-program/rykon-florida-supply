@@ -23,7 +23,9 @@ export class EstoqueService {
   calcularRateio(itens: ItemEntrada[], valorFrete = 0, valorComissao = 0) {
     const freteCents = this.toCents(valorFrete || 0);
     const comissaoCents = this.toCents(valorComissao || 0);
-    const valoresCents = itens.map((item) => this.toCents(item.valorProduto || 0));
+    const valoresCents = itens.map((item) =>
+      this.toCents(Number(item.quantidade || 0) * Number(item.valorProduto || 0)),
+    );
     const totalCents = valoresCents.reduce((acc, value) => acc + value, 0);
 
     let usadoFrete = 0;
@@ -231,16 +233,20 @@ export class EstoqueService {
       include: {
         usuario: { select: { nome: true } },
         itemCompra: {
-          select: {
-            valorProdutoInformado: true,
-            rateioFrete: true,
-            rateioComissao: true,
-            custoUnitarioFinal: true,
-            compra: { select: { fornecedor: true, valorFrete: true, valorComissao: true } },
+          include: {
+            compra: {
+              include: {
+                itens: {
+                  include: {
+                    produto: { select: { id: true, nome: true, codigoInterno: true } },
+                  },
+                },
+              },
+            },
           },
         },
       },
-      orderBy: { data: 'asc' },
+      orderBy: { data: 'desc' },
     });
   }
 }

@@ -32,7 +32,10 @@ export class EstoqueController {
             {
               produtoId: dto.produtoId,
               quantidade: Number(dto.quantidade),
-              valorProduto: Number(dto.custoTotal ?? 0),
+              valorProduto:
+                Number(dto.quantidade) > 0
+                  ? Number(dto.custoTotal ?? 0) / Number(dto.quantidade)
+                  : Number(dto.custoTotal ?? 0),
             },
           ]
         : [];

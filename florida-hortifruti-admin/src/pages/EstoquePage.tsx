@@ -41,13 +41,24 @@ function fromCents(cents: number) {
   return Number((cents / 100).toFixed(2))
 }
 
+function valorLinhaCompra(item: { valorProdutoInformado?: number; quantidade?: number }) {
+  return Number(item.valorProdutoInformado ?? 0)
+}
+
+function unitarioCompra(item: { valorProdutoInformado?: number; quantidade?: number }) {
+  const qtd = Number(item.quantidade ?? 0)
+  return qtd > 0 ? valorLinhaCompra(item) / qtd : 0
+}
+
 function previewRateio(itens: ItemForm[], valorFrete: number, valorComissao: number) {
   const validos = itens.filter((item) => item.produtoId && Number(item.quantidade) > 0)
   if (validos.length === 0) return []
 
   const freteCents = toCents(valorFrete)
   const comissaoCents = toCents(valorComissao)
-  const valoresCents = validos.map((item) => toCents(item.valorProduto))
+  const valoresCents = validos.map((item) =>
+    toCents(Number(item.quantidade || 0) * Number(item.valorProduto || 0)),
+  )
   const totalCents = valoresCents.reduce((acc, value) => acc + value, 0)
   let usadoFrete = 0
   let usadoComissao = 0
@@ -69,6 +80,7 @@ function previewRateio(itens: ItemForm[], valorFrete: number, valorComissao: num
     return {
       produtoId: item.produtoId,
       quantidade,
+      valorUnitario: Number(item.valorProduto || 0),
       valorProduto,
       rateioFrete,
       rateioComissao,
@@ -123,13 +135,6 @@ export function EstoquePage() {
   )
 
   const totalProdutos = rateio.reduce((acc, item) => acc + item.valorProduto, 0)
-  const totalCompra = Number(
-    (
-      totalProdutos +
-      Number(formEntrada.valorFrete || 0) +
-      Number(formEntrada.valorComissao || 0)
-    ).toFixed(2),
-  )
 
   const entrada = useMutation({
     mutationFn: () =>
@@ -373,8 +378,8 @@ export function EstoquePage() {
             />
           </div>
           <p className="text-xs text-gray-500">
-            Frete e comissão são rateados pelo valor de cada produto, não pela quantidade de caixas.
-            O custo da caixa já sai com esses valores embutidos.
+            Valor total = quantidade de caixas × valor do produto. Frete e comissão não entram nesse
+            total; só no custo da caixa.
           </p>
 
           <div className="space-y-3">
@@ -441,7 +446,7 @@ export function EstoquePage() {
                       onChange={(e) => atualizarItem(index, { quantidade: e.target.value })}
                     />
                     <MoneyInput
-                      label="Valor do produto *"
+                      label="Valor do produto (por caixa) *"
                       required
                       value={item.valorProduto}
                       onValueChange={(valorProduto) => atualizarItem(index, { valorProduto })}
@@ -449,13 +454,8 @@ export function EstoquePage() {
                   </div>
                   {preview && (
                     <p className="text-xs text-gray-500">
-                      Total do item:{' '}
-                      <strong className="text-gray-800">{formatBRL(preview.custoTotal)}</strong>
-                      {' · '}custo da caixa {formatBRL(preview.custoCaixa)}
-                      {preview.rateioFrete > 0 ? ` · frete ${formatBRL(preview.rateioFrete)}` : ''}
-                      {preview.rateioComissao > 0
-                        ? ` · comissão ${formatBRL(preview.rateioComissao)}`
-                        : ''}
+                      {preview.quantidade} cx × {formatBRL(item.valorProduto)} ={' '}
+                      <strong className="text-gray-800">{formatBRL(preview.valorProduto)}</strong>
                     </p>
                   )}
                 </div>
@@ -467,22 +467,13 @@ export function EstoquePage() {
             <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-3 space-y-2">
               {rateio.map((item) => (
                 <p key={`${item.produtoId}-${item.quantidade}`} className="text-xs text-gray-600">
-                  {nomeProduto(item.produtoId)}: {item.quantidade} cx → {formatBRL(item.custoTotal)}{' '}
-                  ({formatBRL(item.custoCaixa)} / caixa)
+                  {nomeProduto(item.produtoId)}: {item.quantidade} cx ×{' '}
+                  {formatBRL(item.valorUnitario)} = {formatBRL(item.valorProduto)}
                 </p>
               ))}
-              <div className="flex flex-wrap items-end justify-between gap-2 border-t border-green-200 pt-2">
-                <div className="text-xs text-gray-600 space-y-0.5">
-                  <p>Produtos {formatBRL(totalProdutos)}</p>
-                  {Number(formEntrada.valorFrete || 0) > 0 && (
-                    <p>Frete {formatBRL(formEntrada.valorFrete)}</p>
-                  )}
-                  {Number(formEntrada.valorComissao || 0) > 0 && (
-                    <p>Comissão {formatBRL(formEntrada.valorComissao)}</p>
-                  )}
-                </div>
+              <div className="flex items-end justify-between gap-2 border-t border-green-200 pt-2">
                 <p className="text-sm font-semibold text-green-800">
-                  Valor total {formatBRL(totalCompra)}
+                  Valor total {formatBRL(totalProdutos)}
                 </p>
               </div>
             </div>
@@ -563,59 +554,92 @@ export function EstoquePage() {
         open={!!produtoHistorico}
         onClose={() => setProdutoHistorico(null)}
         title={`Histórico — ${produtoHistorico?.nome}`}
-        size="lg"
+        size="xl"
       >
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left py-2 text-xs text-gray-500">Data</th>
-              <th className="text-left py-2 text-xs text-gray-500">Tipo</th>
-              <th className="text-right py-2 text-xs text-gray-500">Qtd</th>
-              <th className="text-right py-2 text-xs text-gray-500">Custo caixa</th>
-              <th className="text-left py-2 text-xs text-gray-500">Origem</th>
-              <th className="text-left py-2 text-xs text-gray-500">Usuário</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {historico.map((m: any) => (
-              <tr key={m.id}>
-                <td className="py-2 text-gray-600">{formatDate(m.data)}</td>
-                <td className="py-2">
-                  <Badge className={tipoCor[m.tipo]}>{m.tipo}</Badge>
-                </td>
-                <td
-                  className={`py-2 text-right font-semibold ${Number(m.quantidade) > 0 ? 'text-green-700' : 'text-red-600'}`}
-                >
-                  {Number(m.quantidade) > 0 ? '+' : ''}
-                  {Number(m.quantidade).toFixed(0)}
-                </td>
-                <td className="py-2 text-right text-gray-700">
-                  {m.custoUnitario != null ? formatBRL(m.custoUnitario) : '—'}
-                  {m.itemCompra && (
-                    <span className="block text-[11px] font-normal text-gray-400">
-                      prod. {formatBRL(m.itemCompra.valorProdutoInformado)}
-                      {Number(m.itemCompra.rateioFrete) > 0
-                        ? ` + frete ${formatBRL(m.itemCompra.rateioFrete)}`
-                        : ''}
-                      {Number(m.itemCompra.rateioComissao) > 0
-                        ? ` + com. ${formatBRL(m.itemCompra.rateioComissao)}`
-                        : ''}
+        <div className="space-y-3">
+          {historico.map((m: any) => {
+            const compra = m.itemCompra?.compra
+            const itensCompra = compra?.itens ?? []
+            const totalCompra = itensCompra.reduce(
+              (acc: number, item: any) => acc + valorLinhaCompra(item),
+              0,
+            )
+            const qtd = Number(m.quantidade)
+            return (
+              <div key={m.id} className="rounded-xl border border-gray-200 px-4 py-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-gray-500">{formatDate(m.data)}</span>
+                    <Badge className={tipoCor[m.tipo]}>{m.tipo}</Badge>
+                    <span
+                      className={`text-sm font-semibold ${qtd > 0 ? 'text-green-700' : 'text-red-600'}`}
+                    >
+                      {qtd > 0 ? '+' : ''}
+                      {qtd.toFixed(0)} cx
                     </span>
-                  )}
-                </td>
-                <td className="py-2 text-gray-600">{m.origem}</td>
-                <td className="py-2 text-gray-500">{m.usuario?.nome}</td>
-              </tr>
-            ))}
-            {historico.length === 0 && (
-              <tr>
-                <td colSpan={6} className="text-center py-4 text-gray-400">
-                  Nenhuma movimentação
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                  </div>
+                  <p className="text-xs text-gray-500">{m.usuario?.nome}</p>
+                </div>
+
+                {compra ? (
+                  <div className="space-y-2 text-sm">
+                    <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 text-xs text-gray-600">
+                      <p>
+                        Fornecedor <strong className="text-gray-800">{compra.fornecedor}</strong>
+                      </p>
+                      <p>
+                        Frete {formatBRL(compra.valorFrete)} · Comissão{' '}
+                        {formatBRL(compra.valorComissao)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-gray-50 px-3 py-2 space-y-1">
+                      {itensCompra.map((item: any) => {
+                        const atual = item.produto?.id === produtoHistorico?.produtoId
+                        return (
+                          <p
+                            key={item.id}
+                            className={`text-xs ${atual ? 'font-semibold text-gray-800' : 'text-gray-600'}`}
+                          >
+                            {item.produto?.nome}: {Number(item.quantidade).toFixed(0)} cx ×{' '}
+                            {formatBRL(unitarioCompra(item))} = {formatBRL(valorLinhaCompra(item))}
+                            {atual ? ' · este produto' : ''}
+                          </p>
+                        )
+                      })}
+                      <p className="text-sm font-semibold text-green-800 pt-1 border-t border-gray-200">
+                        Valor total {formatBRL(totalCompra)}
+                      </p>
+                    </div>
+                    {m.custoUnitario != null && (
+                      <p className="text-xs text-gray-500">
+                        Custo desta caixa {formatBRL(m.custoUnitario)}
+                        {Number(m.itemCompra.rateioFrete) > 0 ||
+                        Number(m.itemCompra.rateioComissao) > 0
+                          ? ` · rateio frete ${formatBRL(m.itemCompra.rateioFrete)} · comissão ${formatBRL(m.itemCompra.rateioComissao)}`
+                          : ''}
+                      </p>
+                    )}
+                    {(compra.observacao || m.observacao) && (
+                      <p className="text-xs text-gray-500">
+                        Observação: {compra.observacao || m.observacao}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-600 space-y-0.5">
+                    {m.custoUnitario != null && <p>Custo caixa {formatBRL(m.custoUnitario)}</p>}
+                    <p>{m.origem}</p>
+                    {m.motivoAjuste && <p>Motivo: {m.motivoAjuste}</p>}
+                    {m.observacao && <p>Observação: {m.observacao}</p>}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {historico.length === 0 && (
+            <p className="text-center py-4 text-sm text-gray-400">Nenhuma movimentação</p>
+          )}
+        </div>
       </Modal>
     </div>
   )
