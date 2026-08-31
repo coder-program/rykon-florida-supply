@@ -35,7 +35,7 @@
     "seed": "ts-node prisma/seed.ts"
   },
   "devDependencies": {
-    "@nestjs/cli": "^10.4.5",
+    "@nestjs/cli": "^12.0.0",
     "@typescript-eslint/eslint-plugin": "^8.44.0",
     "@typescript-eslint/parser": "^8.44.0",
     "@types/bcryptjs": "^2.4.6",
