@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, History, Minus, AlertTriangle, FileSpreadsheet, FileText } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { api } from '../lib/api'
 import { formatDate } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -68,7 +68,7 @@ export function EstoquePage() {
     return new Date().toISOString().slice(0, 10)
   }
 
-  function exportarExcel() {
+  async function exportarExcel() {
     const linhas = saldos.map((s: any) => ({
       Produto: s.nome ?? '',
       Unidade: s.unidadeVenda ?? '',
@@ -77,10 +77,25 @@ export function EstoquePage() {
       Status: s.abaixoMinimo ? 'Abaixo do mínimo' : Number(s.saldoAtual) <= 0 ? 'Sem estoque' : 'Normal',
     }))
 
-    const ws = XLSX.utils.json_to_sheet(linhas)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Estoque')
-    XLSX.writeFile(wb, `estoque-${formatarDataArquivo()}.xlsx`)
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Estoque')
+    worksheet.columns = [
+      { header: 'Produto', key: 'Produto', width: 28 },
+      { header: 'Unidade', key: 'Unidade', width: 12 },
+      { header: 'Saldo', key: 'Saldo', width: 12 },
+      { header: 'Estoque mínimo', key: 'Estoque mínimo', width: 18 },
+      { header: 'Status', key: 'Status', width: 18 },
+    ]
+    worksheet.addRows(linhas)
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `estoque-${formatarDataArquivo()}.xlsx`
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   function exportarPdf() {

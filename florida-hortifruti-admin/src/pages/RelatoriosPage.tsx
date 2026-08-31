@@ -119,7 +119,7 @@ function MenuExportar({ visao, resumoFiltros }: { visao: Visao; resumoFiltros: s
     }
   }, [])
 
-  function exportar(formato: Formato) {
+  async function exportar(formato: Formato) {
     if (vazio) return
     setErro('')
     setExportando(formato)
