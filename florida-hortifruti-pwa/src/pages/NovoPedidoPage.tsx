@@ -274,7 +274,10 @@ function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: I
   }
 
   function adicionar(p: any) {
+    const estoque = Number(p.estoqueAtual ?? 0)
     const existe = getItem(p.id)
+    if (estoque <= 0) return
+    if (existe && existe.quantidade >= estoque) return
     if (existe) {
       onChange(
         itens.map((i) => (i.produtoId === p.id ? { ...i, quantidade: i.quantidade + 1 } : i)),
@@ -304,16 +307,26 @@ function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: I
       <div className="flex-1 overflow-y-auto px-4 pt-4 space-y-3">
         {produtos.map((p: any) => {
           const item = getItem(p.id)
+          const estoque = Number(p.estoqueAtual ?? 0)
+          const semEstoque = estoque <= 0
+          const noLimite = !!item && item.quantidade >= estoque
           return (
             <div
               key={p.id}
-              className={`bg-white rounded-xl border px-4 py-3.5 transition ${item ? 'border-green-400' : 'border-gray-100'}`}
+              className={`bg-white rounded-xl border px-4 py-3.5 transition ${
+                semEstoque
+                  ? 'border-gray-100 opacity-60'
+                  : item
+                    ? 'border-green-400'
+                    : 'border-gray-100'
+              }`}
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 text-sm">{p.nome}</p>
                   <p className="text-xs text-gray-400">
                     {p.codigoInterno} • {p.unidadeVenda}
+                    {semEstoque ? ' • sem estoque' : ` • ${estoque} cx`}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -332,7 +345,8 @@ function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: I
                   )}
                   <button
                     onClick={() => adicionar(p)}
-                    className="w-8 h-8 bg-green-100 text-green-700 rounded-lg flex items-center justify-center"
+                    disabled={semEstoque || noLimite}
+                    className="w-8 h-8 bg-green-100 text-green-700 rounded-lg flex items-center justify-center disabled:opacity-40 disabled:bg-gray-100 disabled:text-gray-400"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
@@ -810,6 +824,14 @@ export function NovoPedidoPage() {
         )}
         {etapa === 'extras' && <EtapaExtras dados={dados} onChange={patch} />}
         {etapa === 'confirmar' && <EtapaConfirmar dados={dados} />}
+        {enviarPedido.isError && (
+          <p className="mx-4 mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {Array.isArray((enviarPedido.error as any)?.response?.data?.message)
+              ? (enviarPedido.error as any).response.data.message.join(' ')
+              : ((enviarPedido.error as any)?.response?.data?.message ??
+                'Não foi possível enviar o pedido.')}
+          </p>
+        )}
       </div>
 
       {/* Botão de avanço */}

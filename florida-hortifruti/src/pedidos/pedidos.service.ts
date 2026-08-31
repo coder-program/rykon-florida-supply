@@ -13,8 +13,35 @@ export class PedidosService {
     private etiquetasService: EtiquetasService,
   ) {}
 
+  private async validarEstoque(itens: { produtoId: string; quantidade: number }[]) {
+    const porProduto = new Map<string, number>();
+    for (const item of itens) {
+      porProduto.set(
+        item.produtoId,
+        (porProduto.get(item.produtoId) ?? 0) + Number(item.quantidade),
+      );
+    }
+
+    const ids = [...porProduto.keys()];
+    const produtos = await this.prisma.produto.findMany({ where: { id: { in: ids } } });
+    const faltando: string[] = [];
+
+    for (const [produtoId, quantidade] of porProduto) {
+      const saldo = Number(await this.estoqueService.saldoAtual(produtoId));
+      if (saldo < quantidade) {
+        const nome = produtos.find((p) => p.id === produtoId)?.nome ?? produtoId;
+        faltando.push(`${nome} (pedido ${quantidade} cx, estoque ${saldo} cx)`);
+      }
+    }
+
+    if (faltando.length > 0) {
+      throw new BadRequestException(`Sem estoque suficiente: ${faltando.join('; ')}`);
+    }
+  }
+
   // Itens 6, 7 e 8 do escopo: cálculo automático de subtotal, frete, desconto e total
   async create(dto: CreatePedidoDto, vendedorId: string) {
+    await this.validarEstoque(dto.itens);
     const itensCalculados = dto.itens.map((item) => ({
       ...item,
       valorTotal: item.quantidade * item.valorUnitario,
@@ -87,7 +114,12 @@ export class PedidosService {
   async findOne(id: string) {
     const pedido = await this.prisma.pedido.findUnique({
       where: { id },
-      include: { cliente: true, vendedor: true, itens: { include: { produto: true } }, etiqueta: true },
+      include: {
+        cliente: true,
+        vendedor: true,
+        itens: { include: { produto: true } },
+        etiqueta: true,
+      },
     });
     if (!pedido) throw new NotFoundException('Pedido não encontrado');
     return pedido;
@@ -101,16 +133,26 @@ export class PedidosService {
       throw new BadRequestException('Não é possível editar pedido neste status');
     }
 
-    const itens = dto.itens ?? pedido.itens.map((i) => ({
-      produtoId: i.produtoId,
-      quantidade: Number(i.quantidade),
-      valorUnitario: Number(i.valorUnitario),
-    }));
+    const itens =
+      dto.itens ??
+      pedido.itens.map((i) => ({
+        produtoId: i.produtoId,
+        quantidade: Number(i.quantidade),
+        valorUnitario: Number(i.valorUnitario),
+      }));
 
-    const itensCalculados = itens.map((i) => ({ ...i, valorTotal: i.quantidade * i.valorUnitario }));
+    await this.validarEstoque(itens);
+    const itensCalculados = itens.map((i) => ({
+      ...i,
+      valorTotal: i.quantidade * i.valorUnitario,
+    }));
     const subtotal = itensCalculados.reduce((acc, i) => acc + i.valorTotal, 0);
     const frete = dto.valorFrete ?? Number(pedido.valorFrete);
-    const desconto = dto.descontoValor ?? (dto.descontoPercentual ? (subtotal * dto.descontoPercentual) / 100 : Number(pedido.descontoValor));
+    const desconto =
+      dto.descontoValor ??
+      (dto.descontoPercentual
+        ? (subtotal * dto.descontoPercentual) / 100
+        : Number(pedido.descontoValor));
     const totalFinal = subtotal + frete - desconto;
 
     return this.prisma.$transaction(async (tx) => {
@@ -154,8 +196,17 @@ export class PedidosService {
     const pedido = await this.findOne(id);
 
     if (pedido.status !== StatusPedido.ENVIADO && pedido.status !== StatusPedido.EM_CONFERENCIA) {
-      throw new BadRequestException(`Pedido não pode ser aprovado no status atual: ${pedido.status}`);
+      throw new BadRequestException(
+        `Pedido não pode ser aprovado no status atual: ${pedido.status}`,
+      );
     }
+
+    await this.validarEstoque(
+      pedido.itens.map((item) => ({
+        produtoId: item.produtoId,
+        quantidade: Number(item.quantidade),
+      })),
+    );
 
     const saidasEstoque = pedido.itens.map((item) => ({
       produtoId: item.produtoId,
