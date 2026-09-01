@@ -1,26 +1,33 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../contexts/useAuth'
 
 export function LoginPage() {
   const { login, usuario } = useAuth()
+  const [params] = useSearchParams()
+  const redirectRaw = params.get('redirect') || '/'
+  const redirect = redirectRaw.startsWith('/') ? redirectRaw : '/'
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  if (usuario) return <Navigate to="/" replace />
+  if (usuario) return <Navigate to={redirect} replace />
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
-    try { await login(email, senha) }
-    catch { setError('E-mail ou senha inválidos.') }
-    finally { setLoading(false) }
+    try {
+      await login(email, senha)
+    } catch {
+      setError('E-mail ou senha inválidos.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -38,18 +45,26 @@ export function LoginPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">E-mail</label>
             <input
-              type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="seu@email.com" required autoComplete="email"
+              placeholder="seu@email.com"
+              required
+              autoComplete="email"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Senha</label>
             <div className="relative">
               <input
-                type={showPassword ? 'text' : 'password'} value={senha} onChange={(e) => setSenha(e.target.value)}
+                type={showPassword ? 'text' : 'password'}
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
                 className="w-full px-4 py-3 pr-11 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="••••••••" required autoComplete="current-password"
+                placeholder="••••••••"
+                required
+                autoComplete="current-password"
               />
               <button
                 type="button"
@@ -63,7 +78,8 @@ export function LoginPage() {
           </div>
           {error && <p className="text-sm text-red-600 text-center">{error}</p>}
           <button
-            type="submit" disabled={loading}
+            type="submit"
+            disabled={loading}
             className="w-full py-3.5 bg-green-600 text-white font-semibold rounded-xl text-base hover:bg-green-700 active:scale-95 transition disabled:opacity-60"
           >
             {loading ? 'Entrando...' : 'Entrar'}

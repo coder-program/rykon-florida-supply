@@ -7,6 +7,7 @@ import { LoginPage } from './pages/LoginPage'
 import { HomePage } from './pages/HomePage'
 import { NovoPedidoPage } from './pages/NovoPedidoPage'
 import { DetalhePedidoPage } from './pages/DetalhePedidoPage'
+import { AbrirPedidoPage } from './pages/AbrirPedidoPage'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -21,9 +22,31 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/" element={<PrivateRoute><HomePage /></PrivateRoute>} />
-      <Route path="/pedido/novo" element={<PrivateRoute><NovoPedidoPage /></PrivateRoute>} />
-      <Route path="/pedido/:id" element={<PrivateRoute><DetalhePedidoPage /></PrivateRoute>} />
+      <Route path="/abrir-pedido/:token" element={<AbrirPedidoPage />} />
+      <Route
+        path="/"
+        element={
+          <PrivateRoute>
+            <HomePage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/pedido/novo"
+        element={
+          <PrivateRoute>
+            <NovoPedidoPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/pedido/:id"
+        element={
+          <PrivateRoute>
+            <DetalhePedidoPage />
+          </PrivateRoute>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

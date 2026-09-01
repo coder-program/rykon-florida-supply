@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { EstoqueService } from '../estoque/estoque.service';
 import { EtiquetasService } from '../etiquetas/etiquetas.service';
@@ -106,12 +111,17 @@ export class PedidosService {
 
     return this.prisma.pedido.findMany({
       where,
-      include: { cliente: true, vendedor: true, itens: { include: { produto: true } } },
+      include: {
+        cliente: true,
+        vendedor: true,
+        itens: { include: { produto: true } },
+        etiqueta: true,
+      },
       orderBy: { criadoEm: 'desc' },
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, usuarioId?: string, papel?: PapelUsuario) {
     const pedido = await this.prisma.pedido.findUnique({
       where: { id },
       include: {
@@ -122,6 +132,9 @@ export class PedidosService {
       },
     });
     if (!pedido) throw new NotFoundException('Pedido não encontrado');
+    if (papel === PapelUsuario.VENDEDOR && pedido.vendedorId !== usuarioId) {
+      throw new ForbiddenException('Você não tem acesso a este pedido');
+    }
     return pedido;
   }
 

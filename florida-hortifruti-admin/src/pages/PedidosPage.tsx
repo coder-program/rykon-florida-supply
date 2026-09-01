@@ -1,16 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import {
-  Search,
-  ChevronDown,
-  QrCode,
-  Printer,
-  Pencil,
-  Plus,
-  FileSpreadsheet,
-  FileText,
-} from 'lucide-react'
+import { Search, ChevronDown, Printer, Pencil, Plus, FileSpreadsheet, FileText } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import ExcelJS from 'exceljs'
@@ -76,9 +67,33 @@ export function PedidosPage() {
 
   const mudarStatus = useMutation({
     mutationFn: ({ id, acao }: { id: string; acao: string }) => api.post(`/pedidos/${id}/${acao}`),
-    onSuccess: () => {
+    onSuccess: (res, { acao }) => {
       qc.invalidateQueries({ queryKey: ['pedidos'] })
+      if (acao === 'aprovar') {
+        const payload = res.data
+        setPedidoSelecionado((prev: any) =>
+          prev
+            ? {
+                ...prev,
+                ...(payload.pedido ?? {}),
+                etiqueta: payload.etiqueta ?? prev.etiqueta,
+                status: payload.pedido?.status ?? 'APROVADO',
+              }
+            : prev,
+        )
+        return
+      }
       setPedidoSelecionado(null)
+    },
+  })
+
+  const gerarEtiqueta = useMutation({
+    mutationFn: (pedidoId: string) => api.post(`/etiquetas/pedido/${pedidoId}`),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['pedidos'] })
+      const etiqueta = res.data
+      setPedidoSelecionado((prev: any) => (prev ? { ...prev, etiqueta } : prev))
+      navigate(`/etiqueta/${etiqueta.id}`)
     },
   })
 
@@ -572,9 +587,13 @@ export function PedidosPage() {
                     'Não foi possível atualizar o pedido.')}
               </p>
             )}
-            {STATUS_ACOES[pedidoSelecionado.status] && (
+            {(STATUS_ACOES[pedidoSelecionado.status] ||
+              pedidoSelecionado.etiqueta ||
+              ['APROVADO', 'SEPARACAO_ENTREGA', 'ENTREGUE', 'FATURADO', 'PAGO'].includes(
+                pedidoSelecionado.status,
+              )) && (
               <div className="flex gap-2 flex-wrap pt-2 border-t border-gray-100">
-                {STATUS_ACOES[pedidoSelecionado.status].map(({ label, next }) => (
+                {STATUS_ACOES[pedidoSelecionado.status]?.map(({ label, next }) => (
                   <Button
                     key={next}
                     variant={next === 'cancelar' ? 'danger' : 'primary'}
@@ -584,23 +603,26 @@ export function PedidosPage() {
                     {label}
                   </Button>
                 ))}
-                {pedidoSelecionado.etiqueta && (
-                  <>
+                {pedidoSelecionado.etiqueta ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => navigate(`/etiqueta/${pedidoSelecionado.etiqueta.id}`)}
+                  >
+                    <Printer className="w-3.5 h-3.5" /> Imprimir Etiqueta
+                  </Button>
+                ) : (
+                  ['APROVADO', 'SEPARACAO_ENTREGA', 'ENTREGUE', 'FATURADO', 'PAGO'].includes(
+                    pedidoSelecionado.status,
+                  ) && (
                     <Button
                       variant="secondary"
-                      onClick={() => navigate(`/etiqueta/${pedidoSelecionado.etiqueta.id}`)}
+                      onClick={() => gerarEtiqueta.mutate(pedidoSelecionado.id)}
+                      disabled={gerarEtiqueta.isPending}
                     >
-                      <Printer className="w-3.5 h-3.5" /> Imprimir Etiqueta
+                      <Printer className="w-3.5 h-3.5" />
+                      {gerarEtiqueta.isPending ? 'Gerando...' : 'Gerar etiqueta'}
                     </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() =>
-                        window.open(`/api/p/${pedidoSelecionado.etiqueta.tokenPublico}`, '_blank')
-                      }
-                    >
-                      <QrCode className="w-3.5 h-3.5" /> Ver QR
-                    </Button>
-                  </>
+                  )
                 )}
               </div>
             )}

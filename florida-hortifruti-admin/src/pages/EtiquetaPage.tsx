@@ -1,23 +1,33 @@
 import { useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { Printer, RefreshCw } from 'lucide-react'
+import { MapPin, Printer, RefreshCw, ShoppingCart, User } from 'lucide-react'
 import { api } from '../lib/api'
 
-const STATUS_LABEL: Record<string, string> = {
-  RASCUNHO: 'Rascunho', ENVIADO: 'Enviado', EM_CONFERENCIA: 'Em conferência',
-  APROVADO: 'Aprovado', SEPARACAO_ENTREGA: 'Em separação/entrega',
-  ENTREGUE: 'Entregue', FATURADO: 'Faturado', PAGO: 'Pago', CANCELADO: 'Cancelado',
+function numeroPedido(n: number | string) {
+  return `#${String(n).padStart(6, '0')}`
 }
 
-function formatDate(d: string | Date) {
-  return new Date(d).toLocaleDateString('pt-BR')
+function linhasEndereco(c: {
+  endereco?: string | null
+  cidade?: string | null
+  estado?: string | null
+}) {
+  const linhas: string[] = []
+  if (c.endereco) linhas.push(c.endereco)
+  const cidadeUf = [c.cidade, c.estado].filter(Boolean).join(' – ')
+  if (cidadeUf) linhas.push(cidadeUf)
+  return linhas.length > 0 ? linhas : ['Endereço não informado']
 }
 
 export function EtiquetaPage() {
   const { id } = useParams<{ id: string }>()
 
-  const { data: etiqueta, isLoading, isError } = useQuery({
+  const {
+    data: etiqueta,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ['etiqueta', id],
     queryFn: () => api.get(`/etiquetas/${id}`).then((r) => r.data),
     enabled: !!id,
@@ -29,7 +39,7 @@ export function EtiquetaPage() {
 
   useEffect(() => {
     if (etiqueta) {
-      document.title = `Etiqueta #${String(etiqueta.pedido.numero).padStart(6, '0')} — Flórida Hortifruti`
+      document.title = `Etiqueta ${numeroPedido(etiqueta.pedido.numero)} — Flórida Hortifruti`
     }
   }, [etiqueta])
 
@@ -40,9 +50,9 @@ export function EtiquetaPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="flex items-center gap-3 text-gray-500">
-          <RefreshCw className="w-5 h-5 animate-spin" />
+          <RefreshCw className="h-5 w-5 animate-spin" />
           <span>Gerando etiqueta...</span>
         </div>
       </div>
@@ -51,7 +61,7 @@ export function EtiquetaPage() {
 
   if (isError || !etiqueta) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <p className="text-red-500">Etiqueta não encontrada.</p>
       </div>
     )
@@ -61,58 +71,58 @@ export function EtiquetaPage() {
 
   return (
     <>
-      {/* Barra de ações — só aparece na tela, some na impressão */}
-      <div className="no-print bg-gray-800 text-white px-6 py-3 flex items-center justify-between">
+      <div className="no-print flex items-center justify-between bg-gray-800 px-4 py-3 text-white sm:px-6">
         <div>
-          <p className="font-semibold">
-            Etiqueta — Pedido #{String(p.numero).padStart(6, '0')}
-          </p>
+          <p className="font-semibold">Etiqueta — Pedido {numeroPedido(p.numero)}</p>
           {etiqueta.reimpressoes > 0 && (
-            <p className="text-xs text-gray-400">{etiqueta.reimpressoes} reimpressão(ões) anteriores</p>
+            <p className="text-xs text-gray-400">
+              {etiqueta.reimpressoes} reimpressão(ões) anteriores
+            </p>
           )}
         </div>
         <button
+          type="button"
           onClick={handleImprimir}
-          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+          className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
         >
-          <Printer className="w-4 h-4" />
+          <Printer className="h-4 w-4" />
           Imprimir Etiqueta
         </button>
       </div>
 
-      {/* Área de pré-visualização */}
-      <div className="no-print min-h-screen bg-gray-200 flex items-start justify-center py-8">
-        <div className="label-preview bg-white shadow-2xl">
+      <div className="no-print flex min-h-screen items-start justify-center bg-gray-200 py-8">
+        <div className="label-sheet bg-white shadow-2xl">
           <LabelContent etiqueta={etiqueta} />
         </div>
       </div>
 
-      {/* Área de impressão — só aparece quando imprimir */}
       <div className="print-only">
         <LabelContent etiqueta={etiqueta} />
       </div>
 
       <style>{`
-        /* ── Layout geral ── */
-        .label-preview {
-          width: 80mm;
-          min-height: 120mm;
-          padding: 4mm;
-          font-family: 'Courier New', monospace;
-          font-size: 10pt;
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        .label-sheet,
+        .label-content {
+          width: 70mm;
+          height: 40mm;
+          box-sizing: border-box;
+          font-family: Inter, Roboto, sans-serif;
+          color: #000;
+          background: #fff;
         }
 
-        /* ── Controle de impressão (térmica 80mm) ── */
-        @media print {
-          @page { size: 80mm auto; margin: 0; }
+        .label-sheet { padding: 0; }
 
+        @media print {
+          @page { size: 70mm 40mm; margin: 0; }
+          html, body { margin: 0; padding: 0; background: #fff; }
           body > * { display: none !important; }
           .print-only { display: block !important; }
           .print-only .label-content {
-            width: 80mm;
-            padding: 3mm 4mm;
-            font-family: 'Courier New', monospace;
-            font-size: 9pt;
+            width: 70mm;
+            height: 40mm;
           }
         }
 
@@ -126,99 +136,103 @@ export function EtiquetaPage() {
 function LabelContent({ etiqueta }: { etiqueta: any }) {
   const p = etiqueta.pedido
   const c = etiqueta.cliente
-  const emp = etiqueta.empresa
+  const endereco = linhasEndereco(c)
 
   return (
-    <div className="label-content" style={{ fontFamily: "'Courier New', monospace" }}>
-      {/* Cabeçalho da empresa */}
-      <div style={{ textAlign: 'center', borderBottom: '1px dashed #000', paddingBottom: '3mm', marginBottom: '3mm' }}>
-        <p style={{ fontWeight: 'bold', fontSize: '12pt' }}>{emp.nome}</p>
-        <p style={{ fontSize: '8pt' }}>CNPJ: {emp.cnpj}</p>
-        <p style={{ fontSize: '8pt' }}>Tel: {emp.telefone}</p>
-      </div>
-
-      {/* Número do pedido */}
-      <div style={{ textAlign: 'center', marginBottom: '2mm' }}>
-        <p style={{ fontSize: '14pt', fontWeight: 'bold', letterSpacing: '1px' }}>
-          PEDIDO Nº {String(p.numero).padStart(6, '0')}
-        </p>
-        <p style={{ fontSize: '8pt', color: '#444' }}>
-          {formatDate(p.data)} &nbsp;|&nbsp; {STATUS_LABEL[p.status] ?? p.status}
-        </p>
-      </div>
-
-      <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
-
-      {/* Cliente */}
-      <div style={{ marginBottom: '3mm' }}>
-        <p style={{ fontSize: '8pt', textTransform: 'uppercase', color: '#555', marginBottom: '1mm' }}>CLIENTE</p>
-        <p style={{ fontWeight: 'bold', fontSize: '11pt' }}>{c.razaoSocialOuNome}</p>
-        {c.nomeFantasia && <p style={{ fontSize: '9pt' }}>{c.nomeFantasia}</p>}
-      </div>
-
-      {/* Endereço de entrega */}
-      {(c.endereco || c.cidade) && (
-        <div style={{ marginBottom: '3mm' }}>
-          <p style={{ fontSize: '8pt', textTransform: 'uppercase', color: '#555', marginBottom: '1mm' }}>ENTREGA</p>
-          {c.endereco && <p style={{ fontSize: '9pt' }}>{c.endereco}</p>}
-          {c.cidade && (
-            <p style={{ fontSize: '9pt' }}>
-              {c.cidade}{c.estado ? `/${c.estado}` : ''}
+    <div className="label-content" style={{ display: 'flex', padding: '2.2mm 2.4mm' }}>
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          paddingRight: '2mm',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+        }}
+      >
+        <div style={{ display: 'flex', gap: '1.4mm', alignItems: 'flex-start' }}>
+          <ShoppingCart size={11} strokeWidth={2.2} />
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: '5.2pt', fontWeight: 700, letterSpacing: '0.04em', margin: 0 }}>
+              NÚMERO DO PEDIDO:
             </p>
-          )}
-          {c.telefone && <p style={{ fontSize: '9pt' }}>Tel: {c.telefone}</p>}
-        </div>
-      )}
-
-      <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
-
-      {/* Produtos */}
-      <div style={{ marginBottom: '3mm' }}>
-        <p style={{ fontSize: '8pt', textTransform: 'uppercase', color: '#555', marginBottom: '2mm' }}>PRODUTOS</p>
-        {etiqueta.itens.map((item: any, i: number) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10pt', marginBottom: '1mm' }}>
-            <span style={{ fontWeight: 'bold' }}>{item.codigo}</span>
-            <span style={{ flex: 1, marginLeft: '4mm' }}>{item.nome}</span>
-            <span style={{ fontWeight: 'bold', marginLeft: '2mm' }}>
-              {item.quantidade} {item.unidade.toLowerCase()}
-            </span>
+            <p style={{ fontSize: '13pt', fontWeight: 700, lineHeight: 1.05, margin: '0.4mm 0 0' }}>
+              {numeroPedido(p.numero)}
+            </p>
           </div>
-        ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: '1.4mm', alignItems: 'flex-start' }}>
+          <User size={11} strokeWidth={2.2} />
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: '5.2pt', fontWeight: 700, letterSpacing: '0.04em', margin: 0 }}>
+              NOME DO CLIENTE:
+            </p>
+            <p
+              style={{
+                fontSize: '8pt',
+                fontWeight: 600,
+                lineHeight: 1.15,
+                margin: '0.4mm 0 0',
+                overflow: 'hidden',
+              }}
+            >
+              {c.razaoSocialOuNome}
+              {c.nomeFantasia ? ` (${c.nomeFantasia})` : ''}
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '1.4mm', alignItems: 'flex-start' }}>
+          <MapPin size={11} strokeWidth={2.2} />
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: '5.2pt', fontWeight: 700, letterSpacing: '0.04em', margin: 0 }}>
+              ENDEREÇO DO CLIENTE:
+            </p>
+            {endereco.map((linha) => (
+              <p
+                key={linha}
+                style={{
+                  fontSize: '6.6pt',
+                  lineHeight: 1.2,
+                  margin: '0.3mm 0 0',
+                  overflow: 'hidden',
+                }}
+              >
+                {linha}
+              </p>
+            ))}
+          </div>
+        </div>
       </div>
 
-      <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
-
-      {/* Vendedor */}
-      <p style={{ fontSize: '9pt', marginBottom: '3mm' }}>
-        <span style={{ color: '#555' }}>VENDEDOR: </span>
-        <strong>{etiqueta.vendedor.nome}</strong>
-      </p>
-
-      {/* Observações */}
-      {p.observacoes && (
-        <p style={{ fontSize: '8pt', color: '#444', marginBottom: '3mm', fontStyle: 'italic' }}>
-          Obs: {p.observacoes}
-        </p>
-      )}
-
-      {/* QR Code */}
-      {etiqueta.qrCodeDataUrl && (
-        <div style={{ textAlign: 'center', marginTop: '3mm' }}>
+      <div
+        style={{
+          width: '24mm',
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {etiqueta.qrCodeDataUrl && (
           <img
             src={etiqueta.qrCodeDataUrl}
             alt="QR Code do pedido"
-            style={{ width: '30mm', height: '30mm', margin: '0 auto' }}
+            style={{ width: '20mm', height: '20mm' }}
           />
-          <p style={{ fontSize: '7pt', color: '#666', marginTop: '1mm' }}>
-            Escaneie para ver o status do pedido
-          </p>
-        </div>
-      )}
-
-      {/* Rodapé */}
-      <div style={{ borderTop: '1px dashed #000', marginTop: '3mm', paddingTop: '2mm', textAlign: 'center' }}>
-        <p style={{ fontSize: '7pt', color: '#888' }}>
-          Token: {etiqueta.tokenPublico?.slice(0, 8).toUpperCase()}
+        )}
+        <p
+          style={{
+            fontSize: '5pt',
+            lineHeight: 1.2,
+            textAlign: 'center',
+            margin: '1mm 0 0',
+            fontWeight: 600,
+          }}
+        >
+          Escaneie para ver os detalhes do pedido
         </p>
       </div>
     </div>
