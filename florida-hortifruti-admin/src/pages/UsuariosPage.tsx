@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, UserX, RotateCcw } from 'lucide-react'
+import type { AxiosError } from 'axios'
 import { api } from '../lib/api'
 import { formatDate } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -24,10 +25,37 @@ export function UsuariosPage() {
   const [editando, setEditando] = useState<any>(null)
   const [form, setForm] = useState<any>(EMPTY)
 
-  const { data: usuarios = [], isLoading } = useQuery({
+  const {
+    data: usuarios = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetching,
+  } = useQuery({
     queryKey: ['usuarios'],
     queryFn: () => api.get('/usuarios').then((r) => r.data),
   })
+
+  const erroUsuarios = (() => {
+    const err = error as AxiosError<{ message?: string | string[] }> | null
+    const status = err?.response?.status
+    const message = err?.response?.data?.message
+
+    if (status === 403) {
+      return 'Sem permissão para visualizar usuários. Faça login como administrativo ou administrador.'
+    }
+    if (status === 401) {
+      return 'Sessão expirada. Faça login novamente.'
+    }
+    if (Array.isArray(message) && message.length > 0) {
+      return message[0]
+    }
+    if (typeof message === 'string' && message.trim()) {
+      return message
+    }
+    return 'Não foi possível carregar os usuários.'
+  })()
 
   const salvar = useMutation({
     mutationFn: (data: any) =>
@@ -79,6 +107,23 @@ export function UsuariosPage() {
       />
 
       <div className="p-4 md:p-6">
+        {isError && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <p>{erroUsuarios}</p>
+            <div className="mt-3">
+              <Button size="sm" variant="secondary" onClick={() => refetch()} disabled={isFetching}>
+                {isFetching ? 'Tentando...' : 'Tentar novamente'}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {!isLoading && !isError && usuarios.length === 0 && (
+          <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
+            Nenhum usuário cadastrado.
+          </div>
+        )}
+
         <div className="space-y-3 md:hidden">
           {isLoading && <p className="py-8 text-center text-sm text-gray-400">Carregando...</p>}
           {usuarios.map((u: any) => (

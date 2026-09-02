@@ -23,6 +23,7 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Input, Select } from '../components/ui/Input'
+import { useAuth } from '../contexts/useAuth'
 
 type Aba = 'vendas' | 'estoque' | 'produto' | 'vendedor' | 'financeiro'
 type Formato = 'excel' | 'pdf' | 'csv' | 'json' | 'xml'
@@ -307,6 +308,7 @@ function MenuExportar({ visao, resumoFiltros }: { visao: Visao; resumoFiltros: s
 }
 
 export function RelatoriosPage() {
+  const { isFinanceiro } = useAuth()
   const [aba, setAba] = useState<Aba>('vendas')
   const [dataInicio, setDataInicio] = useState('')
   const [dataFim, setDataFim] = useState('')
@@ -330,6 +332,7 @@ export function RelatoriosPage() {
   const { data: vendedores = [] } = useQuery({
     queryKey: ['usuarios-relatorios'],
     queryFn: () => api.get('/usuarios').then((r) => r.data),
+    enabled: isFinanceiro,
   })
 
   const { data: produtos = [] } = useQuery({

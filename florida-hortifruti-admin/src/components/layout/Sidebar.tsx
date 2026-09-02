@@ -28,7 +28,7 @@ const navItems = [
 ]
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { logout, usuario } = useAuth()
+  const { logout, usuario, isFinanceiro } = useAuth()
   const location = useLocation()
 
   useEffect(() => {
@@ -80,22 +80,24 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {navItems.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) =>
-                cn(
-                  'flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                  isActive ? 'bg-green-600 text-white' : 'text-green-100 hover:bg-green-600/60',
-                )
-              }
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </NavLink>
-          ))}
+          {navItems
+            .filter((item) => (item.to === '/usuarios' ? isFinanceiro : true))
+            .map(({ to, icon: Icon, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === '/'}
+                className={({ isActive }) =>
+                  cn(
+                    'flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                    isActive ? 'bg-green-600 text-white' : 'text-green-100 hover:bg-green-600/60',
+                  )
+                }
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </NavLink>
+            ))}
         </nav>
 
         <div className="border-t border-green-600 px-4 py-4">

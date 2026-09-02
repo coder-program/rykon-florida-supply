@@ -1,6 +1,8 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import type { ReactNode } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './contexts/AuthProvider'
+import { useAuth } from './contexts/useAuth'
 import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -14,6 +16,12 @@ import { EtiquetaPage } from './pages/EtiquetaPage'
 import { FinanceiroPage } from './pages/FinanceiroPage'
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } })
+
+function UsuariosAccessRoute({ children }: { children: ReactNode }) {
+  const { isFinanceiro } = useAuth()
+  if (!isFinanceiro) return <Navigate to="/" replace />
+  return <>{children}</>
+}
 
 export default function App() {
   return (
@@ -30,7 +38,14 @@ export default function App() {
               <Route path="/estoque" element={<EstoquePage />} />
               <Route path="/relatorios" element={<RelatoriosPage />} />
               <Route path="/financeiro" element={<FinanceiroPage />} />
-              <Route path="/usuarios" element={<UsuariosPage />} />
+              <Route
+                path="/usuarios"
+                element={
+                  <UsuariosAccessRoute>
+                    <UsuariosPage />
+                  </UsuariosAccessRoute>
+                }
+              />
             </Route>
             {/* Página de etiqueta fora do AppLayout — layout limpo para impressão */}
             <Route path="/etiqueta/:id" element={<EtiquetaPage />} />

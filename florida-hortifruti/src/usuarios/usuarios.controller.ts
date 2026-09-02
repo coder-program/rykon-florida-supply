@@ -6,10 +6,10 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { UsuariosService } from './usuarios.service';
 import { CreateUsuarioDto, UpdateUsuarioDto } from './dto/usuario.dto';
 
-// Seção 3.3: apenas administrador gerencia usuários
+// Seção 3.3: administrador e administrativo gerenciam usuários
 @Controller('usuarios')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(PapelUsuario.ADMINISTRADOR)
+@Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO)
 export class UsuariosController {
   constructor(private usuariosService: UsuariosService) {}
 
