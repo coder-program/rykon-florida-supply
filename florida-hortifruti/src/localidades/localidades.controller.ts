@@ -1,9 +1,7 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Controller, Get, Param } from '@nestjs/common';
 import { LocalidadesService } from './localidades.service';
 
 @Controller('localidades')
-@UseGuards(JwtAuthGuard)
 export class LocalidadesController {
   constructor(private readonly localidadesService: LocalidadesService) {}
 
