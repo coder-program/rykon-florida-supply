@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { Search, Plus, Minus, ChevronRight, ArrowLeft, Check } from 'lucide-react'
+import { Search, Plus, Minus, ChevronRight, ArrowLeft, Check, AlertTriangle, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatBRL } from '../lib/utils'
 import { salvarRascunho, carregarRascunho, limparRascunho } from '../lib/draft'
@@ -62,6 +62,14 @@ const VAZIO: DadosPedido = {
   condicaoNegociada: '',
   necessitaNF: false,
   observacoes: '',
+}
+
+const LIMITE_NOME_CLIENTE = 120
+const LIMITE_OBSERVACOES_PEDIDO = 255
+const LIMITE_CONDICAO_NEGOCIADA = 80
+
+function limitarTexto(valor: string, max: number) {
+  return valor.slice(0, max)
 }
 
 function calcularTotais(d: DadosPedido) {
@@ -186,6 +194,19 @@ function normalizarTextoBusca(valor: string) {
     .trim()
 }
 
+function garantirLista<T>(valor: unknown): T[] {
+  if (Array.isArray(valor)) return valor as T[]
+
+  if (valor && typeof valor === 'object') {
+    const obj = valor as { data?: unknown; items?: unknown; results?: unknown }
+    if (Array.isArray(obj.data)) return obj.data as T[]
+    if (Array.isArray(obj.items)) return obj.items as T[]
+    if (Array.isArray(obj.results)) return obj.results as T[]
+  }
+
+  return []
+}
+
 function validarNovoCliente(form: NovoClienteForm): NovoClienteErros {
   const erros: NovoClienteErros = {}
   const nome = form.razaoSocialOuNome.trim()
@@ -196,8 +217,8 @@ function validarNovoCliente(form: NovoClienteForm): NovoClienteErros {
     erros.razaoSocialOuNome = 'Informe o nome ou razão social.'
   } else if (nome.length < 3) {
     erros.razaoSocialOuNome = 'Use pelo menos 3 caracteres.'
-  } else if (nome.length > 120) {
-    erros.razaoSocialOuNome = 'Use no máximo 120 caracteres.'
+  } else if (nome.length > LIMITE_NOME_CLIENTE) {
+    erros.razaoSocialOuNome = `Use no máximo ${LIMITE_NOME_CLIENTE} caracteres.`
   } else if (!/^[\p{L}\p{N} .,'&()\/-]+$/u.test(nome)) {
     erros.razaoSocialOuNome = 'Use apenas letras, números e sinais básicos.'
   }
@@ -226,11 +247,14 @@ function validarNovoCliente(form: NovoClienteForm): NovoClienteErros {
     !endereco.cep ||
     !endereco.logradouro ||
     !endereco.numero ||
+    !endereco.complemento ||
     !endereco.bairro ||
     !endereco.estadoId ||
-    !endereco.cidadeId
+    !endereco.cidadeId ||
+    !endereco.pontoReferencia
   ) {
-    erros.endereco = 'Preencha CEP, logradouro, número, bairro, estado e cidade do endereço.'
+    erros.endereco =
+      'Todos os campos de endereço são obrigatórios: CEP, logradouro, número, complemento, bairro, estado, cidade e ponto de referência.'
   }
 
   return erros
@@ -249,7 +273,8 @@ function EtapaCliente({
 
   const { data: clientes = [], isFetching } = useQuery({
     queryKey: ['clientes-busca', busca],
-    queryFn: () => api.get('/clientes', { params: busca ? { busca } : {} }).then((r) => r.data),
+    queryFn: () =>
+      api.get('/clientes', { params: busca ? { busca } : {} }).then((r) => garantirLista(r.data)),
     staleTime: 0,
   })
 
@@ -303,7 +328,7 @@ function EtapaCliente({
 function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: Item[]) => void }) {
   const { data: produtos = [] } = useQuery({
     queryKey: ['produtos'],
-    queryFn: () => api.get('/produtos').then((r) => r.data),
+    queryFn: () => api.get('/produtos').then((r) => garantirLista(r.data)),
   })
 
   function getItem(id: string) {
@@ -523,7 +548,12 @@ function EtapaExtras({
             <input
               placeholder="Condição negociada (ex: 30 dias)"
               value={dados.condicaoNegociada}
-              onChange={(e) => onChange({ condicaoNegociada: e.target.value })}
+              maxLength={LIMITE_CONDICAO_NEGOCIADA}
+              onChange={(e) =>
+                onChange({
+                  condicaoNegociada: limitarTexto(e.target.value, LIMITE_CONDICAO_NEGOCIADA),
+                })
+              }
               className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </div>
@@ -546,10 +576,16 @@ function EtapaExtras({
           <textarea
             rows={3}
             value={dados.observacoes}
-            onChange={(e) => onChange({ observacoes: e.target.value })}
+            maxLength={LIMITE_OBSERVACOES_PEDIDO}
+            onChange={(e) =>
+              onChange({ observacoes: limitarTexto(e.target.value, LIMITE_OBSERVACOES_PEDIDO) })
+            }
             placeholder="Horário de entrega, instruções especiais..."
             className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
           />
+          <p className="mt-1 text-right text-xs text-gray-400">
+            {dados.observacoes.length}/{LIMITE_OBSERVACOES_PEDIDO}
+          </p>
         </div>
       </section>
     </div>
@@ -563,9 +599,11 @@ function EtapaConfirmar({ dados }: { dados: DadosPedido }) {
   return (
     <div className="flex-1 overflow-y-auto px-4 pt-4 pb-6 space-y-4">
       <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-2 text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-500">Cliente</span>
-          <span className="font-semibold">{dados.clienteNome}</span>
+        <div className="flex items-start justify-between gap-4">
+          <span className="text-gray-500 shrink-0">Cliente</span>
+          <span className="max-w-[68%] break-all text-right font-semibold">
+            {dados.clienteNome}
+          </span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-500">Pagamento</span>
@@ -582,9 +620,11 @@ function EtapaConfirmar({ dados }: { dados: DadosPedido }) {
           <span>{dados.necessitaNF ? '✅ Sim' : 'Não'}</span>
         </div>
         {dados.observacoes && (
-          <div className="flex justify-between gap-4">
+          <div className="flex items-start justify-between gap-4">
             <span className="text-gray-500 shrink-0">Obs</span>
-            <span className="text-right text-gray-700">{dados.observacoes}</span>
+            <span className="max-w-[68%] break-all whitespace-pre-wrap text-right text-gray-700">
+              {dados.observacoes}
+            </span>
           </div>
         )}
       </div>
@@ -654,18 +694,31 @@ export function NovoPedidoPage() {
   })
   const [clienteTentouSalvar, setClienteTentouSalvar] = useState(false)
   const [clienteErroApi, setClienteErroApi] = useState('')
+  const [isBuscandoCep, setIsBuscandoCep] = useState(false)
+  const [isAvancandoEtapa, setIsAvancandoEtapa] = useState(false)
+  const [feedback, setFeedback] = useState<{
+    aberto: boolean
+    titulo: string
+    mensagem: string
+  }>({ aberto: false, titulo: '', mensagem: '' })
   const errosCliente = validarNovoCliente(formCliente)
+
+  function abrirFeedback(titulo: string, mensagem: string) {
+    setFeedback({ aberto: true, titulo, mensagem })
+  }
 
   const { data: estados = [] } = useQuery({
     queryKey: ['localidades-estados'],
-    queryFn: () => api.get('/localidades/estados').then((r) => r.data),
+    queryFn: () => api.get('/localidades/estados').then((r) => garantirLista(r.data)),
     enabled: novoCliente,
   })
 
   const { data: cidades = [] } = useQuery({
     queryKey: ['localidades-cidades', formCliente.endereco.estadoId],
     queryFn: () =>
-      api.get(`/localidades/estados/${formCliente.endereco.estadoId}/cidades`).then((r) => r.data),
+      api
+        .get(`/localidades/estados/${formCliente.endereco.estadoId}/cidades`)
+        .then((r) => garantirLista(r.data)),
     enabled: !!formCliente.endereco.estadoId && novoCliente,
   })
 
@@ -702,11 +755,11 @@ export function NovoPedidoPage() {
     },
     onError: (erro: any) => {
       const mensagem = erro?.response?.data?.message
-      setClienteErroApi(
-        Array.isArray(mensagem)
-          ? mensagem.join(' ')
-          : (mensagem ?? 'Não foi possível cadastrar o cliente.'),
-      )
+      const texto = Array.isArray(mensagem)
+        ? mensagem.join(' ')
+        : (mensagem ?? 'Não foi possível cadastrar o cliente.')
+      setClienteErroApi(texto)
+      abrirFeedback('Falha ao cadastrar cliente', texto)
     },
   })
 
@@ -733,6 +786,13 @@ export function NovoPedidoPage() {
       limparRascunho()
       navigate('/')
     },
+    onError: (erro: any) => {
+      const mensagem = erro?.response?.data?.message
+      const texto = Array.isArray(mensagem)
+        ? mensagem.join(' ')
+        : (mensagem ?? 'Não foi possível enviar o pedido.')
+      abrirFeedback('Falha ao enviar pedido', texto)
+    },
   })
 
   const ETAPAS: Etapa[] = ['cliente', 'produtos', 'extras', 'confirmar']
@@ -751,13 +811,17 @@ export function NovoPedidoPage() {
   }
 
   async function buscarCep() {
+    if (isBuscandoCep) return
+
     const cep = somenteDigitos(formCliente.endereco.cep)
     if (cep.length !== 8) {
       setClienteErroApi('Informe um CEP válido com 8 dígitos.')
+      abrirFeedback('CEP inválido', 'Informe um CEP válido com 8 dígitos para continuar.')
       return
     }
 
     try {
+      setIsBuscandoCep(true)
       const resposta = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
       const data = await resposta.json()
 
@@ -765,7 +829,7 @@ export function NovoPedidoPage() {
         throw new Error('CEP não encontrado')
       }
 
-      const estado = estados.find((item: any) => item.sigla === data.uf)
+      const estado = (estados as any[]).find((item: any) => item.sigla === data.uf)
       const cidadeNome = String(data.localidade ?? '').trim()
       const proximoEstadoId = estado?.id ?? formCliente.endereco.estadoId
 
@@ -773,7 +837,8 @@ export function NovoPedidoPage() {
 
       if (proximoEstadoId && cidadeNome) {
         const cidadesEstado = await api.get(`/localidades/estados/${proximoEstadoId}/cidades`)
-        const cidadeEncontrada = cidadesEstado.data.find((cidade: any) => {
+        const listaCidades = garantirLista<any>(cidadesEstado.data)
+        const cidadeEncontrada = listaCidades.find((cidade: any) => {
           return normalizarTextoBusca(cidade.nome) === normalizarTextoBusca(cidadeNome)
         })
 
@@ -797,6 +862,9 @@ export function NovoPedidoPage() {
       setClienteErroApi('')
     } catch {
       setClienteErroApi('Não foi possível buscar o CEP informado.')
+      abrirFeedback('Falha na busca de CEP', 'Não foi possível buscar o CEP informado.')
+    } finally {
+      setIsBuscandoCep(false)
     }
   }
 
@@ -843,37 +911,44 @@ export function NovoPedidoPage() {
   }
 
   function salvarNovoCliente() {
+    if (criarCliente.isPending) return
+
     setClienteTentouSalvar(true)
     const erros = validarNovoCliente(formCliente)
-    if (Object.keys(erros).length > 0) return
+    if (Object.keys(erros).length > 0) {
+      if (erros.endereco) {
+        abrirFeedback('Endereço obrigatório', erros.endereco)
+      }
+      return
+    }
 
     const endereco = formCliente.endereco
     const enderecoPayload = {
-      cep: endereco.cep.trim() || undefined,
-      logradouro: endereco.logradouro.trim() || undefined,
-      numero: endereco.numero.trim() || undefined,
-      complemento: endereco.complemento.trim() || undefined,
-      bairro: endereco.bairro.trim() || undefined,
-      cidadeId: endereco.cidadeId || undefined,
-      pontoReferencia: endereco.pontoReferencia.trim() || undefined,
+      cep: endereco.cep.trim(),
+      logradouro: endereco.logradouro.trim(),
+      numero: endereco.numero.trim(),
+      complemento: endereco.complemento.trim(),
+      bairro: endereco.bairro.trim(),
+      cidadeId: endereco.cidadeId,
+      pontoReferencia: endereco.pontoReferencia.trim(),
       principal: true,
     }
 
     const dadosCliente: any = {
-      razaoSocialOuNome: formCliente.razaoSocialOuNome.trim(),
+      razaoSocialOuNome: limitarTexto(formCliente.razaoSocialOuNome.trim(), LIMITE_NOME_CLIENTE),
       cnpjCpf: formCliente.cnpjCpf.trim() || undefined,
       telefone: formCliente.telefone.trim(),
-    }
-
-    if (
-      Object.values(enderecoPayload).some(
-        (valor) => valor !== undefined && valor !== null && valor !== true,
-      )
-    ) {
-      dadosCliente.endereco = enderecoPayload
+      endereco: enderecoPayload,
     }
 
     criarCliente.mutate(dadosCliente)
+  }
+
+  function avancarEtapa() {
+    if (isAvancandoEtapa || !podeAvancar() || etapa === 'confirmar') return
+    setIsAvancandoEtapa(true)
+    setEtapa(ETAPAS[idx + 1])
+    window.setTimeout(() => setIsAvancandoEtapa(false), 350)
   }
 
   return (
@@ -883,7 +958,7 @@ export function NovoPedidoPage() {
         <div className="flex items-center gap-3 mb-4">
           <button
             onClick={() => (idx > 0 ? setEtapa(ETAPAS[idx - 1]) : navigate('/'))}
-            className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white"
+            className="w-8 h-8 cursor-pointer bg-green-500 rounded-full flex items-center justify-center text-white"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -923,13 +998,19 @@ export function NovoPedidoPage() {
               <input
                 placeholder="Nome / Razão Social *"
                 value={formCliente.razaoSocialOuNome}
-                maxLength={120}
+                maxLength={LIMITE_NOME_CLIENTE}
                 onChange={(e) => {
                   setClienteErroApi('')
-                  setFormCliente((f) => ({ ...f, razaoSocialOuNome: e.target.value }))
+                  setFormCliente((f) => ({
+                    ...f,
+                    razaoSocialOuNome: limitarTexto(e.target.value, LIMITE_NOME_CLIENTE),
+                  }))
                 }}
                 className={`w-full border rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-green-500 ${clienteTentouSalvar && errosCliente.razaoSocialOuNome ? 'border-red-400' : 'border-gray-300'}`}
               />
+              <p className="mt-1 text-right text-xs text-gray-400">
+                {formCliente.razaoSocialOuNome.length}/{LIMITE_NOME_CLIENTE}
+              </p>
               {clienteTentouSalvar && errosCliente.razaoSocialOuNome && (
                 <p className="mt-1 text-xs text-red-600">{errosCliente.razaoSocialOuNome}</p>
               )}
@@ -970,7 +1051,7 @@ export function NovoPedidoPage() {
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-3">
               <div className="flex gap-2">
                 <input
-                  placeholder="CEP"
+                  placeholder="CEP *"
                   value={formCliente.endereco.cep}
                   onChange={(e) => {
                     setClienteErroApi('')
@@ -981,20 +1062,22 @@ export function NovoPedidoPage() {
                   }}
                   inputMode="numeric"
                   maxLength={9}
+                  required
                   className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
                 <button
                   type="button"
                   onClick={buscarCep}
-                  className="rounded-xl bg-green-600 px-3 py-2.5 text-sm font-medium text-white"
+                  disabled={isBuscandoCep}
+                  className="rounded-xl cursor-pointer bg-green-600 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Buscar CEP
+                  {isBuscandoCep ? 'Buscando...' : 'Buscar CEP'}
                 </button>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <input
-                  placeholder="Logradouro"
+                  placeholder="Logradouro *"
                   value={formCliente.endereco.logradouro}
                   maxLength={200}
                   onChange={(e) =>
@@ -1003,10 +1086,11 @@ export function NovoPedidoPage() {
                       endereco: { ...f.endereco, logradouro: e.target.value },
                     }))
                   }
+                  required
                   className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 sm:col-span-2"
                 />
                 <input
-                  placeholder="Número"
+                  placeholder="Número *"
                   value={formCliente.endereco.numero}
                   maxLength={20}
                   onChange={(e) =>
@@ -1015,10 +1099,11 @@ export function NovoPedidoPage() {
                       endereco: { ...f.endereco, numero: e.target.value },
                     }))
                   }
+                  required
                   className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
                 <input
-                  placeholder="Complemento"
+                  placeholder="Complemento *"
                   value={formCliente.endereco.complemento}
                   maxLength={80}
                   onChange={(e) =>
@@ -1027,10 +1112,11 @@ export function NovoPedidoPage() {
                       endereco: { ...f.endereco, complemento: e.target.value },
                     }))
                   }
+                  required
                   className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
                 <input
-                  placeholder="Bairro"
+                  placeholder="Bairro *"
                   value={formCliente.endereco.bairro}
                   maxLength={80}
                   onChange={(e) =>
@@ -1039,6 +1125,7 @@ export function NovoPedidoPage() {
                       endereco: { ...f.endereco, bairro: e.target.value },
                     }))
                   }
+                  required
                   className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
                 <select
@@ -1049,6 +1136,7 @@ export function NovoPedidoPage() {
                       endereco: { ...f.endereco, estadoId: e.target.value, cidadeId: '' },
                     }))
                   }
+                  required
                   className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="">Estado</option>
@@ -1067,6 +1155,7 @@ export function NovoPedidoPage() {
                     }))
                   }
                   disabled={!formCliente.endereco.estadoId}
+                  required
                   className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:text-gray-400"
                 >
                   <option value="">Cidade</option>
@@ -1077,7 +1166,7 @@ export function NovoPedidoPage() {
                   ))}
                 </select>
                 <input
-                  placeholder="Ponto de referência"
+                  placeholder="Ponto de referência *"
                   value={formCliente.endereco.pontoReferencia}
                   maxLength={120}
                   onChange={(e) =>
@@ -1086,6 +1175,7 @@ export function NovoPedidoPage() {
                       endereco: { ...f.endereco, pontoReferencia: e.target.value },
                     }))
                   }
+                  required
                   className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 sm:col-span-2"
                 />
               </div>
@@ -1097,20 +1187,21 @@ export function NovoPedidoPage() {
               </p>
             )}
             <p className="text-xs leading-relaxed text-gray-500">
-              Nome com até 120 caracteres. CPF/CNPJ é opcional, mas precisa ser válido se informado.
-              Telefone é obrigatório.
+              Nome com até {LIMITE_NOME_CLIENTE} caracteres. CPF/CNPJ é opcional, mas precisa ser
+              válido se informado. Telefone é obrigatório. Todos os campos de endereço também são
+              obrigatórios.
             </p>
             <div className="flex gap-2">
               <button
                 onClick={cancelarNovoCliente}
-                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+                className="flex-1 cursor-pointer py-3 bg-gray-100 text-gray-700 rounded-xl font-medium transition hover:bg-gray-200"
               >
                 Cancelar
               </button>
               <button
                 onClick={salvarNovoCliente}
                 disabled={criarCliente.isPending}
-                className="flex-1 py-3 bg-green-600 text-white rounded-xl font-medium disabled:opacity-50"
+                className="flex-1 cursor-pointer py-3 bg-green-600 text-white rounded-xl font-medium transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {criarCliente.isPending ? 'Salvando...' : 'Cadastrar'}
               </button>
@@ -1123,23 +1214,15 @@ export function NovoPedidoPage() {
         )}
         {etapa === 'extras' && <EtapaExtras dados={dados} onChange={patch} />}
         {etapa === 'confirmar' && <EtapaConfirmar dados={dados} />}
-        {enviarPedido.isError && (
-          <p className="mx-4 mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-            {Array.isArray((enviarPedido.error as any)?.response?.data?.message)
-              ? (enviarPedido.error as any).response.data.message.join(' ')
-              : ((enviarPedido.error as any)?.response?.data?.message ??
-                'Não foi possível enviar o pedido.')}
-          </p>
-        )}
       </div>
 
       {/* Botão de avanço */}
       <div className="px-4 py-4 bg-white border-t border-gray-100">
         {etapa !== 'confirmar' ? (
           <button
-            onClick={() => setEtapa(ETAPAS[idx + 1])}
-            disabled={!podeAvancar()}
-            className="w-full py-4 bg-green-600 text-white font-bold rounded-2xl flex items-center justify-center gap-2 disabled:opacity-40 active:scale-95 transition"
+            onClick={avancarEtapa}
+            disabled={!podeAvancar() || isAvancandoEtapa}
+            className="w-full cursor-pointer py-4 bg-green-600 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40 active:scale-95"
           >
             Continuar <ChevronRight className="w-5 h-5" />
           </button>
@@ -1147,7 +1230,7 @@ export function NovoPedidoPage() {
           <button
             onClick={() => enviarPedido.mutate()}
             disabled={enviarPedido.isPending}
-            className="w-full py-4 bg-green-600 text-white font-bold rounded-2xl flex items-center justify-center gap-2 disabled:opacity-40 active:scale-95 transition"
+            className="w-full cursor-pointer py-4 bg-green-600 text-white font-bold rounded-2xl flex items-center justify-center gap-2 transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40 active:scale-95"
           >
             {enviarPedido.isPending ? (
               'Enviando...'
@@ -1159,6 +1242,41 @@ export function NovoPedidoPage() {
           </button>
         )}
       </div>
+
+      {feedback.aberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                  <AlertTriangle className="h-4 w-4" />
+                </span>
+                <h3 className="text-sm font-semibold text-gray-900">{feedback.titulo}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFeedback((s) => ({ ...s, aberto: false }))}
+                className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                aria-label="Fechar aviso"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-sm leading-relaxed text-gray-600">{feedback.mensagem}</p>
+
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setFeedback((s) => ({ ...s, aberto: false }))}
+                className="rounded-xl bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -28,7 +28,10 @@ export default defineConfig({
           {
             urlPattern: /^https?:\/\/localhost.*\/api\/(produtos|clientes)/,
             handler: 'NetworkFirst',
-            options: { cacheName: 'api-cache', expiration: { maxEntries: 50, maxAgeSeconds: 3600 } },
+            options: {
+              cacheName: 'api-cache',
+              expiration: { maxEntries: 50, maxAgeSeconds: 3600 },
+            },
           },
         ],
       },
@@ -38,7 +41,7 @@ export default defineConfig({
     port: 5200,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:3001',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api/, ''),
       },

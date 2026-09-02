@@ -6,6 +6,19 @@ import { useAuth } from '../contexts/useAuth'
 import { formatBRL, formatDate, STATUS_LABEL, STATUS_COLOR } from '../lib/utils'
 import { carregarRascunho } from '../lib/draft'
 
+function garantirLista<T>(valor: unknown): T[] {
+  if (Array.isArray(valor)) return valor as T[]
+
+  if (valor && typeof valor === 'object') {
+    const obj = valor as { data?: unknown; items?: unknown; results?: unknown }
+    if (Array.isArray(obj.data)) return obj.data as T[]
+    if (Array.isArray(obj.items)) return obj.items as T[]
+    if (Array.isArray(obj.results)) return obj.results as T[]
+  }
+
+  return []
+}
+
 export function HomePage() {
   const { usuario, logout } = useAuth()
   const navigate = useNavigate()
@@ -17,7 +30,7 @@ export function HomePage() {
     refetch,
   } = useQuery({
     queryKey: ['meus-pedidos'],
-    queryFn: () => api.get('/pedidos').then((r) => r.data),
+    queryFn: () => api.get('/pedidos').then((r) => garantirLista(r.data)),
   })
 
   return (
