@@ -24,10 +24,11 @@ const navItems = [
   { to: '/estoque', icon: Warehouse, label: 'Estoque' },
   { to: '/financeiro', icon: Banknote, label: 'Financeiro' },
   { to: '/relatorios', icon: BarChart3, label: 'Relatórios' },
+  { to: '/usuarios', icon: UserCog, label: 'Usuários' },
 ]
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { logout, usuario, isAdmin } = useAuth()
+  const { logout, usuario } = useAuth()
   const location = useLocation()
 
   useEffect(() => {
@@ -95,21 +96,6 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
               {label}
             </NavLink>
           ))}
-
-          {isAdmin && (
-            <NavLink
-              to="/usuarios"
-              className={({ isActive }) =>
-                cn(
-                  'flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                  isActive ? 'bg-green-600 text-white' : 'text-green-100 hover:bg-green-600/60',
-                )
-              }
-            >
-              <UserCog className="h-4 w-4" />
-              Usuários
-            </NavLink>
-          )}
         </nav>
 
         <div className="border-t border-green-600 px-4 py-4">

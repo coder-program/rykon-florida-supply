@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { TipoEntidadeEndereco } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { EnderecosService } from '../enderecos/enderecos.service';
@@ -23,16 +24,33 @@ export class ClientesService {
     });
   }
 
+  private isUniqueCnpjCpfError(error: unknown) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+    if (error.code !== 'P2002') return false;
+    const target = error.meta?.target;
+    if (Array.isArray(target)) return target.includes('cnpjCpf');
+    return String(target ?? '').includes('cnpjCpf');
+  }
+
   async create(dto: CreateClienteDto) {
     const { endereco, ...dadosCliente } = dto as any;
 
-    const cliente = await this.prisma.cliente.create({
-      data: {
-        ...dadosCliente,
-        cnpjCpf:
-          dadosCliente.cnpjCpf ?? `SEM-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      },
-    });
+    let cliente;
+    try {
+      cliente = await this.prisma.cliente.create({
+        data: {
+          ...dadosCliente,
+          cnpjCpf:
+            dadosCliente.cnpjCpf ??
+            `SEM-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        },
+      });
+    } catch (error) {
+      if (this.isUniqueCnpjCpfError(error)) {
+        throw new ConflictException('Já existe cliente cadastrado com este CPF/CNPJ');
+      }
+      throw error;
+    }
 
     if (endereco) {
       await this.criarOuAtualizarEnderecoCliente(cliente.id, endereco);
@@ -94,10 +112,18 @@ export class ClientesService {
     await this.findOne(id);
 
     const { endereco, ...dadosCliente } = dto as any;
-    const clienteAtualizado = await this.prisma.cliente.update({
-      where: { id },
-      data: dadosCliente,
-    });
+    let clienteAtualizado;
+    try {
+      clienteAtualizado = await this.prisma.cliente.update({
+        where: { id },
+        data: dadosCliente,
+      });
+    } catch (error) {
+      if (this.isUniqueCnpjCpfError(error)) {
+        throw new ConflictException('Já existe cliente cadastrado com este CPF/CNPJ');
+      }
+      throw error;
+    }
 
     if (endereco) {
       await this.criarOuAtualizarEnderecoCliente(id, endereco);

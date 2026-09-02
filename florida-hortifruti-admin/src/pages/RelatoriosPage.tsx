@@ -535,74 +535,72 @@ export function RelatoriosPage() {
       <PageHeader title="Relatórios" subtitle="Consulta e exportação da visualização atual" />
 
       <div className="space-y-4 p-4 md:p-6">
-        <div className="flex flex-col flex-wrap items-stretch gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-end">
-          <Input
-            label="Data início"
-            type="date"
-            value={dataInicio}
-            onChange={(e) => setDataInicio(e.target.value)}
-            className="w-full sm:w-40"
-          />
-          <Input
-            label="Data fim"
-            type="date"
-            value={dataFim}
-            onChange={(e) => setDataFim(e.target.value)}
-            className="w-full sm:w-40"
-          />
-          <Select
-            label="Status do pedido"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="w-full sm:w-48"
-          >
-            {statusPedidoOptions.map((item) => (
-              <option key={item} value={item}>
-                {item === 'TODOS' ? 'Todos' : (STATUS_PEDIDO_LABEL[item] ?? item)}
-              </option>
-            ))}
-          </Select>
-          <Select
-            label="Status do pagamento"
-            value={statusPagamento}
-            onChange={(e) => setStatusPagamento(e.target.value)}
-            className="w-full sm:w-48"
-          >
-            {statusPagamentoOptions.map((item) => (
-              <option key={item} value={item}>
-                {item === 'TODOS' ? 'Todos' : (STATUS_PAGAMENTO_LABEL[item] ?? item)}
-              </option>
-            ))}
-          </Select>
-          <Select
-            label="Vendedor"
-            value={vendedorId}
-            onChange={(e) => setVendedorId(e.target.value)}
-            className="w-full sm:w-52"
-          >
-            <option value="">Todos</option>
-            {vendedores.map((v: any) => (
-              <option key={v.id} value={v.id}>
-                {v.nome}
-              </option>
-            ))}
-          </Select>
-          <Select
-            label="Produto"
-            value={produtoId}
-            onChange={(e) => setProdutoId(e.target.value)}
-            className="w-full sm:w-52"
-          >
-            <option value="">Todos</option>
-            {produtos.map((p: any) => (
-              <option key={p.id} value={p.id}>
-                {p.nome}
-              </option>
-            ))}
-          </Select>
-          <Button variant="ghost" size="sm" onClick={limparFiltros}>
-            Limpar
-          </Button>
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <Input
+              label="Data início"
+              type="date"
+              value={dataInicio}
+              onChange={(e) => setDataInicio(e.target.value)}
+            />
+            <Input
+              label="Data fim"
+              type="date"
+              value={dataFim}
+              onChange={(e) => setDataFim(e.target.value)}
+            />
+            <Select
+              label="Status do pedido"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
+              {statusPedidoOptions.map((item) => (
+                <option key={item} value={item}>
+                  {item === 'TODOS' ? 'Todos' : (STATUS_PEDIDO_LABEL[item] ?? item)}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Status do pagamento"
+              value={statusPagamento}
+              onChange={(e) => setStatusPagamento(e.target.value)}
+            >
+              {statusPagamentoOptions.map((item) => (
+                <option key={item} value={item}>
+                  {item === 'TODOS' ? 'Todos' : (STATUS_PAGAMENTO_LABEL[item] ?? item)}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Vendedor"
+              value={vendedorId}
+              onChange={(e) => setVendedorId(e.target.value)}
+            >
+              <option value="">Todos</option>
+              {vendedores.map((v: any) => (
+                <option key={v.id} value={v.id}>
+                  {v.nome}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Produto"
+              value={produtoId}
+              onChange={(e) => setProdutoId(e.target.value)}
+            >
+              <option value="">Todos</option>
+              {produtos.map((p: any) => (
+                <option key={p.id} value={p.id}>
+                  {p.nome}
+                </option>
+              ))}
+            </Select>
+            <div className="flex sm:justify-start xl:justify-end">
+              <Button variant="ghost" size="sm" onClick={limparFiltros} className="min-h-11">
+                Limpar
+              </Button>
+            </div>
+          </div>
         </div>
 
         <div className="-mx-4 flex gap-1 overflow-x-auto border-b border-gray-200 px-4 md:mx-0 md:px-0">

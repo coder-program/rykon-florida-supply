@@ -76,6 +76,95 @@ function formatarTelefone(valor: string) {
   return `(${ddd}) ${restante.slice(0, 5)}-${restante.slice(5, 9)}`
 }
 
+function isCpfValido(digits: string) {
+  if (!/^\d{11}$/.test(digits) || /^([0-9])\1{10}$/.test(digits)) return false
+
+  const calc = (limite: number) => {
+    let soma = 0
+    for (let i = 0; i < limite; i += 1) soma += Number(digits[i]) * (limite + 1 - i)
+    const resto = (soma * 10) % 11
+    return resto === 10 ? 0 : resto
+  }
+
+  return calc(9) === Number(digits[9]) && calc(10) === Number(digits[10])
+}
+
+function isCnpjValido(digits: string) {
+  if (!/^\d{14}$/.test(digits) || /^([0-9])\1{13}$/.test(digits)) return false
+
+  const calc = (base: number[], pesos: number[]) => {
+    const soma = base.reduce((acc, digit, index) => acc + digit * pesos[index], 0)
+    const resto = soma % 11
+    return resto < 2 ? 0 : 11 - resto
+  }
+
+  const numeros = digits.split('').map(Number)
+  const primeiro = calc(numeros.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+  const segundo = calc(numeros.slice(0, 13), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+  return primeiro === numeros[12] && segundo === numeros[13]
+}
+
+type FormErros = {
+  razaoSocialOuNome?: string
+  cnpjCpf?: string
+  telefone?: string
+  endereco?: string
+}
+
+function extrairMensagemApi(error: any) {
+  const mensagem = error?.response?.data?.message
+  if (Array.isArray(mensagem)) return mensagem.join(' ')
+  if (typeof mensagem === 'string' && mensagem.trim()) return mensagem
+  return 'Não foi possível salvar o cliente.'
+}
+
+function validarClienteForm(form: any): FormErros {
+  const erros: FormErros = {}
+  const nome = String(form.razaoSocialOuNome ?? '').trim()
+  const telefone = String(form.telefone ?? '').trim()
+  const cnpjCpf = String(form.cnpjCpf ?? '').trim()
+  const endereco = form.endereco ?? EMPTY_FORM.endereco
+
+  if (!nome) {
+    erros.razaoSocialOuNome = 'Informe o nome ou razão social.'
+  } else if (nome.length < 3) {
+    erros.razaoSocialOuNome = 'Use pelo menos 3 caracteres.'
+  } else if (nome.length > 120) {
+    erros.razaoSocialOuNome = 'Use no máximo 120 caracteres.'
+  }
+
+  if (!telefone) {
+    erros.telefone = 'Informe o telefone.'
+  }
+
+  if (cnpjCpf) {
+    const digits = somenteDigitos(cnpjCpf)
+    const valido =
+      digits.length === 11
+        ? isCpfValido(digits)
+        : digits.length === 14
+          ? isCnpjValido(digits)
+          : false
+    if (!valido) {
+      erros.cnpjCpf = 'CPF ou CNPJ inválido.'
+    }
+  }
+
+  const enderecoCompleto =
+    !!endereco.cep &&
+    !!endereco.logradouro &&
+    !!endereco.numero &&
+    !!endereco.bairro &&
+    !!endereco.estadoId &&
+    !!endereco.cidadeId
+
+  if (!enderecoCompleto) {
+    erros.endereco = 'Preencha CEP, logradouro, número, bairro, estado e cidade do endereço.'
+  }
+
+  return erros
+}
+
 type Cliente = {
   id: string
   razaoSocialOuNome: string
@@ -116,6 +205,8 @@ export function ClientesPage() {
   const [editando, setEditando] = useState<Cliente | null>(null)
   const [detalhesCliente, setDetalhesCliente] = useState<Cliente | null>(null)
   const [form, setForm] = useState<any>(EMPTY_FORM)
+  const [formErros, setFormErros] = useState<FormErros>({})
+  const [erroApiSalvar, setErroApiSalvar] = useState('')
 
   const { data: clientes = [], isLoading } = useQuery<Cliente[]>({
     queryKey: ['clientes', busca],
@@ -143,7 +234,20 @@ export function ClientesPage() {
       editando ? api.put(`/clientes/${editando.id}`, data) : api.post('/clientes', data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['clientes'] })
+      setFormErros({})
+      setErroApiSalvar('')
       fecharModal()
+    },
+    onError: (error: any) => {
+      const mensagem = extrairMensagemApi(error)
+      setErroApiSalvar(mensagem)
+
+      if (mensagem.toLowerCase().includes('cpf/cnpj')) {
+        setFormErros((prev) => ({
+          ...prev,
+          cnpjCpf: 'Já existe cliente cadastrado com este CPF/CNPJ.',
+        }))
+      }
     },
   })
 
@@ -167,6 +271,8 @@ export function ClientesPage() {
   function abrirNovo() {
     setForm({ ...EMPTY_FORM })
     setEditando(null)
+    setFormErros({})
+    setErroApiSalvar('')
     setModal(true)
   }
   function abrirEditar(c: Cliente) {
@@ -185,13 +291,19 @@ export function ClientesPage() {
       },
     })
     setEditando(c)
+    setFormErros({})
+    setErroApiSalvar('')
     setModal(true)
   }
   function fecharModal() {
     setModal(false)
     setEditando(null)
+    setFormErros({})
+    setErroApiSalvar('')
   }
   function set(k: string, v: any) {
+    setErroApiSalvar('')
+    setFormErros((prev) => ({ ...prev, [k]: undefined }))
     setForm((f: any) => ({ ...f, [k]: v }))
   }
   function abrirDetalhes(c: Cliente) {
@@ -525,23 +637,15 @@ export function ClientesPage() {
           onSubmit={(e) => {
             e.preventDefault()
 
-            const endereco = form.endereco ?? EMPTY_FORM.endereco
-            const enderecoCompleto = !!(
-              endereco.cep &&
-              endereco.logradouro &&
-              endereco.numero &&
-              endereco.bairro &&
-              endereco.estadoId &&
-              endereco.cidadeId
-            )
+            const erros = validarClienteForm(form)
+            setFormErros(erros)
+            setErroApiSalvar('')
 
-            if (!enderecoCompleto) {
-              alert(
-                'Preencha o endereço completo: CEP, logradouro, número, bairro, estado e cidade.',
-              )
+            if (Object.keys(erros).length > 0) {
               return
             }
 
+            const endereco = form.endereco ?? EMPTY_FORM.endereco
             const payload = {
               ...form,
               endereco: { ...endereco, principal: true },
@@ -550,12 +654,19 @@ export function ClientesPage() {
           }}
           className="space-y-4"
         >
+          {erroApiSalvar && (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              {erroApiSalvar}
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <Input
                 label="Razão Social / Nome *"
                 value={form.razaoSocialOuNome}
                 onChange={(e) => set('razaoSocialOuNome', e.target.value)}
+                maxLength={120}
+                error={formErros.razaoSocialOuNome}
                 required
               />
             </div>
@@ -566,16 +677,18 @@ export function ClientesPage() {
               onChange={(e) => set('nomeFantasia', e.target.value)}
             />
             <Input
-              label="CNPJ / CPF *"
+              label="CNPJ / CPF"
               value={form.cnpjCpf}
               onChange={(e) => set('cnpjCpf', formatarCpfCnpj(e.target.value))}
-              required
+              error={formErros.cnpjCpf}
               maxLength={18}
             />
             <Input
-              label="Telefone"
+              label="Telefone *"
               value={form.telefone}
               onChange={(e) => set('telefone', formatarTelefone(e.target.value))}
+              error={formErros.telefone}
+              required
               maxLength={16}
             />
             <Input
@@ -604,7 +717,10 @@ export function ClientesPage() {
                   label="CEP"
                   value={form.endereco?.cep ?? ''}
                   maxLength={9}
-                  onChange={(e) => set('endereco', { ...form.endereco, cep: e.target.value })}
+                  onChange={(e) => {
+                    setFormErros((prev) => ({ ...prev, endereco: undefined }))
+                    set('endereco', { ...form.endereco, cep: e.target.value })
+                  }}
                 />
                 <div className="flex items-end">
                   <button
@@ -668,16 +784,20 @@ export function ClientesPage() {
                     label="Logradouro"
                     value={form.endereco?.logradouro ?? ''}
                     maxLength={200}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      setFormErros((prev) => ({ ...prev, endereco: undefined }))
                       set('endereco', { ...form.endereco, logradouro: e.target.value })
-                    }
+                    }}
                   />
                 </div>
                 <Input
                   label="Número"
                   value={form.endereco?.numero ?? ''}
                   maxLength={20}
-                  onChange={(e) => set('endereco', { ...form.endereco, numero: e.target.value })}
+                  onChange={(e) => {
+                    setFormErros((prev) => ({ ...prev, endereco: undefined }))
+                    set('endereco', { ...form.endereco, numero: e.target.value })
+                  }}
                 />
                 <Input
                   label="Complemento"
@@ -691,14 +811,18 @@ export function ClientesPage() {
                   label="Bairro"
                   value={form.endereco?.bairro ?? ''}
                   maxLength={80}
-                  onChange={(e) => set('endereco', { ...form.endereco, bairro: e.target.value })}
+                  onChange={(e) => {
+                    setFormErros((prev) => ({ ...prev, endereco: undefined }))
+                    set('endereco', { ...form.endereco, bairro: e.target.value })
+                  }}
                 />
                 <Select
                   label="Estado"
                   value={form.endereco?.estadoId ?? ''}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    setFormErros((prev) => ({ ...prev, endereco: undefined }))
                     set('endereco', { ...form.endereco, estadoId: e.target.value, cidadeId: '' })
-                  }
+                  }}
                 >
                   <option value="">Selecione</option>
                   {estados.map((estado: any) => (
@@ -710,7 +834,10 @@ export function ClientesPage() {
                 <Select
                   label="Cidade"
                   value={form.endereco?.cidadeId ?? ''}
-                  onChange={(e) => set('endereco', { ...form.endereco, cidadeId: e.target.value })}
+                  onChange={(e) => {
+                    setFormErros((prev) => ({ ...prev, endereco: undefined }))
+                    set('endereco', { ...form.endereco, cidadeId: e.target.value })
+                  }}
                   disabled={!form.endereco?.estadoId}
                 >
                   <option value="">Selecione</option>
@@ -731,6 +858,7 @@ export function ClientesPage() {
                   />
                 </div>
               </div>
+              {formErros.endereco && <p className="text-xs text-red-600">{formErros.endereco}</p>}
             </div>
 
             <Input

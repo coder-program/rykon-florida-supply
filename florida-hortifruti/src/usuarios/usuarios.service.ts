@@ -30,6 +30,7 @@ export class UsuariosService {
 
     const senhaHash = await bcrypt.hash(dto.senha, 10);
     const { endereco, ...dados } = dto as any;
+    delete dados.senha;
 
     const usuario = await this.prisma.usuario.create({
       data: { ...dados, senhaHash },
