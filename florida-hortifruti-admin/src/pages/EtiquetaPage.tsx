@@ -1,11 +1,20 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { MapPin, Printer, RefreshCw, ShoppingCart, User } from 'lucide-react'
+import { Leaf, MapPin, Package, Printer, RefreshCw, ShoppingCart, User } from 'lucide-react'
 import { api } from '../lib/api'
 
 function numeroPedido(n: number | string) {
   return `#${String(n).padStart(6, '0')}`
+}
+
+function totalCaixasDe(etiqueta: { totalCaixas?: number; itens?: { quantidade?: number }[] }) {
+  if (etiqueta.totalCaixas && etiqueta.totalCaixas > 0) return etiqueta.totalCaixas
+  const soma = (etiqueta.itens ?? []).reduce(
+    (acc, item) => acc + Math.round(Number(item.quantidade) || 0),
+    0,
+  )
+  return Math.max(1, soma)
 }
 
 function linhasEndereco(c: {
@@ -37,11 +46,13 @@ export function EtiquetaPage() {
     mutationFn: () => api.post(`/etiquetas/${id}/reimprimir`),
   })
 
+  const totalCaixas = useMemo(() => (etiqueta ? totalCaixasDe(etiqueta) : 1), [etiqueta])
+
   useEffect(() => {
     if (etiqueta) {
-      document.title = `Etiqueta ${numeroPedido(etiqueta.pedido.numero)} — Flórida Hortifruti`
+      document.title = `${totalCaixas} etiquetas ${numeroPedido(etiqueta.pedido.numero)} — Flórida Supply`
     }
-  }, [etiqueta])
+  }, [etiqueta, totalCaixas])
 
   function handleImprimir() {
     reimprimir.mutate()
@@ -53,7 +64,7 @@ export function EtiquetaPage() {
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="flex items-center gap-3 text-gray-500">
           <RefreshCw className="h-5 w-5 animate-spin" />
-          <span>Gerando etiqueta...</span>
+          <span>Gerando etiquetas...</span>
         </div>
       </div>
     )
@@ -68,17 +79,19 @@ export function EtiquetaPage() {
   }
 
   const p = etiqueta.pedido
+  const vias = Array.from({ length: totalCaixas }, (_, i) => i + 1)
 
   return (
     <>
       <div className="no-print flex items-center justify-between bg-gray-800 px-4 py-3 text-white sm:px-6">
         <div>
-          <p className="font-semibold">Etiqueta — Pedido {numeroPedido(p.numero)}</p>
-          {etiqueta.reimpressoes > 0 && (
-            <p className="text-xs text-gray-400">
-              {etiqueta.reimpressoes} reimpressão(ões) anteriores
-            </p>
-          )}
+          <p className="font-semibold">
+            {totalCaixas} etiqueta{totalCaixas === 1 ? '' : 's'} — Pedido {numeroPedido(p.numero)}
+          </p>
+          <p className="text-xs text-gray-400">
+            60×40 mm · uma via por caixa
+            {etiqueta.reimpressoes > 0 ? ` · ${etiqueta.reimpressoes} reimpressão(ões)` : ''}
+          </p>
         </div>
         <button
           type="button"
@@ -86,18 +99,16 @@ export function EtiquetaPage() {
           className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
         >
           <Printer className="h-4 w-4" />
-          Imprimir Etiqueta
+          Imprimir {totalCaixas} etiqueta{totalCaixas === 1 ? '' : 's'}
         </button>
       </div>
 
-      <div className="no-print flex min-h-screen items-start justify-center bg-gray-200 py-8">
-        <div className="label-sheet bg-white shadow-2xl">
-          <LabelContent etiqueta={etiqueta} />
-        </div>
-      </div>
-
-      <div className="print-only">
-        <LabelContent etiqueta={etiqueta} />
+      <div className="labels-wrap">
+        {vias.map((caixa) => (
+          <div key={caixa} className="label-sheet">
+            <LabelContent etiqueta={etiqueta} caixa={caixa} totalCaixas={totalCaixas} />
+          </div>
+        ))}
       </div>
 
       <style>{`
@@ -105,7 +116,7 @@ export function EtiquetaPage() {
 
         .label-sheet,
         .label-content {
-          width: 70mm;
+          width: 60mm;
           height: 40mm;
           box-sizing: border-box;
           font-family: Inter, Roboto, sans-serif;
@@ -113,89 +124,124 @@ export function EtiquetaPage() {
           background: #fff;
         }
 
-        .label-sheet { padding: 0; }
-
-        @media print {
-          @page { size: 70mm 40mm; margin: 0; }
-          html, body { margin: 0; padding: 0; background: #fff; }
-          .no-print { display: none !important; }
-          .print-only { display: block !important; }
-          .print-only .label-content {
-            width: 70mm;
-            height: 40mm;
-          }
+        .labels-wrap {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+          min-height: 100vh;
+          padding: 32px 16px;
+          background: #e5e7eb;
         }
 
-        .no-print { display: block; }
-        .print-only { display: none; }
+        .label-sheet { box-shadow: 0 10px 30px rgba(0,0,0,0.18); }
+
+        @media print {
+          @page { size: 60mm 40mm; margin: 0; }
+          html, body { margin: 0; padding: 0; background: #fff; }
+          .no-print { display: none !important; }
+          .labels-wrap {
+            display: block;
+            gap: 0;
+            min-height: 0;
+            padding: 0;
+            background: #fff;
+          }
+          .label-sheet {
+            box-shadow: none;
+            page-break-after: always;
+            break-after: page;
+          }
+          .label-sheet:last-child {
+            page-break-after: auto;
+            break-after: auto;
+          }
+        }
       `}</style>
     </>
   )
 }
 
-function LabelContent({ etiqueta }: { etiqueta: any }) {
+function LabelContent({
+  etiqueta,
+  caixa,
+  totalCaixas,
+}: {
+  etiqueta: any
+  caixa: number
+  totalCaixas: number
+}) {
   const p = etiqueta.pedido
   const c = etiqueta.cliente
   const endereco = linhasEndereco(c)
 
   return (
-    <div className="label-content" style={{ display: 'flex', padding: '2.2mm 2.4mm' }}>
+    <div className="label-content" style={{ display: 'flex', padding: '1.6mm 1.8mm 1.4mm' }}>
       <div
         style={{
           flex: 1,
           minWidth: 0,
-          paddingRight: '2mm',
+          paddingRight: '1.6mm',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'space-between',
         }}
       >
-        <div style={{ display: 'flex', gap: '1.4mm', alignItems: 'flex-start' }}>
-          <ShoppingCart size={11} strokeWidth={2.2} />
-          <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: '5.2pt', fontWeight: 700, letterSpacing: '0.04em', margin: 0 }}>
-              NÚMERO DO PEDIDO:
-            </p>
-            <p style={{ fontSize: '13pt', fontWeight: 700, lineHeight: 1.05, margin: '0.4mm 0 0' }}>
-              {numeroPedido(p.numero)}
-            </p>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1mm', marginBottom: '1mm' }}>
+          <Leaf size={10} strokeWidth={2.4} />
+          <p style={{ fontSize: '6pt', fontWeight: 700, letterSpacing: '0.02em', margin: 0 }}>
+            Flórida Supply
+          </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '1.4mm', alignItems: 'flex-start' }}>
-          <User size={11} strokeWidth={2.2} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.2mm', minWidth: 0 }}>
+          <ShoppingCart size={9} strokeWidth={2.2} />
+          <p style={{ fontSize: '6.2pt', fontWeight: 700, margin: 0, whiteSpace: 'nowrap' }}>
+            Nº PEDIDO: {numeroPedido(p.numero)}
+          </p>
+          <span style={{ width: '0.25mm', height: '3.4mm', background: '#000', flexShrink: 0 }} />
+          <Package size={9} strokeWidth={2.2} />
+          <p style={{ fontSize: '6.2pt', fontWeight: 700, margin: 0, whiteSpace: 'nowrap' }}>
+            CAIXA: {caixa}/{totalCaixas}
+          </p>
+        </div>
+
+        <div style={{ borderTop: '0.25mm dashed #000', margin: '1.1mm 0' }} />
+
+        <div style={{ display: 'flex', gap: '1.1mm', alignItems: 'flex-start' }}>
+          <User size={9} strokeWidth={2.2} style={{ marginTop: '0.3mm' }} />
           <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: '5.2pt', fontWeight: 700, letterSpacing: '0.04em', margin: 0 }}>
-              NOME DO CLIENTE:
+            <p style={{ fontSize: '5pt', fontWeight: 700, letterSpacing: '0.03em', margin: 0 }}>
+              CLIENTE:
             </p>
             <p
               style={{
-                fontSize: '8pt',
-                fontWeight: 600,
+                fontSize: '7pt',
+                fontWeight: 700,
                 lineHeight: 1.15,
-                margin: '0.4mm 0 0',
+                margin: '0.3mm 0 0',
                 overflow: 'hidden',
               }}
             >
               {c.razaoSocialOuNome}
-              {c.nomeFantasia ? ` (${c.nomeFantasia})` : ''}
             </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '1.4mm', alignItems: 'flex-start' }}>
-          <MapPin size={11} strokeWidth={2.2} />
+        <div style={{ borderTop: '0.25mm dashed #000', margin: '1.1mm 0' }} />
+
+        <div style={{ display: 'flex', gap: '1.1mm', alignItems: 'flex-start' }}>
+          <MapPin size={9} strokeWidth={2.2} style={{ marginTop: '0.3mm' }} />
           <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: '5.2pt', fontWeight: 700, letterSpacing: '0.04em', margin: 0 }}>
-              ENDEREÇO DO CLIENTE:
+            <p style={{ fontSize: '5pt', fontWeight: 700, letterSpacing: '0.03em', margin: 0 }}>
+              ENDEREÇO:
             </p>
             {endereco.map((linha) => (
               <p
                 key={linha}
                 style={{
-                  fontSize: '6.6pt',
+                  fontSize: '6pt',
                   lineHeight: 1.2,
-                  margin: '0.3mm 0 0',
+                  margin: '0.25mm 0 0',
                   overflow: 'hidden',
                 }}
               >
@@ -208,7 +254,7 @@ function LabelContent({ etiqueta }: { etiqueta: any }) {
 
       <div
         style={{
-          width: '24mm',
+          width: '20mm',
           flexShrink: 0,
           display: 'flex',
           flexDirection: 'column',
@@ -220,15 +266,15 @@ function LabelContent({ etiqueta }: { etiqueta: any }) {
           <img
             src={etiqueta.qrCodeDataUrl}
             alt="QR Code do pedido"
-            style={{ width: '20mm', height: '20mm' }}
+            style={{ width: '16.5mm', height: '16.5mm' }}
           />
         )}
         <p
           style={{
-            fontSize: '5pt',
-            lineHeight: 1.2,
+            fontSize: '4.4pt',
+            lineHeight: 1.15,
             textAlign: 'center',
-            margin: '1mm 0 0',
+            margin: '0.8mm 0 0',
             fontWeight: 600,
           }}
         >

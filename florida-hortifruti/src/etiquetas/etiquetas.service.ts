@@ -56,6 +56,10 @@ export class EtiquetasService {
     const qrCodeDataUrl = await QRCode.toDataURL(urlPublica, { width: 220, margin: 1 });
 
     const { pedido } = etiqueta;
+    const totalCaixas = Math.max(
+      1,
+      pedido.itens.reduce((acc, item) => acc + Math.round(Number(item.quantidade)), 0),
+    );
     const enderecos = await this.prisma.endereco.findMany({
       where: {
         entidadeTipo: 'CLIENTE',
@@ -99,6 +103,7 @@ export class EtiquetasService {
           enderecoPrincipal?.cidade?.estado?.sigla ?? enderecoPrincipal?.cidade?.estado?.nome ?? '',
         telefone: pedido.cliente.telefone,
       },
+      totalCaixas,
       // Produtos (item 34.1)
       itens: pedido.itens.map((i) => ({
         codigo: i.produto.codigoInterno,

@@ -40,6 +40,14 @@ const STATUS_ACOES: Record<string, { label: string; next: string }[]> = {
   FATURADO: [{ label: 'Marcar Pago', next: 'pago' }],
 }
 
+function totalCaixasPedido(pedido: { itens?: { quantidade?: number }[] } | null) {
+  const soma = (pedido?.itens ?? []).reduce(
+    (acc, item) => acc + Math.round(Number(item.quantidade) || 0),
+    0,
+  )
+  return Math.max(1, soma)
+}
+
 export function PedidosPage() {
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -608,7 +616,8 @@ export function PedidosPage() {
                     variant="secondary"
                     onClick={() => navigate(`/etiqueta/${pedidoSelecionado.etiqueta.id}`)}
                   >
-                    <Printer className="w-3.5 h-3.5" /> Imprimir Etiqueta
+                    <Printer className="w-3.5 h-3.5" /> Gerar {totalCaixasPedido(pedidoSelecionado)}{' '}
+                    etiqueta{totalCaixasPedido(pedidoSelecionado) === 1 ? '' : 's'}
                   </Button>
                 ) : (
                   ['APROVADO', 'SEPARACAO_ENTREGA', 'ENTREGUE', 'FATURADO', 'PAGO'].includes(
@@ -620,7 +629,9 @@ export function PedidosPage() {
                       disabled={gerarEtiqueta.isPending}
                     >
                       <Printer className="w-3.5 h-3.5" />
-                      {gerarEtiqueta.isPending ? 'Gerando...' : 'Gerar etiqueta'}
+                      {gerarEtiqueta.isPending
+                        ? 'Gerando...'
+                        : `Gerar ${totalCaixasPedido(pedidoSelecionado)} etiqueta${totalCaixasPedido(pedidoSelecionado) === 1 ? '' : 's'}`}
                     </Button>
                   )
                 )}
