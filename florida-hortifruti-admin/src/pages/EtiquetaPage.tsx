@@ -118,7 +118,7 @@ export function EtiquetaPage() {
         @media print {
           @page { size: 70mm 40mm; margin: 0; }
           html, body { margin: 0; padding: 0; background: #fff; }
-          body > * { display: none !important; }
+          .no-print { display: none !important; }
           .print-only { display: block !important; }
           .print-only .label-content {
             width: 70mm;

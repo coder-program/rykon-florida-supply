@@ -275,13 +275,6 @@ export function EstoquePage() {
             </Button>
             <Button
               onClick={() => {
-                setFormEntrada({
-                  fornecedor: '',
-                  valorFrete: 0,
-                  valorComissao: 0,
-                  observacao: '',
-                  itens: [{ ...ITEM_VAZIO }],
-                })
                 setModalEntrada(true)
               }}
             >
@@ -351,6 +344,7 @@ export function EstoquePage() {
         onClose={() => setModalEntrada(false)}
         title="Registrar Entrada de Estoque"
         size="xl"
+        closeOnBackdropClick={false}
       >
         <form
           onSubmit={(e) => {
@@ -495,7 +489,12 @@ export function EstoquePage() {
         </form>
       </Modal>
 
-      <Modal open={modalAjuste} onClose={() => setModalAjuste(false)} title="Ajuste de Estoque">
+      <Modal
+        open={modalAjuste}
+        onClose={() => setModalAjuste(false)}
+        title="Ajuste de Estoque"
+        closeOnBackdropClick={false}
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault()
