@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsString,
   IsOptional,
@@ -8,6 +8,7 @@ import {
   Length,
   Matches,
   Validate,
+  ValidateNested,
   ValidatorConstraint,
   ValidatorConstraintInterface,
   ValidationArguments,
@@ -68,6 +69,35 @@ function Trimmed() {
   return Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
 }
 
+export class CreateEnderecoClienteDto {
+  @IsString()
+  cep: string;
+
+  @IsString()
+  logradouro: string;
+
+  @IsString()
+  numero: string;
+
+  @IsOptional()
+  @IsString()
+  complemento?: string;
+
+  @IsString()
+  bairro: string;
+
+  @IsString()
+  cidadeId: string;
+
+  @IsOptional()
+  @IsString()
+  pontoReferencia?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  principal?: boolean;
+}
+
 export class CreateClienteDto {
   @Trimmed()
   @IsString()
@@ -97,17 +127,9 @@ export class CreateClienteDto {
   @IsEmail()
   email?: string;
 
-  @IsOptional()
-  @IsString()
-  endereco?: string;
-
-  @IsOptional()
-  @IsString()
-  cidade?: string;
-
-  @IsOptional()
-  @IsString()
-  estado?: string;
+  @ValidateNested()
+  @Type(() => CreateEnderecoClienteDto)
+  endereco: CreateEnderecoClienteDto;
 
   @IsOptional()
   @IsString()
@@ -162,17 +184,9 @@ export class UpdateClienteDto {
   @IsEmail()
   email?: string;
 
-  @IsOptional()
-  @IsString()
-  endereco?: string;
-
-  @IsOptional()
-  @IsString()
-  cidade?: string;
-
-  @IsOptional()
-  @IsString()
-  estado?: string;
+  @ValidateNested()
+  @Type(() => CreateEnderecoClienteDto)
+  endereco: CreateEnderecoClienteDto;
 
   @IsOptional()
   @IsString()

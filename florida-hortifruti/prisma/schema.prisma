@@ -38,6 +38,60 @@ model Usuario {
   @@map("usuarios")
 }
 
+enum TipoEntidadeEndereco {
+  CLIENTE
+  USUARIO
+  FORNECEDOR
+}
+
+enum TipoEndereco {
+  PRINCIPAL
+  ENTREGA
+  COBRANCA
+}
+
+model Estado {
+  id      String   @id @default(uuid())
+  nome    String   @unique
+  sigla   String   @unique
+  cidades Cidade[]
+
+  @@map("estados")
+}
+
+model Cidade {
+  id        String     @id @default(uuid())
+  nome      String
+  estadoId  String
+  estado    Estado     @relation(fields: [estadoId], references: [id])
+  enderecos Endereco[]
+
+  @@unique([nome, estadoId])
+  @@index([estadoId])
+  @@map("cidades")
+}
+
+model Endereco {
+  id              String                @id @default(uuid())
+  entidadeTipo    TipoEntidadeEndereco
+  entidadeId      String
+  tipo            TipoEndereco          @default(PRINCIPAL)
+  principal       Boolean               @default(true)
+  cep             String?
+  logradouro      String
+  numero          String?
+  complemento     String?
+  bairro          String?
+  cidadeId        String
+  cidade          Cidade                @relation(fields: [cidadeId], references: [id])
+  pontoReferencia String?
+  criadoEm        DateTime              @default(now())
+  atualizadoEm    DateTime              @updatedAt
+
+  @@index([entidadeTipo, entidadeId])
+  @@map("enderecos")
+}
+
 // ==========================================
 // CLIENTES
 // ==========================================
@@ -50,9 +104,6 @@ model Cliente {
   telefone            String?
   whatsapp            String?
   email               String?
-  endereco            String?
-  cidade              String?
-  estado              String?
   responsavelContato  String?
   condicaoPagamento   String?
   formaPagamentoUsual String?

@@ -34,6 +34,16 @@ interface NovoClienteForm {
   razaoSocialOuNome: string
   cnpjCpf: string
   telefone: string
+  endereco: {
+    cep: string
+    logradouro: string
+    numero: string
+    complemento: string
+    bairro: string
+    estadoId: string
+    cidadeId: string
+    pontoReferencia: string
+  }
 }
 
 type NovoClienteErros = Partial<Record<keyof NovoClienteForm, string>>
@@ -136,6 +146,13 @@ function formatarTelefone(valor: string) {
   return `(${ddd}) ${restante.slice(0, 5)}-${restante.slice(5, 9)}`
 }
 
+function formatarCep(valor: string) {
+  const digits = somenteDigitos(valor).slice(0, 8)
+  if (!digits) return ''
+  if (digits.length <= 5) return digits
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`
+}
+
 function formatarNumeroBR(valor: number, casas = 2) {
   return Number(valor || 0).toLocaleString('pt-BR', {
     minimumFractionDigits: casas,
@@ -158,6 +175,15 @@ function parseNumeroBR(valor: string) {
   if (partes.length === 2 && partes[1].length === 3) return Number(partes.join('')) || 0
 
   return Number(limpo) || 0
+}
+
+function normalizarTextoBusca(valor: string) {
+  return valor
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .toLowerCase()
+    .trim()
 }
 
 function validarNovoCliente(form: NovoClienteForm): NovoClienteErros {
@@ -195,10 +221,21 @@ function validarNovoCliente(form: NovoClienteForm): NovoClienteErros {
     erros.telefone = 'Telefone inválido.'
   }
 
+  const endereco = form.endereco
+  if (
+    !endereco.cep ||
+    !endereco.logradouro ||
+    !endereco.numero ||
+    !endereco.bairro ||
+    !endereco.estadoId ||
+    !endereco.cidadeId
+  ) {
+    erros.endereco = 'Preencha CEP, logradouro, número, bairro, estado e cidade do endereço.'
+  }
+
   return erros
 }
 
-// ── Etapa 1: seleção de cliente ─────────────────────────────────────────────
 function EtapaCliente({
   dados,
   onSelecionar,
@@ -604,10 +641,33 @@ export function NovoPedidoPage() {
     razaoSocialOuNome: '',
     cnpjCpf: '',
     telefone: '',
+    endereco: {
+      cep: '',
+      logradouro: '',
+      numero: '',
+      complemento: '',
+      bairro: '',
+      estadoId: '',
+      cidadeId: '',
+      pontoReferencia: '',
+    },
   })
   const [clienteTentouSalvar, setClienteTentouSalvar] = useState(false)
   const [clienteErroApi, setClienteErroApi] = useState('')
   const errosCliente = validarNovoCliente(formCliente)
+
+  const { data: estados = [] } = useQuery({
+    queryKey: ['localidades-estados'],
+    queryFn: () => api.get('/localidades/estados').then((r) => r.data),
+    enabled: novoCliente,
+  })
+
+  const { data: cidades = [] } = useQuery({
+    queryKey: ['localidades-cidades', formCliente.endereco.estadoId],
+    queryFn: () =>
+      api.get(`/localidades/estados/${formCliente.endereco.estadoId}/cidades`).then((r) => r.data),
+    enabled: !!formCliente.endereco.estadoId && novoCliente,
+  })
 
   const patch = useCallback((partial: Partial<DadosPedido>) => {
     setDados((d) => {
@@ -622,7 +682,21 @@ export function NovoPedidoPage() {
     onSuccess: (c) => {
       patch({ clienteId: c.id, clienteNome: c.razaoSocialOuNome })
       setNovoCliente(false)
-      setFormCliente({ razaoSocialOuNome: '', cnpjCpf: '', telefone: '' })
+      setFormCliente({
+        razaoSocialOuNome: '',
+        cnpjCpf: '',
+        telefone: '',
+        endereco: {
+          cep: '',
+          logradouro: '',
+          numero: '',
+          complemento: '',
+          bairro: '',
+          estadoId: '',
+          cidadeId: '',
+          pontoReferencia: '',
+        },
+      })
       setClienteTentouSalvar(false)
       setClienteErroApi('')
     },
@@ -676,16 +750,94 @@ export function NovoPedidoPage() {
     return true
   }
 
+  async function buscarCep() {
+    const cep = somenteDigitos(formCliente.endereco.cep)
+    if (cep.length !== 8) {
+      setClienteErroApi('Informe um CEP válido com 8 dígitos.')
+      return
+    }
+
+    try {
+      const resposta = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      const data = await resposta.json()
+
+      if (data.erro) {
+        throw new Error('CEP não encontrado')
+      }
+
+      const estado = estados.find((item: any) => item.sigla === data.uf)
+      const cidadeNome = String(data.localidade ?? '').trim()
+      const proximoEstadoId = estado?.id ?? formCliente.endereco.estadoId
+
+      let proximoCidadeId = formCliente.endereco.cidadeId
+
+      if (proximoEstadoId && cidadeNome) {
+        const cidadesEstado = await api.get(`/localidades/estados/${proximoEstadoId}/cidades`)
+        const cidadeEncontrada = cidadesEstado.data.find((cidade: any) => {
+          return normalizarTextoBusca(cidade.nome) === normalizarTextoBusca(cidadeNome)
+        })
+
+        proximoCidadeId = cidadeEncontrada?.id ?? ''
+      }
+
+      setFormCliente((f) => ({
+        ...f,
+        endereco: {
+          ...f.endereco,
+          cep: formatarCep(cep),
+          logradouro: data.logradouro ?? '',
+          bairro: data.bairro ?? '',
+          complemento: data.complemento ?? '',
+          estadoId: proximoEstadoId,
+          cidadeId: proximoCidadeId,
+          pontoReferencia: f.endereco.pontoReferencia,
+        },
+      }))
+
+      setClienteErroApi('')
+    } catch {
+      setClienteErroApi('Não foi possível buscar o CEP informado.')
+    }
+  }
+
   function abrirNovoCliente() {
     setNovoCliente(true)
-    setFormCliente({ razaoSocialOuNome: '', cnpjCpf: '', telefone: '' })
+    setFormCliente({
+      razaoSocialOuNome: '',
+      cnpjCpf: '',
+      telefone: '',
+      endereco: {
+        cep: '',
+        logradouro: '',
+        numero: '',
+        complemento: '',
+        bairro: '',
+        estadoId: '',
+        cidadeId: '',
+        pontoReferencia: '',
+      },
+    })
     setClienteTentouSalvar(false)
     setClienteErroApi('')
   }
 
   function cancelarNovoCliente() {
     setNovoCliente(false)
-    setFormCliente({ razaoSocialOuNome: '', cnpjCpf: '', telefone: '' })
+    setFormCliente({
+      razaoSocialOuNome: '',
+      cnpjCpf: '',
+      telefone: '',
+      endereco: {
+        cep: '',
+        logradouro: '',
+        numero: '',
+        complemento: '',
+        bairro: '',
+        estadoId: '',
+        cidadeId: '',
+        pontoReferencia: '',
+      },
+    })
     setClienteTentouSalvar(false)
     setClienteErroApi('')
   }
@@ -695,11 +847,33 @@ export function NovoPedidoPage() {
     const erros = validarNovoCliente(formCliente)
     if (Object.keys(erros).length > 0) return
 
-    criarCliente.mutate({
+    const endereco = formCliente.endereco
+    const enderecoPayload = {
+      cep: endereco.cep.trim() || undefined,
+      logradouro: endereco.logradouro.trim() || undefined,
+      numero: endereco.numero.trim() || undefined,
+      complemento: endereco.complemento.trim() || undefined,
+      bairro: endereco.bairro.trim() || undefined,
+      cidadeId: endereco.cidadeId || undefined,
+      pontoReferencia: endereco.pontoReferencia.trim() || undefined,
+      principal: true,
+    }
+
+    const dadosCliente: any = {
       razaoSocialOuNome: formCliente.razaoSocialOuNome.trim(),
       cnpjCpf: formCliente.cnpjCpf.trim() || undefined,
       telefone: formCliente.telefone.trim(),
-    })
+    }
+
+    if (
+      Object.values(enderecoPayload).some(
+        (valor) => valor !== undefined && valor !== null && valor !== true,
+      )
+    ) {
+      dadosCliente.endereco = enderecoPayload
+    }
+
+    criarCliente.mutate(dadosCliente)
   }
 
   return (
@@ -792,6 +966,131 @@ export function NovoPedidoPage() {
                 <p className="mt-1 text-xs text-red-600">{errosCliente.telefone}</p>
               )}
             </div>
+
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-3">
+              <div className="flex gap-2">
+                <input
+                  placeholder="CEP"
+                  value={formCliente.endereco.cep}
+                  onChange={(e) => {
+                    setClienteErroApi('')
+                    setFormCliente((f) => ({
+                      ...f,
+                      endereco: { ...f.endereco, cep: formatarCep(e.target.value) },
+                    }))
+                  }}
+                  inputMode="numeric"
+                  maxLength={9}
+                  className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <button
+                  type="button"
+                  onClick={buscarCep}
+                  className="rounded-xl bg-green-600 px-3 py-2.5 text-sm font-medium text-white"
+                >
+                  Buscar CEP
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <input
+                  placeholder="Logradouro"
+                  value={formCliente.endereco.logradouro}
+                  maxLength={200}
+                  onChange={(e) =>
+                    setFormCliente((f) => ({
+                      ...f,
+                      endereco: { ...f.endereco, logradouro: e.target.value },
+                    }))
+                  }
+                  className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 sm:col-span-2"
+                />
+                <input
+                  placeholder="Número"
+                  value={formCliente.endereco.numero}
+                  maxLength={20}
+                  onChange={(e) =>
+                    setFormCliente((f) => ({
+                      ...f,
+                      endereco: { ...f.endereco, numero: e.target.value },
+                    }))
+                  }
+                  className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <input
+                  placeholder="Complemento"
+                  value={formCliente.endereco.complemento}
+                  maxLength={80}
+                  onChange={(e) =>
+                    setFormCliente((f) => ({
+                      ...f,
+                      endereco: { ...f.endereco, complemento: e.target.value },
+                    }))
+                  }
+                  className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <input
+                  placeholder="Bairro"
+                  value={formCliente.endereco.bairro}
+                  maxLength={80}
+                  onChange={(e) =>
+                    setFormCliente((f) => ({
+                      ...f,
+                      endereco: { ...f.endereco, bairro: e.target.value },
+                    }))
+                  }
+                  className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <select
+                  value={formCliente.endereco.estadoId}
+                  onChange={(e) =>
+                    setFormCliente((f) => ({
+                      ...f,
+                      endereco: { ...f.endereco, estadoId: e.target.value, cidadeId: '' },
+                    }))
+                  }
+                  className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="">Estado</option>
+                  {estados.map((estado: any) => (
+                    <option key={estado.id} value={estado.id}>
+                      {estado.sigla} - {estado.nome}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={formCliente.endereco.cidadeId}
+                  onChange={(e) =>
+                    setFormCliente((f) => ({
+                      ...f,
+                      endereco: { ...f.endereco, cidadeId: e.target.value },
+                    }))
+                  }
+                  disabled={!formCliente.endereco.estadoId}
+                  className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:text-gray-400"
+                >
+                  <option value="">Cidade</option>
+                  {cidades.map((cidade: any) => (
+                    <option key={cidade.id} value={cidade.id}>
+                      {cidade.nome}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  placeholder="Ponto de referência"
+                  value={formCliente.endereco.pontoReferencia}
+                  maxLength={120}
+                  onChange={(e) =>
+                    setFormCliente((f) => ({
+                      ...f,
+                      endereco: { ...f.endereco, pontoReferencia: e.target.value },
+                    }))
+                  }
+                  className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 sm:col-span-2"
+                />
+              </div>
+            </div>
+
             {clienteErroApi && (
               <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                 {clienteErroApi}

@@ -20,6 +20,41 @@ npm run start:dev
 
 Login inicial: `admin@floridahortifruti.com.br` / `admin123` (troque depois).
 
+## Endereços e localidades
+
+O banco passou a usar uma estrutura compartilhada para endereço:
+
+- `Estado` e `Cidade` são tabelas fixas e referenciadas por chave estrangeira.
+- `Endereco` é compartilhado por qualquer entidade que precise do campo.
+- `Cliente`, `Usuario` e demais entidades só armazenam a chave da entidade e não mais texto livre de cidade/estado.
+
+### Seed de localidades (IBGE)
+
+O seed de municípios é pesado, com cerca de 5 mil cidades. Ele deve rodar uma única vez, fora do `migrate`, para não tornar a criação do banco lenta ou redundante.
+
+```bash
+npx ts-node prisma/seed-localidades.ts
+```
+
+Esse script é idempotente: `createMany({ skipDuplicates: true })` evita duplicidade ao rodar novamente.
+
+### Contrato dos endpoints de localidades
+
+Os endpoints abaixo alimentam o combo dependente do frontend:
+
+- `GET /localidades/estados` -> retorna `[{ id, nome, sigla }]`, ordenados por nome.
+- `GET /localidades/estados/:estadoId/cidades` -> retorna `[{ id, nome, estadoId }]`, ordenados por nome.
+
+Fluxo recomendado:
+
+1. Carregar `GET /localidades/estados`
+2. Ao escolher um estado, chamar `GET /localidades/estados/:estadoId/cidades`
+3. Preencher o select de cidades com os resultados
+
+### Extensão para novas entidades
+
+Qualquer entidade nova que precise de endereço precisa apenas incluir um valor novo no enum `TipoEntidadeEndereco` e usar o módulo de endereços com `entidadeTipo` + `entidadeId`.
+
 ## O que já está pronto
 
 - **Modelo de dados completo** (`prisma/schema.prisma`) cobrindo usuários, clientes,

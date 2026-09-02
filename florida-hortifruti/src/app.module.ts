@@ -9,6 +9,8 @@ import { EstoqueModule } from './estoque/estoque.module';
 import { EtiquetasModule } from './etiquetas/etiquetas.module';
 import { RelatoriosModule } from './relatorios/relatorios.module';
 import { FinanceiroModule } from './financeiro/financeiro.module';
+import { LocalidadesModule } from './localidades/localidades.module';
+import { EnderecosModule } from './enderecos/enderecos.module';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { FinanceiroModule } from './financeiro/financeiro.module';
     EtiquetasModule,
     RelatoriosModule,
     FinanceiroModule,
+    LocalidadesModule,
+    EnderecosModule,
   ],
 })
 export class AppModule {}

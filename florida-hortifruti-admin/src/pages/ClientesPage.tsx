@@ -18,14 +18,62 @@ const EMPTY_FORM = {
   telefone: '',
   whatsapp: '',
   email: '',
-  endereco: '',
-  cidade: '',
-  estado: '',
+  endereco: {
+    cep: '',
+    logradouro: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    estadoId: '',
+    cidadeId: '',
+    pontoReferencia: '',
+  },
   responsavelContato: '',
   condicaoPagamento: '',
   formaPagamentoUsual: '',
   necessitaNF: false,
   observacoes: '',
+}
+
+function somenteDigitos(valor: string) {
+  return valor.replace(/\D/g, '')
+}
+
+function formatarCpfCnpj(valor: string) {
+  const digits = somenteDigitos(valor).slice(0, 14)
+  if (digits.length <= 11) {
+    const partes = []
+    if (digits.length > 0) partes.push(digits.slice(0, Math.min(3, digits.length)))
+    if (digits.length > 3) partes.push(digits.slice(3, Math.min(6, digits.length)))
+    if (digits.length > 6) partes.push(digits.slice(6, Math.min(9, digits.length)))
+    const sufixo = digits.length > 9 ? digits.slice(9, 11) : ''
+    let formatted = partes.join('.')
+    if (digits.length > 9) formatted += `-${sufixo}`
+    return formatted
+  }
+
+  const partes = []
+  if (digits.length > 0) partes.push(digits.slice(0, Math.min(2, digits.length)))
+  if (digits.length > 2) partes.push(digits.slice(2, Math.min(5, digits.length)))
+  if (digits.length > 5) partes.push(digits.slice(5, Math.min(8, digits.length)))
+  const bloco = digits.length > 8 ? digits.slice(8, Math.min(12, digits.length)) : ''
+  const sufixo = digits.length > 12 ? digits.slice(12, 14) : ''
+  let formatted = partes.join('.')
+  if (digits.length > 8) formatted += `/${bloco}`
+  if (digits.length > 12) formatted += `-${sufixo}`
+  return formatted
+}
+
+function formatarTelefone(valor: string) {
+  const digits = somenteDigitos(valor).slice(0, 11)
+  if (!digits) return ''
+  if (digits.length <= 2) return `(${digits}`
+
+  const ddd = digits.slice(0, 2)
+  const restante = digits.slice(2)
+  if (restante.length <= 4) return `(${ddd}) ${restante}`
+  if (restante.length <= 8) return `(${ddd}) ${restante.slice(0, 4)}-${restante.slice(4)}`
+  return `(${ddd}) ${restante.slice(0, 5)}-${restante.slice(5, 9)}`
 }
 
 type Cliente = {
@@ -36,22 +84,37 @@ type Cliente = {
   telefone?: string | null
   whatsapp?: string | null
   email?: string | null
-  endereco?: string | null
-  cidade?: string | null
-  estado?: string | null
   responsavelContato?: string | null
   condicaoPagamento?: string | null
   formaPagamentoUsual?: string | null
   necessitaNF?: boolean
   observacoes?: string | null
   ativo?: boolean
+  enderecos?: Array<{
+    id: string
+    principal: boolean
+    cep?: string | null
+    logradouro?: string | null
+    numero?: string | null
+    complemento?: string | null
+    bairro?: string | null
+    pontoReferencia?: string | null
+    cidade?: {
+      id: string
+      nome: string
+      estado?: { id: string; nome: string; sigla: string }
+    } | null
+  }>
 }
 
 export function ClientesPage() {
   const qc = useQueryClient()
   const [busca, setBusca] = useState('')
   const [modal, setModal] = useState(false)
+  const [modalDetalhes, setModalDetalhes] = useState(false)
+  const [clienteParaExcluir, setClienteParaExcluir] = useState<Cliente | null>(null)
   const [editando, setEditando] = useState<Cliente | null>(null)
+  const [detalhesCliente, setDetalhesCliente] = useState<Cliente | null>(null)
   const [form, setForm] = useState<any>(EMPTY_FORM)
 
   const { data: clientes = [], isLoading } = useQuery<Cliente[]>({
@@ -60,6 +123,19 @@ export function ClientesPage() {
       api
         .get('/clientes', { params: busca ? { busca } : { incluirInativos: true } })
         .then((r) => r.data),
+  })
+
+  const { data: estados = [] } = useQuery({
+    queryKey: ['localidades-estados'],
+    queryFn: () => api.get('/localidades/estados').then((r) => r.data),
+    enabled: modal,
+  })
+
+  const { data: cidades = [] } = useQuery({
+    queryKey: ['localidades-cidades', form.endereco?.estadoId],
+    queryFn: () =>
+      api.get(`/localidades/estados/${form.endereco?.estadoId}/cidades`).then((r) => r.data),
+    enabled: !!form.endereco?.estadoId && modal,
   })
 
   const salvar = useMutation({
@@ -73,7 +149,10 @@ export function ClientesPage() {
 
   const excluir = useMutation({
     mutationFn: (id: string) => api.delete(`/clientes/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['clientes'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clientes'] })
+      setClienteParaExcluir(null)
+    },
   })
 
   const reativar = useMutation({
@@ -81,13 +160,30 @@ export function ClientesPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['clientes'] }),
   })
 
+  function getPrincipalEndereco(c: Cliente | null | undefined) {
+    return c?.enderecos?.find((e) => e.principal) ?? c?.enderecos?.[0] ?? null
+  }
+
   function abrirNovo() {
-    setForm(EMPTY_FORM)
+    setForm({ ...EMPTY_FORM })
     setEditando(null)
     setModal(true)
   }
   function abrirEditar(c: Cliente) {
-    setForm({ ...c })
+    const principal = getPrincipalEndereco(c)
+    setForm({
+      ...c,
+      endereco: {
+        cep: principal?.cep ?? '',
+        logradouro: principal?.logradouro ?? '',
+        numero: principal?.numero ?? '',
+        complemento: principal?.complemento ?? '',
+        bairro: principal?.bairro ?? '',
+        estadoId: principal?.cidade?.estado?.id ?? '',
+        cidadeId: principal?.cidade?.id ?? '',
+        pontoReferencia: principal?.pontoReferencia ?? '',
+      },
+    })
     setEditando(c)
     setModal(true)
   }
@@ -98,25 +194,49 @@ export function ClientesPage() {
   function set(k: string, v: any) {
     setForm((f: any) => ({ ...f, [k]: v }))
   }
+  function abrirDetalhes(c: Cliente) {
+    setDetalhesCliente(c)
+    setModalDetalhes(true)
+  }
+  function fecharDetalhes() {
+    setModalDetalhes(false)
+    setDetalhesCliente(null)
+  }
+  function confirmarExclusaoCliente() {
+    if (!clienteParaExcluir) return
+    excluir.mutate(clienteParaExcluir.id)
+  }
+
+  function normalizarTextoBusca(valor: string) {
+    return valor
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\p{L}\p{N}\s]/gu, '')
+      .toLowerCase()
+      .trim()
+  }
 
   function formatarDataArquivo() {
     return new Date().toISOString().slice(0, 10)
   }
 
   async function exportarExcel() {
-    const linhas = clientes.map((c) => ({
-      Nome: c.razaoSocialOuNome ?? '',
-      Fantasia: c.nomeFantasia ?? '',
-      'CNPJ/CPF': c.cnpjCpf ?? '',
-      Telefone: c.telefone ?? '',
-      WhatsApp: c.whatsapp ?? '',
-      Email: c.email ?? '',
-      Cidade: c.cidade ?? '',
-      Estado: c.estado ?? '',
-      Pagamento: c.formaPagamentoUsual ?? '',
-      'Necessita NF': c.necessitaNF ? 'Sim' : 'Nao',
-      Status: c.ativo === false ? 'Inativo' : 'Ativo',
-    }))
+    const linhas = clientes.map((c) => {
+      const principal = getPrincipalEndereco(c)
+      return {
+        Nome: c.razaoSocialOuNome ?? '',
+        Fantasia: c.nomeFantasia ?? '',
+        'CNPJ/CPF': c.cnpjCpf ?? '',
+        Telefone: c.telefone ?? '',
+        WhatsApp: c.whatsapp ?? '',
+        Email: c.email ?? '',
+        Cidade: principal?.cidade?.nome ?? '',
+        Estado: principal?.cidade?.estado?.sigla ?? '',
+        Pagamento: c.formaPagamentoUsual ?? '',
+        'Necessita NF': c.necessitaNF ? 'Sim' : 'Nao',
+        Status: c.ativo === false ? 'Inativo' : 'Ativo',
+      }
+    })
 
     const workbook = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet('Clientes')
@@ -159,16 +279,19 @@ export function ClientesPage() {
       head: [
         ['Nome', 'Fantasia', 'CNPJ/CPF', 'Telefone', 'Cidade/UF', 'Pagamento', 'NF', 'Status'],
       ],
-      body: clientes.map((c) => [
-        c.razaoSocialOuNome ?? '',
-        c.nomeFantasia ?? '',
-        c.cnpjCpf ?? '',
-        c.telefone ?? '',
-        `${c.cidade ?? ''}${c.estado ? `/${c.estado}` : ''}`,
-        c.formaPagamentoUsual ?? '',
-        c.necessitaNF ? 'Sim' : 'Nao',
-        c.ativo === false ? 'Inativo' : 'Ativo',
-      ]),
+      body: clientes.map((c) => {
+        const principal = getPrincipalEndereco(c)
+        return [
+          c.razaoSocialOuNome ?? '',
+          c.nomeFantasia ?? '',
+          c.cnpjCpf ?? '',
+          c.telefone ?? '',
+          `${principal?.cidade?.nome ?? ''}${principal?.cidade?.estado?.sigla ? `/${principal.cidade.estado.sigla}` : ''}`,
+          c.formaPagamentoUsual ?? '',
+          c.necessitaNF ? 'Sim' : 'Nao',
+          c.ativo === false ? 'Inativo' : 'Ativo',
+        ]
+      }),
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: { fillColor: [22, 163, 74] },
     })
@@ -212,57 +335,67 @@ export function ClientesPage() {
           {!isLoading && clientes.length === 0 && (
             <p className="py-8 text-center text-sm text-gray-400">Nenhum cliente encontrado</p>
           )}
-          {clientes.map((c: any) => (
-            <div
-              key={c.id}
-              className={`rounded-xl border border-gray-200 bg-white p-4 ${c.ativo === false ? 'opacity-60' : ''}`}
-            >
-              <p className="font-semibold text-gray-900">{c.razaoSocialOuNome}</p>
-              {c.nomeFantasia && <p className="text-xs text-gray-400">{c.nomeFantasia}</p>}
-              <p className="mt-1 text-xs text-gray-500">
-                {c.cidade}
-                {c.estado ? `/${c.estado}` : ''} · {c.formaPagamentoUsual ?? '—'}
-              </p>
-              <div className="mt-3 flex items-center justify-between">
-                <span
-                  className={`text-xs font-medium ${c.ativo === false ? 'text-red-600' : 'text-green-600'}`}
-                >
-                  {c.ativo === false ? 'Inativo' : 'Ativo'}
-                </span>
-                <div className="flex gap-1">
-                  <Button size="sm" variant="ghost" onClick={() => abrirEditar(c)}>
-                    <Pencil className="w-3.5 h-3.5" />
-                  </Button>
-                  {c.ativo === false ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-green-600"
-                      onClick={() => reativar.mutate(c.id)}
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
+          {clientes.map((c: any) => {
+            const principal = getPrincipalEndereco(c)
+            const cidade = principal?.cidade?.nome ?? ''
+            const estado = principal?.cidade?.estado?.sigla ?? ''
+            return (
+              <div
+                key={c.id}
+                className={`rounded-xl border border-gray-200 bg-white p-4 ${c.ativo === false ? 'opacity-60' : ''}`}
+              >
+                <p className="font-semibold text-gray-900">{c.razaoSocialOuNome}</p>
+                {c.nomeFantasia && <p className="text-xs text-gray-400">{c.nomeFantasia}</p>}
+                <p className="mt-1 text-xs text-gray-500">
+                  {cidade}
+                  {estado ? `/${estado}` : ''} · {c.formaPagamentoUsual ?? '—'}
+                </p>
+                <div className="mt-3 flex items-center justify-between">
+                  <span
+                    className={`text-xs font-medium ${c.ativo === false ? 'text-red-600' : 'text-green-600'}`}
+                  >
+                    {c.ativo === false ? 'Inativo' : 'Ativo'}
+                  </span>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => abrirDetalhes(c)}>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        className="w-3.5 h-3.5"
+                      >
+                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
                     </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-red-500 hover:bg-red-50"
-                      onClick={() => {
-                        if (
-                          confirm(
-                            `Desativar ${c.razaoSocialOuNome}? O cadastro permanece no histórico.`,
-                          )
-                        )
-                          excluir.mutate(c.id)
-                      }}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
+                    <Button size="sm" variant="ghost" onClick={() => abrirEditar(c)}>
+                      <Pencil className="w-3.5 h-3.5" />
                     </Button>
-                  )}
+                    {c.ativo === false ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-green-600"
+                        onClick={() => reativar.mutate(c.id)}
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-red-500 hover:bg-red-50"
+                        onClick={() => setClienteParaExcluir(c)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         <div className="hidden md:block">
@@ -300,70 +433,82 @@ export function ClientesPage() {
                     </td>
                   </tr>
                 )}
-                {clientes.map((c: any) => (
-                  <tr
-                    key={c.id}
-                    className={`hover:bg-gray-50 ${c.ativo === false ? 'opacity-60' : ''}`}
-                  >
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900">{c.razaoSocialOuNome}</p>
-                      {c.nomeFantasia && <p className="text-xs text-gray-400">{c.nomeFantasia}</p>}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{c.cnpjCpf}</td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {c.cidade}
-                      {c.estado ? `/${c.estado}` : ''}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{c.formaPagamentoUsual ?? '—'}</td>
-                    <td className="px-4 py-3">
-                      {c.necessitaNF ? (
-                        <span className="text-green-600 font-medium text-xs">Sim</span>
-                      ) : (
-                        <span className="text-gray-400 text-xs">Não</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {c.ativo === false ? (
-                        <span className="text-xs font-medium text-red-600">Inativo</span>
-                      ) : (
-                        <span className="text-xs font-medium text-green-600">Ativo</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1 justify-end">
-                        <Button size="sm" variant="ghost" onClick={() => abrirEditar(c)}>
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        {c.ativo === false ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-green-600"
-                            onClick={() => reativar.mutate(c.id)}
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-500 hover:bg-red-50"
-                            onClick={() => {
-                              if (
-                                confirm(
-                                  `Desativar ${c.razaoSocialOuNome}? O cadastro permanece no histórico.`,
-                                )
-                              )
-                                excluir.mutate(c.id)
-                            }}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
+                {clientes.map((c: any) => {
+                  const principal = getPrincipalEndereco(c)
+                  const cidade = principal?.cidade?.nome ?? ''
+                  const estado = principal?.cidade?.estado?.sigla ?? ''
+                  return (
+                    <tr
+                      key={c.id}
+                      className={`hover:bg-gray-50 ${c.ativo === false ? 'opacity-60' : ''}`}
+                    >
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-gray-900">{c.razaoSocialOuNome}</p>
+                        {c.nomeFantasia && (
+                          <p className="text-xs text-gray-400">{c.nomeFantasia}</p>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{c.cnpjCpf}</td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {cidade}
+                        {estado ? `/${estado}` : ''}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{c.formaPagamentoUsual ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        {c.necessitaNF ? (
+                          <span className="text-green-600 font-medium text-xs">Sim</span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">Não</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {c.ativo === false ? (
+                          <span className="text-xs font-medium text-red-600">Inativo</span>
+                        ) : (
+                          <span className="text-xs font-medium text-green-600">Ativo</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1 justify-end">
+                          <Button size="sm" variant="ghost" onClick={() => abrirDetalhes(c)}>
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              className="w-3.5 h-3.5"
+                            >
+                              <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => abrirEditar(c)}>
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          {c.ativo === false ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-green-600"
+                              onClick={() => reativar.mutate(c.id)}
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-500 hover:bg-red-50"
+                              onClick={() => setClienteParaExcluir(c)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </TableScroll>
@@ -379,7 +524,29 @@ export function ClientesPage() {
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            salvar.mutate(form)
+
+            const endereco = form.endereco ?? EMPTY_FORM.endereco
+            const enderecoCompleto = !!(
+              endereco.cep &&
+              endereco.logradouro &&
+              endereco.numero &&
+              endereco.bairro &&
+              endereco.estadoId &&
+              endereco.cidadeId
+            )
+
+            if (!enderecoCompleto) {
+              alert(
+                'Preencha o endereço completo: CEP, logradouro, número, bairro, estado e cidade.',
+              )
+              return
+            }
+
+            const payload = {
+              ...form,
+              endereco: { ...endereco, principal: true },
+            }
+            salvar.mutate(payload)
           }}
           className="space-y-4"
         >
@@ -395,56 +562,181 @@ export function ClientesPage() {
             <Input
               label="Nome Fantasia"
               value={form.nomeFantasia}
+              maxLength={120}
               onChange={(e) => set('nomeFantasia', e.target.value)}
             />
             <Input
               label="CNPJ / CPF *"
               value={form.cnpjCpf}
-              onChange={(e) => set('cnpjCpf', e.target.value)}
+              onChange={(e) => set('cnpjCpf', formatarCpfCnpj(e.target.value))}
               required
+              maxLength={18}
             />
             <Input
               label="Telefone"
               value={form.telefone}
-              onChange={(e) => set('telefone', e.target.value)}
+              onChange={(e) => set('telefone', formatarTelefone(e.target.value))}
+              maxLength={16}
             />
             <Input
               label="WhatsApp"
               value={form.whatsapp}
-              onChange={(e) => set('whatsapp', e.target.value)}
+              onChange={(e) => set('whatsapp', formatarTelefone(e.target.value))}
+              maxLength={16}
             />
             <Input
               label="E-mail"
               type="email"
               value={form.email}
+              maxLength={255}
               onChange={(e) => set('email', e.target.value)}
             />
             <Input
               label="Responsável pelo Contato"
               value={form.responsavelContato}
+              maxLength={120}
               onChange={(e) => set('responsavelContato', e.target.value)}
             />
-            <div className="sm:col-span-2">
-              <Input
-                label="Endereço"
-                value={form.endereco}
-                onChange={(e) => set('endereco', e.target.value)}
-              />
+
+            <div className="sm:col-span-2 space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input
+                  label="CEP"
+                  value={form.endereco?.cep ?? ''}
+                  maxLength={9}
+                  onChange={(e) => set('endereco', { ...form.endereco, cep: e.target.value })}
+                />
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const cep = form.endereco?.cep?.replace(/\D/g, '')
+                      if (!cep || cep.length !== 8) return
+
+                      try {
+                        const data = await fetch(`https://viacep.com.br/ws/${cep}/json/`).then(
+                          (r) => r.json(),
+                        )
+                        if (data.erro) return
+
+                        const estado = estados.find(
+                          (item: any) =>
+                            String(item.sigla).toUpperCase() ===
+                            String(data.uf ?? '').toUpperCase(),
+                        )
+                        const novoEstadoId = estado?.id ?? form.endereco?.estadoId ?? ''
+                        let novoCidadeId = form.endereco?.cidadeId ?? ''
+
+                        if (novoEstadoId && data.localidade) {
+                          const cidadesEstado = await api.get(
+                            `/localidades/estados/${novoEstadoId}/cidades`,
+                          )
+                          const cidadeEncontrada = cidadesEstado.data.find(
+                            (cidade: any) =>
+                              normalizarTextoBusca(cidade.nome) ===
+                              normalizarTextoBusca(data.localidade),
+                          )
+                          novoCidadeId = cidadeEncontrada?.id ?? ''
+                        }
+
+                        setForm((prev: any) => ({
+                          ...prev,
+                          endereco: {
+                            ...(prev.endereco ?? EMPTY_FORM.endereco),
+                            cep: data.cep ?? prev.endereco?.cep ?? '',
+                            logradouro: data.logradouro ?? '',
+                            bairro: data.bairro ?? '',
+                            complemento: data.complemento ?? '',
+                            estadoId: novoEstadoId,
+                            cidadeId: novoCidadeId,
+                            pontoReferencia: prev.endereco?.pontoReferencia ?? '',
+                          },
+                        }))
+                      } catch {
+                        // ignora falha de busca ao CEP
+                      }
+                    }}
+                    className="w-full rounded-lg bg-green-600 px-3 py-2.5 text-sm font-medium text-white"
+                  >
+                    Buscar CEP
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Input
+                    label="Logradouro"
+                    value={form.endereco?.logradouro ?? ''}
+                    maxLength={200}
+                    onChange={(e) =>
+                      set('endereco', { ...form.endereco, logradouro: e.target.value })
+                    }
+                  />
+                </div>
+                <Input
+                  label="Número"
+                  value={form.endereco?.numero ?? ''}
+                  maxLength={20}
+                  onChange={(e) => set('endereco', { ...form.endereco, numero: e.target.value })}
+                />
+                <Input
+                  label="Complemento"
+                  value={form.endereco?.complemento ?? ''}
+                  maxLength={80}
+                  onChange={(e) =>
+                    set('endereco', { ...form.endereco, complemento: e.target.value })
+                  }
+                />
+                <Input
+                  label="Bairro"
+                  value={form.endereco?.bairro ?? ''}
+                  maxLength={80}
+                  onChange={(e) => set('endereco', { ...form.endereco, bairro: e.target.value })}
+                />
+                <Select
+                  label="Estado"
+                  value={form.endereco?.estadoId ?? ''}
+                  onChange={(e) =>
+                    set('endereco', { ...form.endereco, estadoId: e.target.value, cidadeId: '' })
+                  }
+                >
+                  <option value="">Selecione</option>
+                  {estados.map((estado: any) => (
+                    <option key={estado.id} value={estado.id}>
+                      {estado.sigla} - {estado.nome}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  label="Cidade"
+                  value={form.endereco?.cidadeId ?? ''}
+                  onChange={(e) => set('endereco', { ...form.endereco, cidadeId: e.target.value })}
+                  disabled={!form.endereco?.estadoId}
+                >
+                  <option value="">Selecione</option>
+                  {cidades.map((cidade: any) => (
+                    <option key={cidade.id} value={cidade.id}>
+                      {cidade.nome}
+                    </option>
+                  ))}
+                </Select>
+                <div className="sm:col-span-2">
+                  <Input
+                    label="Ponto de Referência"
+                    value={form.endereco?.pontoReferencia ?? ''}
+                    maxLength={120}
+                    onChange={(e) =>
+                      set('endereco', { ...form.endereco, pontoReferencia: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
             </div>
-            <Input
-              label="Cidade"
-              value={form.cidade}
-              onChange={(e) => set('cidade', e.target.value)}
-            />
-            <Input
-              label="Estado (UF)"
-              value={form.estado}
-              onChange={(e) => set('estado', e.target.value)}
-              maxLength={2}
-            />
+
             <Input
               label="Condição de Pagamento"
               value={form.condicaoPagamento}
+              maxLength={50}
               onChange={(e) => set('condicaoPagamento', e.target.value)}
               placeholder="Ex: 30 dias"
             />
@@ -475,6 +767,7 @@ export function ClientesPage() {
               <label className="block text-xs font-medium text-gray-700 mb-1">Observações</label>
               <textarea
                 value={form.observacoes ?? ''}
+                maxLength={500}
                 onChange={(e) => set('observacoes', e.target.value)}
                 rows={2}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -490,6 +783,142 @@ export function ClientesPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={!!clienteParaExcluir}
+        onClose={() => setClienteParaExcluir(null)}
+        title="Excluir cliente"
+        size="sm"
+      >
+        {clienteParaExcluir && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-red-700">Confirma exclusão?</p>
+                <p className="text-sm text-red-700/80">
+                  O cadastro de{' '}
+                  <span className="font-semibold">{clienteParaExcluir.razaoSocialOuNome}</span> será
+                  removido do sistema.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
+              <p className="font-medium text-gray-800">Cliente selecionado</p>
+              <p className="mt-1">{clienteParaExcluir.razaoSocialOuNome}</p>
+              {clienteParaExcluir.cnpjCpf && (
+                <p className="mt-1 text-xs text-gray-500">{clienteParaExcluir.cnpjCpf}</p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={() => setClienteParaExcluir(null)}>
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                onClick={confirmarExclusaoCliente}
+                disabled={excluir.isPending}
+              >
+                {excluir.isPending ? 'Excluindo...' : 'Excluir cliente'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={modalDetalhes} onClose={fecharDetalhes} title="Detalhes do Cliente" size="lg">
+        {detalhesCliente && (
+          <div className="space-y-4 text-sm">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-lg bg-gray-50 p-3">
+                <span className="block text-xs text-gray-500">Nome</span>
+                <strong>{detalhesCliente.razaoSocialOuNome}</strong>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <span className="block text-xs text-gray-500">Nome Fantasia</span>
+                <strong>{detalhesCliente.nomeFantasia ?? '—'}</strong>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <span className="block text-xs text-gray-500">CNPJ/CPF</span>
+                <strong>{detalhesCliente.cnpjCpf ?? '—'}</strong>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <span className="block text-xs text-gray-500">Telefone</span>
+                <strong>{detalhesCliente.telefone ?? '—'}</strong>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <span className="block text-xs text-gray-500">WhatsApp</span>
+                <strong>{detalhesCliente.whatsapp ?? '—'}</strong>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <span className="block text-xs text-gray-500">E-mail</span>
+                <strong>{detalhesCliente.email ?? '—'}</strong>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <span className="block text-xs text-gray-500">Responsável</span>
+                <strong>{detalhesCliente.responsavelContato ?? '—'}</strong>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <span className="block text-xs text-gray-500">Pagamento habitual</span>
+                <strong>{detalhesCliente.formaPagamentoUsual ?? '—'}</strong>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <span className="block text-xs text-gray-500">Condição de pagamento</span>
+                <strong>{detalhesCliente.condicaoPagamento ?? '—'}</strong>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <span className="block text-xs text-gray-500">Necessita NF</span>
+                <strong>{detalhesCliente.necessitaNF ? 'Sim' : 'Não'}</strong>
+              </div>
+              <div className="sm:col-span-2 rounded-lg bg-gray-50 p-3">
+                <span className="block text-xs text-gray-500">Observações</span>
+                <strong>{detalhesCliente.observacoes ?? '—'}</strong>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-3">
+              <p className="font-semibold text-gray-800 mb-3">Endereço</p>
+              {(() => {
+                const principal = getPrincipalEndereco(detalhesCliente)
+                if (!principal) return <p className="text-gray-500">Nenhum endereço cadastrado.</p>
+                const cidade = principal.cidade?.nome ?? ''
+                const estado = principal.cidade?.estado?.sigla ?? ''
+                return (
+                  <div className="space-y-1 text-gray-700">
+                    <p>
+                      <strong>CEP:</strong> {principal.cep ?? '—'}
+                    </p>
+                    <p>
+                      <strong>Logradouro:</strong> {principal.logradouro ?? '—'}
+                    </p>
+                    <p>
+                      <strong>Número:</strong> {principal.numero ?? '—'}
+                    </p>
+                    <p>
+                      <strong>Complemento:</strong> {principal.complemento ?? '—'}
+                    </p>
+                    <p>
+                      <strong>Bairro:</strong> {principal.bairro ?? '—'}
+                    </p>
+                    <p>
+                      <strong>Cidade/UF:</strong> {cidade}
+                      {estado ? `/${estado}` : ''}
+                    </p>
+                    <p>
+                      <strong>Ponto de referência:</strong> {principal.pontoReferencia ?? '—'}
+                    </p>
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )

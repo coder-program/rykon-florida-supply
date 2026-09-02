@@ -56,6 +56,15 @@ export class EtiquetasService {
     const qrCodeDataUrl = await QRCode.toDataURL(urlPublica, { width: 220, margin: 1 });
 
     const { pedido } = etiqueta;
+    const enderecos = await this.prisma.endereco.findMany({
+      where: {
+        entidadeTipo: 'CLIENTE',
+        entidadeId: pedido.clienteId,
+      },
+      include: { cidade: { include: { estado: true } } },
+      orderBy: [{ principal: 'desc' }, { criadoEm: 'asc' }],
+    });
+    const enderecoPrincipal = enderecos.find((endereco) => endereco.principal) ?? enderecos[0];
     return {
       id: etiqueta.id,
       tokenPublico: etiqueta.tokenPublico,
@@ -84,9 +93,10 @@ export class EtiquetasService {
       cliente: {
         razaoSocialOuNome: pedido.cliente.razaoSocialOuNome,
         nomeFantasia: pedido.cliente.nomeFantasia,
-        endereco: pedido.cliente.endereco,
-        cidade: pedido.cliente.cidade,
-        estado: pedido.cliente.estado,
+        endereco: enderecoPrincipal?.logradouro ?? '',
+        cidade: enderecoPrincipal?.cidade?.nome ?? '',
+        estado:
+          enderecoPrincipal?.cidade?.estado?.sigla ?? enderecoPrincipal?.cidade?.estado?.nome ?? '',
         telefone: pedido.cliente.telefone,
       },
       // Produtos (item 34.1)
@@ -129,6 +139,15 @@ export class EtiquetasService {
     if (!etiqueta) throw new NotFoundException('Etiqueta não encontrada');
 
     const { pedido } = etiqueta;
+    const enderecos = await this.prisma.endereco.findMany({
+      where: {
+        entidadeTipo: 'CLIENTE',
+        entidadeId: pedido.clienteId,
+      },
+      include: { cidade: { include: { estado: true } } },
+      orderBy: [{ principal: 'desc' }, { criadoEm: 'asc' }],
+    });
+    const enderecoPrincipal = enderecos.find((endereco) => endereco.principal) ?? enderecos[0];
     return {
       pedidoId: pedido.id,
       numero: pedido.numero,
@@ -137,9 +156,10 @@ export class EtiquetasService {
       cliente: {
         razaoSocialOuNome: pedido.cliente.razaoSocialOuNome,
         nomeFantasia: pedido.cliente.nomeFantasia,
-        endereco: pedido.cliente.endereco,
-        cidade: pedido.cliente.cidade,
-        estado: pedido.cliente.estado,
+        endereco: enderecoPrincipal?.logradouro ?? '',
+        cidade: enderecoPrincipal?.cidade?.nome ?? '',
+        estado:
+          enderecoPrincipal?.cidade?.estado?.sigla ?? enderecoPrincipal?.cidade?.estado?.nome ?? '',
       },
       vendedor: pedido.vendedor.nome,
       produtos: pedido.itens.map((i) => ({
