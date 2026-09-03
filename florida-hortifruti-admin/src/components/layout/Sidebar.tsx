@@ -11,6 +11,7 @@ import {
   LogOut,
   Leaf,
   Banknote,
+  ClipboardList,
   X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/useAuth'
@@ -19,6 +20,7 @@ import { cn } from '../../lib/utils'
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/pedidos', icon: ShoppingCart, label: 'Pedidos' },
+  { to: '/solicitacoes', icon: ClipboardList, label: 'Solicitações de Alteração' },
   { to: '/clientes', icon: Users, label: 'Clientes' },
   { to: '/produtos', icon: Package, label: 'Produtos' },
   { to: '/estoque', icon: Warehouse, label: 'Estoque' },

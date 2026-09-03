@@ -44,6 +44,16 @@ export const STATUS_PEDIDO_LABEL: Record<string, string> = {
   CANCELADO: 'Cancelado',
 }
 
+export function statusPedidoVisivel(p: { status: string; aguardandoAlteracao?: boolean }) {
+  if (p.aguardandoAlteracao) {
+    return { label: 'Aguardando alteração', className: 'bg-amber-100 text-amber-800' }
+  }
+  return {
+    label: STATUS_PEDIDO_LABEL[p.status] ?? p.status,
+    className: STATUS_PEDIDO_COLOR[p.status] ?? 'bg-gray-100 text-gray-700',
+  }
+}
+
 export const STATUS_PEDIDO_COLOR: Record<string, string> = {
   RASCUNHO: 'bg-gray-100 text-gray-700',
   ENVIADO: 'bg-blue-100 text-blue-700',

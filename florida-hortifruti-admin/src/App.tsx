@@ -14,6 +14,7 @@ import { RelatoriosPage } from './pages/RelatoriosPage'
 import { UsuariosPage } from './pages/UsuariosPage'
 import { EtiquetaPage } from './pages/EtiquetaPage'
 import { FinanceiroPage } from './pages/FinanceiroPage'
+import { SolicitacoesAlteracaoPage } from './pages/SolicitacoesAlteracaoPage'
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } })
 
@@ -38,6 +39,7 @@ export default function App() {
               <Route path="/estoque" element={<EstoquePage />} />
               <Route path="/relatorios" element={<RelatoriosPage />} />
               <Route path="/financeiro" element={<FinanceiroPage />} />
+              <Route path="/solicitacoes" element={<SolicitacoesAlteracaoPage />} />
               <Route
                 path="/usuarios"
                 element={

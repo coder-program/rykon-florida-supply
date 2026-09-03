@@ -1,6 +1,15 @@
-import { IsString, IsArray, IsNumber, IsBoolean, IsOptional, IsEnum, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsArray,
+  IsNumber,
+  IsBoolean,
+  IsOptional,
+  IsEnum,
+  ValidateNested,
+  Min,
+} from 'class-validator';
 import { Type, Transform } from 'class-transformer';
-import { FormaPagamento, StatusPedido } from '@prisma/client';
+import { FormaPagamento, StatusPedido, StatusSolicitacaoAlteracao } from '@prisma/client';
 
 class ItemPedidoDto {
   @IsString()
@@ -22,94 +31,165 @@ export class CreatePedidoDto {
   @Type(() => ItemPedidoDto)
   itens: ItemPedidoDto[];
 
-  @IsOptional() @IsNumber()
+  @IsOptional()
+  @IsNumber()
   valorFrete?: number;
 
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   freteInclusoNoPreco?: boolean;
 
-  @IsOptional() @IsNumber()
+  @IsOptional()
+  @IsNumber()
   descontoValor?: number;
 
-  @IsOptional() @IsNumber()
+  @IsOptional()
+  @IsNumber()
   descontoPercentual?: number;
 
   @IsEnum(FormaPagamento)
   formaPagamento: FormaPagamento;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   dataVencimento?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   condicaoNegociada?: string;
 
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   necessitaNF?: boolean;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   observacoes?: string;
 }
 
 // Seção 3.2: administrativo pode editar pedido antes de aprovar
 export class UpdatePedidoDto {
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   clienteId?: string;
 
-  @IsOptional() @IsArray()
+  @IsOptional()
+  @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ItemPedidoDto)
   itens?: ItemPedidoDto[];
 
-  @IsOptional() @IsNumber()
+  @IsOptional()
+  @IsNumber()
   valorFrete?: number;
 
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   freteInclusoNoPreco?: boolean;
 
-  @IsOptional() @IsNumber()
+  @IsOptional()
+  @IsNumber()
   descontoValor?: number;
 
-  @IsOptional() @IsNumber()
+  @IsOptional()
+  @IsNumber()
   descontoPercentual?: number;
 
-  @IsOptional() @IsEnum(FormaPagamento)
+  @IsOptional()
+  @IsEnum(FormaPagamento)
   formaPagamento?: FormaPagamento;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   dataVencimento?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   condicaoNegociada?: string;
 
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   necessitaNF?: boolean;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   observacoes?: string;
 }
 
 // Seção 19: filtros para listagem de pedidos
 export class FiltrosPedidoDto {
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   clienteId?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   vendedorId?: string;
 
-  @IsOptional() @IsEnum(StatusPedido)
+  @IsOptional()
+  @IsEnum(StatusPedido)
   status?: StatusPedido;
 
-  @IsOptional() @IsEnum(FormaPagamento)
+  @IsOptional()
+  @IsEnum(FormaPagamento)
   formaPagamento?: FormaPagamento;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   dataInicio?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   dataFim?: string;
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   necessitaNF?: boolean;
+}
+
+class ItemSolicitacaoAlteracaoDto {
+  @IsString()
+  produtoId: string;
+
+  @IsNumber()
+  @Min(1)
+  quantidade: number;
+}
+
+export class CriarSolicitacaoAlteracaoDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ItemSolicitacaoAlteracaoDto)
+  itens: ItemSolicitacaoAlteracaoDto[];
+
+  @IsOptional()
+  @IsString()
+  observacao?: string;
+}
+
+export class NegarSolicitacaoDto {
+  @IsOptional()
+  @IsString()
+  resposta?: string;
+}
+
+export class FiltrosSolicitacaoDto {
+  @IsOptional()
+  @IsEnum(StatusSolicitacaoAlteracao)
+  status?: StatusSolicitacaoAlteracao;
+}
+
+export class MarcarEntregueDto {
+  @IsOptional()
+  @IsString()
+  recebidoPor?: string;
+
+  @IsOptional()
+  @IsString()
+  observacaoEntrega?: string;
+
+  @IsOptional()
+  @IsString()
+  fotoEntrega?: string;
 }

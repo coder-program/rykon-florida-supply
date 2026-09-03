@@ -14,7 +14,13 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { PedidosService } from './pedidos.service';
-import { CreatePedidoDto, UpdatePedidoDto, FiltrosPedidoDto } from './dto/pedido.dto';
+import {
+  CreatePedidoDto,
+  UpdatePedidoDto,
+  FiltrosPedidoDto,
+  CriarSolicitacaoAlteracaoDto,
+  MarcarEntregueDto,
+} from './dto/pedido.dto';
 
 @Controller('pedidos')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -32,16 +38,29 @@ export class PedidosController {
     return this.pedidosService.findAll(filtros, req.user.id, req.user.papel);
   }
 
+  @Get(':id/solicitacoes-alteracao')
+  listarSolicitacoes(@Param('id') id: string, @Request() req: any) {
+    return this.pedidosService.listarSolicitacoesDoPedido(id, req.user.id, req.user.papel);
+  }
+
+  @Post(':id/solicitacoes-alteracao')
+  solicitarAlteracao(
+    @Param('id') id: string,
+    @Body() dto: CriarSolicitacaoAlteracaoDto,
+    @Request() req: any,
+  ) {
+    return this.pedidosService.solicitarAlteracao(id, dto, req.user.id, req.user.papel);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string, @Request() req: any) {
     return this.pedidosService.findOne(id, req.user.id, req.user.papel);
   }
 
-  // Seção 3.2: editar pedido antes de aprovar
   @Patch(':id')
   @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
   atualizar(@Param('id') id: string, @Body() dto: UpdatePedidoDto, @Request() req: any) {
-    return this.pedidosService.atualizar(id, dto, req.user.id);
+    return this.pedidosService.atualizar(id, dto, req.user.id, req.user.papel);
   }
 
   // Seção 3.2: só administrativo/administrador aprova pedidos
@@ -59,9 +78,9 @@ export class PedidosController {
   }
 
   @Post(':id/entregue')
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
-  entregue(@Param('id') id: string, @Request() req: any) {
-    return this.pedidosService.atualizarStatus(id, StatusPedido.ENTREGUE, req.user.id);
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.VENDEDOR)
+  entregue(@Param('id') id: string, @Body() dto: MarcarEntregueDto, @Request() req: any) {
+    return this.pedidosService.marcarEntregue(id, req.user.id, req.user.papel, dto);
   }
 
   @Post(':id/faturado')

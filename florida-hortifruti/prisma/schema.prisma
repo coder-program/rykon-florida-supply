@@ -29,11 +29,13 @@ model Usuario {
   ativo        Boolean       @default(true)
   criadoEm     DateTime      @default(now())
 
-  pedidosCriados      Pedido[]            @relation("VendedorPedido")
-  ajustesEstoque      MovimentacaoEstoque[]
-  comprasEstoque      CompraEstoque[]
-  historicoPrecos     HistoricoPreco[]
-  logs                LogAuditoria[]
+  pedidosCriados           Pedido[]                     @relation("VendedorPedido")
+  ajustesEstoque           MovimentacaoEstoque[]
+  comprasEstoque           CompraEstoque[]
+  historicoPrecos          HistoricoPreco[]
+  logs                     LogAuditoria[]
+  solicitacoesEnviadas     SolicitacaoAlteracaoPedido[] @relation("SolicitanteAlteracao")
+  solicitacoesRespondidas  SolicitacaoAlteracaoPedido[] @relation("ResponsavelAlteracao")
 
   @@map("usuarios")
 }
@@ -196,12 +198,20 @@ model Pedido {
   necessitaNF      Boolean         @default(false)
   observacoes      String?
 
+  entregueEm         DateTime?
+  recebidoPor        String?
+  observacaoEntrega  String?
+  fotoEntrega        String?  @db.Text
+
   criadoEm         DateTime        @default(now())
   atualizadoEm     DateTime        @updatedAt
 
-  itens            ItemPedido[]
-  movimentacoes    MovimentacaoEstoque[]
-  etiqueta         Etiqueta?
+  caixasEtiquetadas Int @default(0)
+
+  itens                  ItemPedido[]
+  movimentacoes          MovimentacaoEstoque[]
+  etiqueta               Etiqueta?
+  solicitacoesAlteracao  SolicitacaoAlteracaoPedido[]
 
   @@map("pedidos")
 }
@@ -299,6 +309,32 @@ model ItemCompraEstoque {
 // ==========================================
 // ETIQUETAS / QR CODE
 // ==========================================
+
+enum StatusSolicitacaoAlteracao {
+  PENDENTE
+  APROVADA
+  NEGADA
+}
+
+model SolicitacaoAlteracaoPedido {
+  id              String                      @id @default(uuid())
+  pedidoId        String
+  pedido          Pedido                      @relation(fields: [pedidoId], references: [id])
+  solicitanteId   String
+  solicitante     Usuario                     @relation("SolicitanteAlteracao", fields: [solicitanteId], references: [id])
+  status          StatusSolicitacaoAlteracao  @default(PENDENTE)
+  itens           Json
+  observacao      String?
+  resposta        String?
+  respondidoPorId String?
+  respondidoPor   Usuario?                    @relation("ResponsavelAlteracao", fields: [respondidoPorId], references: [id])
+  criadoEm        DateTime                    @default(now())
+  respondidoEm    DateTime?
+
+  @@index([pedidoId, status])
+  @@index([status, criadoEm])
+  @@map("solicitacoes_alteracao_pedido")
+}
 
 model Etiqueta {
   id            String   @id @default(uuid())

@@ -412,7 +412,7 @@ export function ClientesPage() {
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       <PageHeader
         title="Clientes"
         subtitle={`${clientes.length} cliente(s) cadastrado(s)`}
@@ -454,10 +454,12 @@ export function ClientesPage() {
             return (
               <div
                 key={c.id}
-                className={`rounded-xl border border-gray-200 bg-white p-4 ${c.ativo === false ? 'opacity-60' : ''}`}
+                className={`min-w-0 rounded-xl border border-gray-200 bg-white p-4 ${c.ativo === false ? 'opacity-60' : ''}`}
               >
-                <p className="font-semibold text-gray-900">{c.razaoSocialOuNome}</p>
-                {c.nomeFantasia && <p className="text-xs text-gray-400">{c.nomeFantasia}</p>}
+                <p className="break-all font-semibold text-gray-900">{c.razaoSocialOuNome}</p>
+                {c.nomeFantasia && (
+                  <p className="break-all text-xs text-gray-400">{c.nomeFantasia}</p>
+                )}
                 <p className="mt-1 text-xs text-gray-500">
                   {cidade}
                   {estado ? `/${estado}` : ''} · {c.formaPagamentoUsual ?? '—'}
@@ -512,7 +514,16 @@ export function ClientesPage() {
 
         <div className="hidden md:block">
           <TableScroll>
-            <table className="w-full text-sm">
+            <table className="w-full table-fixed text-sm">
+              <colgroup>
+                <col className="w-[34%]" />
+                <col className="w-[16%]" />
+                <col className="w-[14%]" />
+                <col className="w-[12%]" />
+                <col className="w-[7%]" />
+                <col className="w-[8%]" />
+                <col className="w-[9%]" />
+              </colgroup>
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">
@@ -527,7 +538,7 @@ export function ClientesPage() {
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">NF</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Status</th>
-                  <th className="px-4 py-3" />
+                  <th className="sticky right-0 bg-gray-50 px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -552,20 +563,29 @@ export function ClientesPage() {
                   return (
                     <tr
                       key={c.id}
-                      className={`hover:bg-gray-50 ${c.ativo === false ? 'opacity-60' : ''}`}
+                      className={`group hover:bg-gray-50 ${c.ativo === false ? 'opacity-60' : ''}`}
                     >
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900">{c.razaoSocialOuNome}</p>
+                      <td className="min-w-0 px-4 py-3">
+                        <p
+                          className="truncate font-medium text-gray-900"
+                          title={c.razaoSocialOuNome}
+                        >
+                          {c.razaoSocialOuNome}
+                        </p>
                         {c.nomeFantasia && (
-                          <p className="text-xs text-gray-400">{c.nomeFantasia}</p>
+                          <p className="truncate text-xs text-gray-400" title={c.nomeFantasia}>
+                            {c.nomeFantasia}
+                          </p>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{c.cnpjCpf}</td>
-                      <td className="px-4 py-3 text-gray-600">
+                      <td className="truncate px-4 py-3 text-gray-600">{c.cnpjCpf}</td>
+                      <td className="truncate px-4 py-3 text-gray-600">
                         {cidade}
                         {estado ? `/${estado}` : ''}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{c.formaPagamentoUsual ?? '—'}</td>
+                      <td className="truncate px-4 py-3 text-gray-600">
+                        {c.formaPagamentoUsual ?? '—'}
+                      </td>
                       <td className="px-4 py-3">
                         {c.necessitaNF ? (
                           <span className="text-green-600 font-medium text-xs">Sim</span>
@@ -580,8 +600,8 @@ export function ClientesPage() {
                           <span className="text-xs font-medium text-green-600">Ativo</span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1 justify-end">
+                      <td className="sticky right-0 bg-white px-2 py-3 group-hover:bg-gray-50">
+                        <div className="flex justify-end gap-1">
                           <Button size="sm" variant="ghost" onClick={() => abrirDetalhes(c)}>
                             <svg
                               viewBox="0 0 24 24"
@@ -964,13 +984,13 @@ export function ClientesPage() {
         {detalhesCliente && (
           <div className="space-y-4 text-sm">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="rounded-lg bg-gray-50 p-3">
+              <div className="min-w-0 rounded-lg bg-gray-50 p-3">
                 <span className="block text-xs text-gray-500">Nome</span>
-                <strong>{detalhesCliente.razaoSocialOuNome}</strong>
+                <strong className="break-all">{detalhesCliente.razaoSocialOuNome}</strong>
               </div>
-              <div className="rounded-lg bg-gray-50 p-3">
+              <div className="min-w-0 rounded-lg bg-gray-50 p-3">
                 <span className="block text-xs text-gray-500">Nome Fantasia</span>
-                <strong>{detalhesCliente.nomeFantasia ?? '—'}</strong>
+                <strong className="break-all">{detalhesCliente.nomeFantasia ?? '—'}</strong>
               </div>
               <div className="rounded-lg bg-gray-50 p-3">
                 <span className="block text-xs text-gray-500">CNPJ/CPF</span>

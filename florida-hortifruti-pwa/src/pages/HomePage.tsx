@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, LogOut, RefreshCw } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../contexts/useAuth'
-import { formatBRL, formatDate, STATUS_LABEL, STATUS_COLOR } from '../lib/utils'
+import { formatBRL, formatDate, statusPedidoVisivel } from '../lib/utils'
 import { carregarRascunho } from '../lib/draft'
 
 function garantirLista<T>(valor: unknown): T[] {
@@ -31,6 +31,9 @@ export function HomePage() {
   } = useQuery({
     queryKey: ['meus-pedidos'],
     queryFn: () => api.get('/pedidos').then((r) => garantirLista(r.data)),
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   })
 
   return (
@@ -128,9 +131,9 @@ export function HomePage() {
                     #{String(p.numero).padStart(6, '0')}
                   </span>
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[p.status]}`}
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusPedidoVisivel(p).className}`}
                   >
-                    {STATUS_LABEL[p.status]}
+                    {statusPedidoVisivel(p).label}
                   </span>
                 </div>
                 <p className="font-semibold text-gray-900 text-sm truncate">

@@ -1,11 +1,15 @@
 import { useEffect, useMemo } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { Leaf, MapPin, Package, Printer, RefreshCw, ShoppingCart, User } from 'lucide-react'
 import { api } from '../lib/api'
 
 function numeroPedido(n: number | string) {
   return `#${String(n).padStart(6, '0')}`
+}
+
+function nomeCaixa(n: number) {
+  return `Caixa ${String(n).padStart(2, '0')}`
 }
 
 function totalCaixasDe(etiqueta: { totalCaixas?: number; itens?: { quantidade?: number }[] }) {
@@ -31,6 +35,7 @@ function linhasEndereco(c: {
 
 export function EtiquetaPage() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
 
   const {
     data: etiqueta,
@@ -79,17 +84,21 @@ export function EtiquetaPage() {
   }
 
   const p = etiqueta.pedido
-  const vias = Array.from({ length: totalCaixas }, (_, i) => i + 1)
+  const deParam = Number(searchParams.get('de') || 0)
+  const ateParam = Number(searchParams.get('ate') || 0)
+  const inicio = deParam >= 1 ? deParam : 1
+  const fim = ateParam >= inicio ? Math.min(ateParam, totalCaixas) : totalCaixas
+  const vias = Array.from({ length: Math.max(0, fim - inicio + 1) }, (_, i) => inicio + i)
 
   return (
     <>
       <div className="no-print flex items-center justify-between bg-gray-800 px-4 py-3 text-white sm:px-6">
         <div>
           <p className="font-semibold">
-            {totalCaixas} etiqueta{totalCaixas === 1 ? '' : 's'} — Pedido {numeroPedido(p.numero)}
+            {vias.length} etiqueta{vias.length === 1 ? '' : 's'} — Pedido {numeroPedido(p.numero)}
           </p>
           <p className="text-xs text-gray-400">
-            60×40 mm · uma via por caixa
+            60×40 mm · {nomeCaixa(inicio)} até {nomeCaixa(fim)}
             {etiqueta.reimpressoes > 0 ? ` · ${etiqueta.reimpressoes} reimpressão(ões)` : ''}
           </p>
         </div>
@@ -99,14 +108,14 @@ export function EtiquetaPage() {
           className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
         >
           <Printer className="h-4 w-4" />
-          Imprimir {totalCaixas} etiqueta{totalCaixas === 1 ? '' : 's'}
+          Imprimir {vias.length} etiqueta{vias.length === 1 ? '' : 's'}
         </button>
       </div>
 
       <div className="labels-wrap">
         {vias.map((caixa) => (
           <div key={caixa} className="label-sheet">
-            <LabelContent etiqueta={etiqueta} caixa={caixa} totalCaixas={totalCaixas} />
+            <LabelContent etiqueta={etiqueta} caixa={caixa} />
           </div>
         ))}
       </div>
@@ -162,15 +171,7 @@ export function EtiquetaPage() {
   )
 }
 
-function LabelContent({
-  etiqueta,
-  caixa,
-  totalCaixas,
-}: {
-  etiqueta: any
-  caixa: number
-  totalCaixas: number
-}) {
+function LabelContent({ etiqueta, caixa }: { etiqueta: any; caixa: number }) {
   const p = etiqueta.pedido
   const c = etiqueta.cliente
   const endereco = linhasEndereco(c)
@@ -201,7 +202,7 @@ function LabelContent({
           <span style={{ width: '0.25mm', height: '3.4mm', background: '#000', flexShrink: 0 }} />
           <Package size={9} strokeWidth={2.2} />
           <p style={{ fontSize: '6.2pt', fontWeight: 700, margin: 0, whiteSpace: 'nowrap' }}>
-            CAIXA: {caixa}/{totalCaixas}
+            {nomeCaixa(caixa)}
           </p>
         </div>
 

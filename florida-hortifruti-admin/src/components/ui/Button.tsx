@@ -16,7 +16,7 @@ export function Button({
   return (
     <button
       className={cn(
-        'inline-flex items-center gap-1.5 font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+        'inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
         size === 'sm' ? 'min-h-9 px-3 py-1.5 text-xs' : 'min-h-10 px-4 py-2 text-sm',
         variant === 'primary' && 'bg-green-600 text-white hover:bg-green-700',
         variant === 'secondary' && 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50',

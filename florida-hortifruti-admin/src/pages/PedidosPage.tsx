@@ -10,8 +10,8 @@ import {
   formatBRL,
   formatDate,
   STATUS_PEDIDO_LABEL,
-  STATUS_PEDIDO_COLOR,
   STATUS_PAGAMENTO_COLOR,
+  statusPedidoVisivel,
   FORMA_PAGAMENTO_LABEL,
 } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -40,6 +40,8 @@ const STATUS_ACOES: Record<string, { label: string; next: string }[]> = {
   FATURADO: [{ label: 'Marcar Pago', next: 'pago' }],
 }
 
+const STATUS_EDITAVEL = ['RASCUNHO', 'ENVIADO', 'EM_CONFERENCIA']
+
 function totalCaixasPedido(pedido: { itens?: { quantidade?: number }[] } | null) {
   const soma = (pedido?.itens ?? []).reduce(
     (acc, item) => acc + Math.round(Number(item.quantidade) || 0),
@@ -63,6 +65,12 @@ export function PedidosPage() {
     dataVencimento: '',
     necessitaNF: false,
     observacoes: '',
+    itens: [] as {
+      produtoId: string
+      nome: string
+      quantidade: number
+      valorUnitario: number
+    }[],
   })
 
   const { data: pedidos = [], isLoading } = useQuery({
@@ -107,10 +115,10 @@ export function PedidosPage() {
 
   const editarPedido = useMutation({
     mutationFn: (d: any) => api.patch(`/pedidos/${pedidoSelecionado.id}`, d),
-    onSuccess: () => {
+    onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['pedidos'] })
       setEditando(false)
-      setPedidoSelecionado(null)
+      setPedidoSelecionado(res.data)
     },
   })
 
@@ -124,8 +132,25 @@ export function PedidosPage() {
         : '',
       necessitaNF: p.necessitaNF,
       observacoes: p.observacoes ?? '',
+      itens: (p.itens ?? []).map((i: any) => ({
+        produtoId: i.produtoId,
+        nome: i.produto?.nome ?? '',
+        quantidade: Math.max(1, Math.round(Number(i.quantidade) || 0)),
+        valorUnitario: Number(i.valorUnitario),
+      })),
     })
     setEditando(true)
+  }
+
+  function alterarQtdItem(produtoId: string, delta: number) {
+    setFormEdit((f) => ({
+      ...f,
+      itens: f.itens.map((item) =>
+        item.produtoId === produtoId
+          ? { ...item, quantidade: Math.max(1, item.quantidade + delta) }
+          : item,
+      ),
+    }))
   }
 
   const pedidosFiltrados = pedidos.filter(
@@ -282,8 +307,8 @@ export function PedidosPage() {
                 </p>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <Badge className={STATUS_PEDIDO_COLOR[p.status]}>
-                  {STATUS_PEDIDO_LABEL[p.status]}
+                <Badge className={statusPedidoVisivel(p).className}>
+                  {statusPedidoVisivel(p).label}
                 </Badge>
                 <Badge className={STATUS_PAGAMENTO_COLOR[p.statusPagamento]}>
                   {p.statusPagamento?.replace('_', ' ')}
@@ -341,8 +366,8 @@ export function PedidosPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-600">{p.vendedor?.nome}</td>
                     <td className="px-4 py-3">
-                      <Badge className={STATUS_PEDIDO_COLOR[p.status]}>
-                        {STATUS_PEDIDO_LABEL[p.status]}
+                      <Badge className={statusPedidoVisivel(p).className}>
+                        {statusPedidoVisivel(p).label}
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
@@ -378,6 +403,41 @@ export function PedidosPage() {
       >
         {pedidoSelecionado && (
           <div className="space-y-4">
+            <Badge className={statusPedidoVisivel(pedidoSelecionado).className}>
+              {statusPedidoVisivel(pedidoSelecionado).label}
+            </Badge>
+            {(pedidoSelecionado.entregueEm ||
+              pedidoSelecionado.recebidoPor ||
+              pedidoSelecionado.fotoEntrega) && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm space-y-1">
+                <p className="text-xs font-semibold text-gray-500">Comprovante de entrega</p>
+                {pedidoSelecionado.entregueEm && (
+                  <p>
+                    <span className="text-gray-500">Quando: </span>
+                    {formatDate(pedidoSelecionado.entregueEm)}
+                  </p>
+                )}
+                {pedidoSelecionado.recebidoPor && (
+                  <p>
+                    <span className="text-gray-500">Recebido por: </span>
+                    {pedidoSelecionado.recebidoPor}
+                  </p>
+                )}
+                {pedidoSelecionado.observacaoEntrega && (
+                  <p>
+                    <span className="text-gray-500">Obs.: </span>
+                    {pedidoSelecionado.observacaoEntrega}
+                  </p>
+                )}
+                {pedidoSelecionado.fotoEntrega && (
+                  <img
+                    src={pedidoSelecionado.fotoEntrega}
+                    alt="Foto da entrega"
+                    className="mt-2 max-h-56 w-full rounded-lg object-contain bg-white"
+                  />
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 sm:gap-4">
               <div>
                 <span className="text-gray-500">Cliente:</span>{' '}
@@ -472,14 +532,13 @@ export function PedidosPage() {
             </div>
 
             {/* Edição antes de aprovar */}
-            {['ENVIADO', 'EM_CONFERENCIA', 'RASCUNHO'].includes(pedidoSelecionado.status) &&
-              !editando && (
-                <div className="pt-2 border-t border-gray-100">
-                  <Button variant="secondary" onClick={() => abrirEdicao(pedidoSelecionado)}>
-                    <Pencil className="w-3.5 h-3.5" /> Editar Pedido
-                  </Button>
-                </div>
-              )}
+            {STATUS_EDITAVEL.includes(pedidoSelecionado.status) && !editando && (
+              <div className="pt-2 border-t border-gray-100">
+                <Button variant="secondary" onClick={() => abrirEdicao(pedidoSelecionado)}>
+                  <Pencil className="w-3.5 h-3.5" /> Editar Pedido
+                </Button>
+              </div>
+            )}
 
             {editando && (
               <form
@@ -489,11 +548,57 @@ export function PedidosPage() {
                     ...formEdit,
                     valorFrete: Number(formEdit.valorFrete),
                     descontoValor: Number(formEdit.descontoValor),
+                    itens: formEdit.itens.map((i) => ({
+                      produtoId: i.produtoId,
+                      quantidade: i.quantidade,
+                      valorUnitario: i.valorUnitario,
+                    })),
                   })
                 }}
                 className="pt-2 border-t border-gray-100 space-y-3"
               >
                 <p className="text-xs font-semibold text-gray-500 uppercase">Editar Pedido</p>
+                <p className="text-xs text-gray-500">
+                  Depois da aprovação, mudanças de quantidade entram em Solicitações de Alteração.
+                </p>
+                <div className="space-y-2 rounded-lg border border-gray-200 p-3">
+                  <p className="text-xs font-medium text-gray-600">Quantidade (caixas)</p>
+                  {formEdit.itens.map((item) => (
+                    <div key={item.produtoId} className="flex items-center justify-between gap-3">
+                      <p className="min-w-0 truncate text-sm text-gray-800">{item.nome}</p>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => alterarQtdItem(item.produtoId, -1)}
+                          disabled={item.quantidade <= 1}
+                        >
+                          −
+                        </Button>
+                        <span className="w-8 text-center text-sm font-semibold">
+                          {item.quantidade}
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => alterarQtdItem(item.produtoId, 1)}
+                        >
+                          +
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {editarPedido.isError && (
+                  <p className="text-xs text-red-600">
+                    {Array.isArray((editarPedido.error as any)?.response?.data?.message)
+                      ? (editarPedido.error as any).response.data.message.join(' ')
+                      : ((editarPedido.error as any)?.response?.data?.message ??
+                        'Não foi possível salvar o pedido.')}
+                  </p>
+                )}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -595,18 +700,31 @@ export function PedidosPage() {
                     'Não foi possível atualizar o pedido.')}
               </p>
             )}
+            {pedidoSelecionado.aguardandoAlteracao && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Ações bloqueadas até a solicitação ser aprovada ou negada.{' '}
+                <button
+                  type="button"
+                  className="font-medium underline"
+                  onClick={() => navigate('/solicitacoes')}
+                >
+                  Ir para Solicitações de Alteração
+                </button>
+              </div>
+            )}
             {(STATUS_ACOES[pedidoSelecionado.status] ||
               pedidoSelecionado.etiqueta ||
               ['APROVADO', 'SEPARACAO_ENTREGA', 'ENTREGUE', 'FATURADO', 'PAGO'].includes(
                 pedidoSelecionado.status,
               )) && (
-              <div className="flex gap-2 flex-wrap pt-2 border-t border-gray-100">
+              <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:flex-wrap border-t border-gray-100">
                 {STATUS_ACOES[pedidoSelecionado.status]?.map(({ label, next }) => (
                   <Button
                     key={next}
                     variant={next === 'cancelar' ? 'danger' : 'primary'}
+                    className="w-full sm:w-auto"
                     onClick={() => mudarStatus.mutate({ id: pedidoSelecionado.id, acao: next })}
-                    disabled={mudarStatus.isPending}
+                    disabled={mudarStatus.isPending || pedidoSelecionado.aguardandoAlteracao}
                   >
                     {label}
                   </Button>
@@ -614,7 +732,9 @@ export function PedidosPage() {
                 {pedidoSelecionado.etiqueta ? (
                   <Button
                     variant="secondary"
+                    className="w-full sm:w-auto"
                     onClick={() => navigate(`/etiqueta/${pedidoSelecionado.etiqueta.id}`)}
+                    disabled={pedidoSelecionado.aguardandoAlteracao}
                   >
                     <Printer className="w-3.5 h-3.5" /> Gerar {totalCaixasPedido(pedidoSelecionado)}{' '}
                     etiqueta{totalCaixasPedido(pedidoSelecionado) === 1 ? '' : 's'}
@@ -625,8 +745,9 @@ export function PedidosPage() {
                   ) && (
                     <Button
                       variant="secondary"
+                      className="w-full sm:w-auto"
                       onClick={() => gerarEtiqueta.mutate(pedidoSelecionado.id)}
-                      disabled={gerarEtiqueta.isPending}
+                      disabled={gerarEtiqueta.isPending || pedidoSelecionado.aguardandoAlteracao}
                     >
                       <Printer className="w-3.5 h-3.5" />
                       {gerarEtiqueta.isPending
