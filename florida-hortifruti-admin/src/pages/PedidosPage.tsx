@@ -341,6 +341,13 @@ export function PedidosPage() {
                 <Badge className={STATUS_PAGAMENTO_COLOR[p.statusPagamento]}>
                   {p.statusPagamento?.replace('_', ' ')}
                 </Badge>
+                <Badge
+                  className={
+                    p.necessitaNF ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'
+                  }
+                >
+                  {p.necessitaNF ? 'NF: Sim' : 'NF: Não'}
+                </Badge>
               </div>
             </button>
           ))}
@@ -362,6 +369,7 @@ export function PedidosPage() {
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">
                     Pagamento
                   </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">NF</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-gray-500">Total</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -404,6 +412,17 @@ export function PedidosPage() {
                       </p>
                       <Badge className={`mt-0.5 ${STATUS_PAGAMENTO_COLOR[p.statusPagamento]}`}>
                         {p.statusPagamento?.replace('_', ' ')}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge
+                        className={
+                          p.necessitaNF
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-gray-100 text-gray-700'
+                        }
+                      >
+                        {p.necessitaNF ? 'Sim' : 'Não'}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-gray-900">
@@ -481,6 +500,10 @@ export function PedidosPage() {
               <div>
                 <span className="text-gray-500">Pagamento:</span>{' '}
                 {FORMA_PAGAMENTO_LABEL[pedidoSelecionado.formaPagamento]}
+              </div>
+              <div>
+                <span className="text-gray-500">Nota fiscal:</span>{' '}
+                <strong>{pedidoSelecionado.necessitaNF ? 'Sim' : 'Não'}</strong>
               </div>
               {pedidoSelecionado.observacoes && (
                 <div className="col-span-2">
