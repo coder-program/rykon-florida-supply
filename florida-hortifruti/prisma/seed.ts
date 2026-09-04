@@ -19,13 +19,58 @@ async function main() {
 
   console.log('Usuário administrador criado:', admin.email, '(senha: admin123 - troque depois)');
 
-  // Produtos de exemplo, conforme item 5 do escopo
+  const motorista = await prisma.usuario.upsert({
+    where: { email: 'motorista@floridahortifruti.com.br' },
+    update: {},
+    create: {
+      nome: 'Motorista',
+      email: 'motorista@floridahortifruti.com.br',
+      senhaHash,
+      papel: PapelUsuario.MOTORISTA,
+    },
+  });
+  console.log('Usuário motorista criado:', motorista.email, '(senha: admin123)');
+
+  const morango = await prisma.categoria.upsert({
+    where: { nome: 'Morango' },
+    update: {},
+    create: { nome: 'Morango' },
+  });
+
   await prisma.produto.createMany({
     data: [
-      { codigoInterno: 'B2', nome: 'Caixa de Morango B2', unidadeVenda: 'CAIXA', precoSugerido: 23.0, custo: 15.0 },
-      { codigoInterno: 'B3', nome: 'Caixa de Morango B3', unidadeVenda: 'CAIXA', precoSugerido: 21.0, custo: 13.5 },
-      { codigoInterno: 'B3H', nome: 'Caixa de Morango B3 Hidropônico', unidadeVenda: 'CAIXA', precoSugerido: 25.0, custo: 17.0 },
-      { codigoInterno: 'PREM', nome: 'Morango Premium', unidadeVenda: 'CAIXA', precoSugerido: 30.0, custo: 20.0 },
+      {
+        codigoInterno: 'B2',
+        nome: 'Caixa de Morango B2',
+        unidadeVenda: 'CAIXA',
+        categoriaId: morango.id,
+        precoSugerido: 23.0,
+        custo: 15.0,
+      },
+      {
+        codigoInterno: 'B3',
+        nome: 'Caixa de Morango B3',
+        unidadeVenda: 'CAIXA',
+        categoriaId: morango.id,
+        precoSugerido: 21.0,
+        custo: 13.5,
+      },
+      {
+        codigoInterno: 'B3H',
+        nome: 'Caixa de Morango B3 Hidropônico',
+        unidadeVenda: 'CAIXA',
+        categoriaId: morango.id,
+        precoSugerido: 25.0,
+        custo: 17.0,
+      },
+      {
+        codigoInterno: 'PREM',
+        nome: 'Morango Premium',
+        unidadeVenda: 'CAIXA',
+        categoriaId: morango.id,
+        precoSugerido: 30.0,
+        custo: 20.0,
+      },
     ],
     skipDuplicates: true,
   });

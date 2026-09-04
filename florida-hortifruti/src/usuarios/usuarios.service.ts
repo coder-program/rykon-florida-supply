@@ -1,5 +1,10 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { TipoEntidadeEndereco } from '@prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
+import { PapelUsuario, TipoEntidadeEndereco } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma.service';
 import { EnderecosService } from '../enderecos/enderecos.service';
@@ -25,6 +30,9 @@ export class UsuariosService {
   }
 
   async create(dto: CreateUsuarioDto) {
+    if (dto.papel === PapelUsuario.CLIENTE) {
+      throw new BadRequestException('Acesso de cliente é criado pelo convite em Clientes');
+    }
     const existe = await this.prisma.usuario.findUnique({ where: { email: dto.email } });
     if (existe) throw new ConflictException('E-mail já cadastrado');
 

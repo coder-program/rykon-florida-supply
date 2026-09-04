@@ -22,7 +22,7 @@ export class FinanceiroService {
   // KPIs do painel financeiro
   async resumo(dataInicio?: string, dataFim?: string) {
     const whereBase: any = {
-      status: { notIn: [StatusPedido.RASCUNHO, StatusPedido.CANCELADO] },
+      status: { notIn: [StatusPedido.CANCELADO, StatusPedido.REJEITADO] },
     };
 
     const periodoData: any = {};
@@ -35,7 +35,11 @@ export class FinanceiroService {
 
     // Total recebido no período
     const recebidos = await this.prisma.pedido.aggregate({
-      where: { ...whereBase, statusPagamento: StatusPagamento.PAGO, ...(Object.keys(periodoData).length ? { data: periodoData } : {}) },
+      where: {
+        ...whereBase,
+        statusPagamento: StatusPagamento.PAGO,
+        ...(Object.keys(periodoData).length ? { data: periodoData } : {}),
+      },
       _sum: { totalFinal: true },
       _count: { id: true },
     });
@@ -89,7 +93,7 @@ export class FinanceiroService {
     dataFim?: string;
   }) {
     const where: any = {
-      status: { notIn: [StatusPedido.RASCUNHO, StatusPedido.CANCELADO] },
+      status: { notIn: [StatusPedido.CANCELADO, StatusPedido.REJEITADO] },
     };
 
     if (filtros.vendedorId) where.vendedorId = filtros.vendedorId;
@@ -136,7 +140,8 @@ export class FinanceiroService {
       if (p.statusPagamento === StatusPagamento.EM_ABERTO && p.dataVencimento) {
         const venc = new Date(p.dataVencimento);
         const hoje = new Date();
-        const proximos7 = new Date(); proximos7.setDate(hoje.getDate() + 7);
+        const proximos7 = new Date();
+        proximos7.setDate(hoje.getDate() + 7);
         if (venc < hoje) situacao = 'VENCIDO';
         else if (venc <= proximos7) situacao = 'A_VENCER';
       }
@@ -161,7 +166,7 @@ export class FinanceiroService {
     const [pedido] = await this.prisma.$transaction([
       this.prisma.pedido.update({
         where: { id: pedidoId },
-        data: { statusPagamento: StatusPagamento.PAGO, status: StatusPedido.PAGO },
+        data: { statusPagamento: StatusPagamento.PAGO },
       }),
       this.prisma.logAuditoria.create({
         data: { usuarioId, acao: 'MARCAR_PAGO', entidade: 'Pedido', entidadeId: pedidoId },

@@ -8,6 +8,12 @@ const packages = []
 if (staged.some((file) => file.startsWith('florida-hortifruti-pwa/'))) {
   packages.push('florida-hortifruti-pwa')
 }
+if (staged.some((file) => file.startsWith('florida-hortifruti-pwa-cliente/'))) {
+  packages.push('florida-hortifruti-pwa-cliente')
+}
+if (staged.some((file) => file.startsWith('florida-hortifruti-pwa-motorista/'))) {
+  packages.push('florida-hortifruti-pwa-motorista')
+}
 if (staged.some((file) => file.startsWith('florida-hortifruti-admin/'))) {
   packages.push('florida-hortifruti-admin')
 }

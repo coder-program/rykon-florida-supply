@@ -3,11 +3,11 @@
   "private": true,
   "scripts": {
     "prepare": "husky",
-    "lint": "npm run lint --prefix florida-hortifruti && npm run lint --prefix florida-hortifruti-admin && npm run lint --prefix florida-hortifruti-pwa",
-    "typecheck": "npm run typecheck --prefix florida-hortifruti && npm run typecheck --prefix florida-hortifruti-admin && npm run typecheck --prefix florida-hortifruti-pwa",
+    "lint": "npm run lint --prefix florida-hortifruti && npm run lint --prefix florida-hortifruti-admin && npm run lint --prefix florida-hortifruti-pwa && npm run lint --prefix florida-hortifruti-pwa-cliente && npm run lint --prefix florida-hortifruti-pwa-motorista",
+    "typecheck": "npm run typecheck --prefix florida-hortifruti && npm run typecheck --prefix florida-hortifruti-admin && npm run typecheck --prefix florida-hortifruti-pwa && npm run typecheck --prefix florida-hortifruti-pwa-cliente && npm run typecheck --prefix florida-hortifruti-pwa-motorista",
     "check": "npm run lint && npm run typecheck",
-    "format": "prettier --write \"florida-hortifruti/{src,prisma}/**/*.{ts,js,cjs,json}\" \"florida-hortifruti-admin/src/**/*.{ts,tsx,css}\" \"florida-hortifruti-pwa/src/**/*.{ts,tsx,css}\"",
-    "format:check": "prettier --check \"florida-hortifruti/{src,prisma}/**/*.{ts,js,cjs,json}\" \"florida-hortifruti-admin/src/**/*.{ts,tsx,css}\" \"florida-hortifruti-pwa/src/**/*.{ts,tsx,css}\""
+    "format": "prettier --write \"florida-hortifruti/{src,prisma}/**/*.{ts,js,cjs,json}\" \"florida-hortifruti-admin/src/**/*.{ts,tsx,css}\" \"florida-hortifruti-pwa/src/**/*.{ts,tsx,css}\" \"florida-hortifruti-pwa-cliente/src/**/*.{ts,tsx,css}\" \"florida-hortifruti-pwa-motorista/src/**/*.{ts,tsx,css}\"",
+    "format:check": "prettier --check \"florida-hortifruti/{src,prisma}/**/*.{ts,js,cjs,json}\" \"florida-hortifruti-admin/src/**/*.{ts,tsx,css}\" \"florida-hortifruti-pwa/src/**/*.{ts,tsx,css}\" \"florida-hortifruti-pwa-cliente/src/**/*.{ts,tsx,css}\" \"florida-hortifruti-pwa-motorista/src/**/*.{ts,tsx,css}\""
   },
   "devDependencies": {
     "husky": "^9.1.7",

@@ -40,7 +40,7 @@ export class RelatoriosService {
     return {
       ...(statusValue
         ? { status: statusValue as StatusPedido }
-        : { status: { notIn: [StatusPedido.RASCUNHO, StatusPedido.CANCELADO] } }),
+        : { status: { notIn: [StatusPedido.CANCELADO, StatusPedido.REJEITADO] } }),
       ...(pagamentoValue ? { statusPagamento: pagamentoValue as StatusPagamento } : {}),
       ...(vendedorId ? { vendedorId } : {}),
       ...(data ? { data } : {}),
@@ -81,7 +81,7 @@ export class RelatoriosService {
     });
 
     const vendedores = await this.prisma.usuario.findMany({
-      where: { id: { in: pedidos.map((p) => p.vendedorId) } },
+      where: { id: { in: pedidos.map((p) => p.vendedorId).filter((id): id is string => !!id) } },
       select: { id: true, nome: true },
     });
 
@@ -156,9 +156,10 @@ export class RelatoriosService {
     const produtos = await this.prisma.produto.findMany({
       where: {
         ativo: true,
-        ...(categoria ? { categoria: { contains: categoria, mode: 'insensitive' } } : {}),
+        ...(categoria ? { categoria: { nome: { contains: categoria, mode: 'insensitive' } } } : {}),
         ...(produtoId ? { id: produtoId } : {}),
       },
+      include: { categoria: true },
       orderBy: { nome: 'asc' },
     });
 
@@ -178,7 +179,7 @@ export class RelatoriosService {
           produtoId: p.id,
           codigoInterno: p.codigoInterno,
           nome: p.nome,
-          categoria: p.categoria,
+          categoria: p.categoria?.nome ?? null,
           saldoAtual,
           unidadeVenda: p.unidadeVenda,
           estoqueMinimo,

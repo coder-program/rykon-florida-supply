@@ -24,12 +24,17 @@ import { Input, MoneyInput, Select } from '../components/ui/Input'
 const EMPTY = {
   codigoInterno: '',
   nome: '',
-  categoria: '',
+  categoriaId: '',
   unidadeVenda: 'CAIXA',
   precoSugerido: '',
   custo: '',
   estoqueMinimo: '',
+  limiteEstoqueBaixo: '',
+  exibirQuantidadeAproximada: false,
+  exibirNoPortalCliente: true,
 }
+
+const UNIDADES = ['CAIXA', 'KG', 'UNIDADE', 'SACO', 'BANDEJA', 'DUZIA']
 
 type StatusFiltro = 'ativos' | 'inativos' | 'todos'
 type EstoqueFiltro = 'todos' | 'sem-estoque' | 'baixo' | 'normal'
@@ -52,22 +57,13 @@ export function ProdutosPage() {
         .get('/produtos', {
           params: { incluirInativos: statusFiltro === 'todos' || statusFiltro === 'inativos' },
         })
-        .then((r) => {
-          console.log('[DEBUG] ProdutosPage produtos carregados', r.data)
-          return r.data
-        }),
+        .then((r) => r.data),
   })
 
-  const categorias = useMemo<string[]>(() => {
-    const valores = (produtos as any[])
-      .map((p: any) => p.categoria)
-      .filter(
-        (categoria): categoria is string =>
-          typeof categoria === 'string' && categoria.trim().length > 0,
-      )
-
-    return Array.from(new Set(valores)).sort((a: string, b: string) => a.localeCompare(b))
-  }, [produtos])
+  const { data: categorias = [] } = useQuery({
+    queryKey: ['categorias'],
+    queryFn: () => api.get('/categorias').then((r) => r.data),
+  })
 
   const produtosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase()
@@ -75,8 +71,9 @@ export function ProdutosPage() {
     return (produtos || []).filter((p: any) => {
       const matchBusca =
         !termo ||
-        [p.nome, p.codigoInterno, p.categoria ?? ''].join(' ').toLowerCase().includes(termo)
-      const matchCategoria = !categoriaFiltro || p.categoria === categoriaFiltro
+        [p.nome, p.codigoInterno, p.categoria?.nome ?? ''].join(' ').toLowerCase().includes(termo)
+      const matchCategoria =
+        !categoriaFiltro || p.categoriaId === categoriaFiltro || p.categoria?.id === categoriaFiltro
       const estoqueAtual = Number(p.estoqueAtual ?? 0)
       const estoqueMinimo = Number(p.estoqueMinimo ?? 0)
       const matchEstoque = (() => {
@@ -106,11 +103,14 @@ export function ProdutosPage() {
       const payload = {
         codigoInterno: data.codigoInterno,
         nome: data.nome,
-        categoria: data.categoria || undefined,
+        categoriaId: data.categoriaId || undefined,
         unidadeVenda: data.unidadeVenda || 'CAIXA',
         precoSugerido: Number(data.precoSugerido) || 0,
         custo: data.custo ? Number(data.custo) : undefined,
         estoqueMinimo: data.estoqueMinimo ? Number(data.estoqueMinimo) : undefined,
+        limiteEstoqueBaixo: data.limiteEstoqueBaixo ? Number(data.limiteEstoqueBaixo) : undefined,
+        exibirQuantidadeAproximada: !!data.exibirQuantidadeAproximada,
+        exibirNoPortalCliente: data.exibirNoPortalCliente !== false,
       }
       return editando
         ? api.put(`/produtos/${editando.id}`, payload)
@@ -143,6 +143,10 @@ export function ProdutosPage() {
       precoSugerido: Number(p.precoSugerido) || '',
       custo: p.custo != null ? Number(p.custo) : '',
       estoqueMinimo: String(p.estoqueMinimo ?? ''),
+      categoriaId: p.categoriaId ?? p.categoria?.id ?? '',
+      limiteEstoqueBaixo: String(p.limiteEstoqueBaixo ?? ''),
+      exibirQuantidadeAproximada: !!p.exibirQuantidadeAproximada,
+      exibirNoPortalCliente: p.exibirNoPortalCliente !== false,
     })
     setEditando(p)
     setModal(true)
@@ -168,7 +172,7 @@ export function ProdutosPage() {
     const linhas = produtosFiltrados.map((p: any) => ({
       Código: p.codigoInterno ?? '',
       Nome: p.nome ?? '',
-      Categoria: p.categoria ?? '',
+      Categoria: p.categoria?.nome ?? '',
       Unidade: p.unidadeVenda ?? '',
       'Preço Sugerido': Number(p.precoSugerido ?? 0),
       Custo: Number(p.custo ?? 0),
@@ -217,7 +221,7 @@ export function ProdutosPage() {
       body: produtosFiltrados.map((p: any) => [
         p.codigoInterno ?? '',
         p.nome ?? '',
-        p.categoria ?? '',
+        p.categoria?.nome ?? '',
         p.unidadeVenda ?? '',
         Number(p.estoqueAtual ?? 0),
         formatBRL(p.precoSugerido),
@@ -292,9 +296,9 @@ export function ProdutosPage() {
               onChange={(e) => setCategoriaFiltro(e.target.value)}
             >
               <option value="">Todas</option>
-              {categorias.map((categoria) => (
-                <option key={categoria} value={categoria}>
-                  {categoria}
+              {categorias.map((categoria: any) => (
+                <option key={categoria.id} value={categoria.id}>
+                  {categoria.nome}
                 </option>
               ))}
             </Select>
@@ -326,7 +330,7 @@ export function ProdutosPage() {
                 <div>
                   <p className="font-semibold text-gray-900">{p.nome}</p>
                   <p className="text-xs text-gray-400">
-                    {p.codigoInterno} · {p.categoria ?? '—'}
+                    {p.codigoInterno} · {p.categoria?.nome ?? '—'}
                   </p>
                 </div>
                 <p className="text-sm font-semibold text-green-700">{formatBRL(p.precoSugerido)}</p>
@@ -411,7 +415,7 @@ export function ProdutosPage() {
                   >
                     <td className="px-4 py-3 font-mono text-gray-600">{p.codigoInterno}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">{p.nome}</td>
-                    <td className="px-4 py-3 text-gray-600">{p.categoria ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-600">{p.categoria?.nome ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{p.unidadeVenda}</td>
                     <td className="px-4 py-3 text-right font-semibold text-gray-900">
                       {Number(p.estoqueAtual ?? 0)}
@@ -493,16 +497,29 @@ export function ProdutosPage() {
             onChange={(e) => set('nome', e.target.value)}
             required
           />
-          <Input
+          <Select
             label="Categoria"
-            value={form.categoria}
-            onChange={(e) => set('categoria', e.target.value)}
-          />
-          <Input
+            value={form.categoriaId}
+            onChange={(e) => set('categoriaId', e.target.value)}
+          >
+            <option value="">Sem categoria</option>
+            {categorias.map((c: any) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </Select>
+          <Select
             label="Unidade de Venda"
             value={form.unidadeVenda}
             onChange={(e) => set('unidadeVenda', e.target.value)}
-          />
+          >
+            {UNIDADES.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </Select>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <MoneyInput
               label="Preço Sugerido (R$) *"
@@ -516,13 +533,38 @@ export function ProdutosPage() {
               onValueChange={(v) => set('custo', v)}
             />
           </div>
-          <Input
-            label="Estoque mínimo (caixas)"
-            type="number"
-            min="0"
-            value={form.estoqueMinimo}
-            onChange={(e) => set('estoqueMinimo', e.target.value)}
-          />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input
+              label="Estoque mínimo"
+              type="number"
+              min="0"
+              value={form.estoqueMinimo}
+              onChange={(e) => set('estoqueMinimo', e.target.value)}
+            />
+            <Input
+              label="Limite de estoque baixo"
+              type="number"
+              min="0"
+              value={form.limiteEstoqueBaixo}
+              onChange={(e) => set('limiteEstoqueBaixo', e.target.value)}
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={!!form.exibirQuantidadeAproximada}
+              onChange={(e) => set('exibirQuantidadeAproximada', e.target.checked)}
+            />
+            Mostrar quantidade aproximada no portal do cliente
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={form.exibirNoPortalCliente !== false}
+              onChange={(e) => set('exibirNoPortalCliente', e.target.checked)}
+            />
+            Exibir no portal do cliente
+          </label>
           <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
             <Button type="button" variant="secondary" onClick={fechar}>
               Cancelar

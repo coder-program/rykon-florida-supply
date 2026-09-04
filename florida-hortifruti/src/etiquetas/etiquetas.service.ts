@@ -24,10 +24,10 @@ export class EtiquetasService {
 
     const statusOk: StatusPedido[] = [
       StatusPedido.APROVADO,
-      StatusPedido.SEPARACAO_ENTREGA,
+      StatusPedido.EM_SEPARACAO,
+      StatusPedido.PRONTO_PARA_ENTREGA,
+      StatusPedido.EM_ENTREGA,
       StatusPedido.ENTREGUE,
-      StatusPedido.FATURADO,
-      StatusPedido.PAGO,
     ];
     if (!statusOk.includes(pedido.status)) {
       throw new BadRequestException('Etiqueta só pode ser gerada após a aprovação do pedido');
@@ -91,7 +91,7 @@ export class EtiquetasService {
       },
       // Dados do vendedor (item 34.1)
       vendedor: {
-        nome: pedido.vendedor.nome,
+        nome: pedido.vendedor?.nome ?? '—',
       },
       // Dados do cliente (item 34.1)
       cliente: {
@@ -166,7 +166,7 @@ export class EtiquetasService {
         estado:
           enderecoPrincipal?.cidade?.estado?.sigla ?? enderecoPrincipal?.cidade?.estado?.nome ?? '',
       },
-      vendedor: pedido.vendedor.nome,
+      vendedor: pedido.vendedor?.nome ?? '—',
       produtos: pedido.itens.map((i) => ({
         codigo: i.produto.codigoInterno,
         produto: i.produto.nome,

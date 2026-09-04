@@ -13,14 +13,18 @@ import {
   FiltrosPedidoDto,
   CriarSolicitacaoAlteracaoDto,
   MarcarEntregueDto,
+  AtribuirPedidoDto,
+  RejeitarPedidoDto,
 } from './dto/pedido.dto';
 import {
+  OrigemPedido,
   PapelUsuario,
   Prisma,
   StatusPedido,
   StatusSolicitacaoAlteracao,
   TipoMovimentacao,
 } from '@prisma/client';
+import { StorageService } from '../common/storage.service';
 
 @Injectable()
 export class PedidosService {
@@ -28,7 +32,29 @@ export class PedidosService {
     private prisma: PrismaService,
     private estoqueService: EstoqueService,
     private etiquetasService: EtiquetasService,
+    private storage: StorageService,
   ) {}
+
+  private readonly statusAposAprovacao: StatusPedido[] = [
+    StatusPedido.APROVADO,
+    StatusPedido.EM_SEPARACAO,
+    StatusPedido.PRONTO_PARA_ENTREGA,
+    StatusPedido.EM_ENTREGA,
+    StatusPedido.ENTREGUE,
+  ];
+
+  private readonly statusPodeSolicitar: StatusPedido[] = [
+    StatusPedido.APROVADO,
+    StatusPedido.EM_SEPARACAO,
+    StatusPedido.PRONTO_PARA_ENTREGA,
+  ];
+
+  private readonly statusPodeEntregar: StatusPedido[] = [
+    StatusPedido.APROVADO,
+    StatusPedido.EM_SEPARACAO,
+    StatusPedido.PRONTO_PARA_ENTREGA,
+    StatusPedido.EM_ENTREGA,
+  ];
 
   private async validarEstoque(itens: { produtoId: string; quantidade: number }[]) {
     const porProduto = new Map<string, number>();
@@ -57,7 +83,11 @@ export class PedidosService {
   }
 
   // Itens 6, 7 e 8 do escopo: cálculo automático de subtotal, frete, desconto e total
-  async create(dto: CreatePedidoDto, vendedorId: string) {
+  async create(
+    dto: CreatePedidoDto,
+    vendedorId: string | null,
+    opts: { origem?: OrigemPedido; clienteId?: string } = {},
+  ) {
     await this.validarEstoque(dto.itens);
     const itensCalculados = dto.itens.map((item) => ({
       ...item,
@@ -69,12 +99,15 @@ export class PedidosService {
     const desconto =
       dto.descontoValor ?? (dto.descontoPercentual ? (subtotal * dto.descontoPercentual) / 100 : 0);
     const totalFinal = subtotal + frete - desconto;
+    const origem = opts.origem ?? OrigemPedido.VENDEDOR;
+    const clienteId = opts.clienteId ?? dto.clienteId;
 
     return this.prisma.pedido.create({
       data: {
-        clienteId: dto.clienteId,
-        vendedorId,
-        status: StatusPedido.ENVIADO,
+        clienteId,
+        vendedorId: origem === OrigemPedido.VENDEDOR ? vendedorId : vendedorId,
+        origem,
+        status: StatusPedido.AGUARDANDO_APROVACAO,
         subtotal,
         valorFrete: frete,
         freteInclusoNoPreco: dto.freteInclusoNoPreco ?? false,
@@ -127,8 +160,10 @@ export class PedidosService {
         include: {
           cliente: true,
           vendedor: true,
+          entregador: { select: { id: true, nome: true } },
           itens: { include: { produto: true } },
           etiqueta: true,
+          comprovanteEntrega: true,
           solicitacoesAlteracao: {
             where: { status: StatusSolicitacaoAlteracao.PENDENTE },
             select: { id: true },
@@ -146,8 +181,10 @@ export class PedidosService {
       include: {
         cliente: true,
         vendedor: true,
-        itens: { include: { produto: true } },
+        entregador: { select: { id: true, nome: true } },
+        itens: { include: { produto: { include: { categoria: true } } } },
         etiqueta: true,
+        comprovanteEntrega: true,
         solicitacoesAlteracao: {
           include: { solicitante: { select: { id: true, nome: true } } },
           orderBy: { criadoEm: 'desc' },
@@ -173,17 +210,13 @@ export class PedidosService {
   private statusBloqueadoParaEdicao(status: StatusPedido) {
     return (
       status === StatusPedido.CANCELADO ||
-      status === StatusPedido.FATURADO ||
-      status === StatusPedido.PAGO
+      status === StatusPedido.REJEITADO ||
+      status === StatusPedido.ENTREGUE
     );
   }
 
   private estoqueJaBaixado(status: StatusPedido) {
-    return (
-      status === StatusPedido.APROVADO ||
-      status === StatusPedido.SEPARACAO_ENTREGA ||
-      status === StatusPedido.ENTREGUE
-    );
+    return this.statusAposAprovacao.includes(status);
   }
 
   private somarPorProduto(itens: { produtoId: string; quantidade: number }[]) {
@@ -330,7 +363,7 @@ export class PedidosService {
   async aprovar(id: string, usuarioId: string) {
     const pedido = await this.findOne(id);
 
-    if (pedido.status !== StatusPedido.ENVIADO && pedido.status !== StatusPedido.EM_CONFERENCIA) {
+    if (pedido.status !== StatusPedido.AGUARDANDO_APROVACAO) {
       throw new BadRequestException(
         `Pedido não pode ser aprovado no status atual: ${pedido.status}`,
       );
@@ -386,10 +419,7 @@ export class PedidosService {
     dto: MarcarEntregueDto = {},
   ) {
     const pedido = await this.findOne(id, usuarioId, papel);
-    if (
-      pedido.status !== StatusPedido.APROVADO &&
-      pedido.status !== StatusPedido.SEPARACAO_ENTREGA
-    ) {
+    if (!this.statusPodeEntregar.includes(pedido.status)) {
       throw new BadRequestException('Pedido não pode ser marcado como entregue neste status');
     }
     if (pedido.aguardandoAlteracao) {
@@ -404,18 +434,41 @@ export class PedidosService {
       throw new BadRequestException('A foto é muito grande. Tire outra mais simples.');
     }
 
-    await this.prisma.$transaction([
-      this.prisma.pedido.update({
+    let fotoUrl: string | null = null;
+    if (dto.fotoEntrega) {
+      fotoUrl = await this.storage.salvarDataUrl(dto.fotoEntrega);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.pedido.update({
         where: { id },
         data: {
           status: StatusPedido.ENTREGUE,
           entregueEm: new Date(),
           recebidoPor: dto.recebidoPor?.trim() || null,
           observacaoEntrega: dto.observacaoEntrega?.trim() || null,
-          fotoEntrega: dto.fotoEntrega || null,
+          fotoEntrega: fotoUrl ?? dto.fotoEntrega ?? null,
         },
-      }),
-      this.prisma.logAuditoria.create({
+      });
+      if (dto.recebidoPor?.trim() || fotoUrl) {
+        await tx.comprovanteEntrega.upsert({
+          where: { pedidoId: id },
+          create: {
+            pedidoId: id,
+            motoristaId: pedido.entregadorId ?? usuarioId,
+            fotoUrl: fotoUrl ?? dto.fotoEntrega ?? '',
+            nomeRecebedor: dto.recebidoPor?.trim() || 'Não informado',
+            observacao: dto.observacaoEntrega?.trim() || null,
+          },
+          update: {
+            fotoUrl: fotoUrl ?? dto.fotoEntrega ?? '',
+            nomeRecebedor: dto.recebidoPor?.trim() || 'Não informado',
+            observacao: dto.observacaoEntrega?.trim() || null,
+            dataHora: new Date(),
+          },
+        });
+      }
+      await tx.logAuditoria.create({
         data: {
           usuarioId,
           acao: 'STATUS_ENTREGUE',
@@ -423,12 +476,99 @@ export class PedidosService {
           entidadeId: id,
           detalhes: {
             recebidoPor: dto.recebidoPor || null,
-            temFoto: !!dto.fotoEntrega,
+            temFoto: !!fotoUrl,
           },
+        },
+      });
+    });
+    return this.findOne(id, usuarioId, papel);
+  }
+
+  async rejeitar(id: string, usuarioId: string, dto: RejeitarPedidoDto) {
+    const pedido = await this.findOne(id);
+    if (pedido.status !== StatusPedido.AGUARDANDO_APROVACAO) {
+      throw new BadRequestException('Só é possível rejeitar pedido aguardando aprovação');
+    }
+    const motivo = dto.motivo.trim();
+    await this.prisma.$transaction([
+      this.prisma.pedido.update({
+        where: { id },
+        data: {
+          status: StatusPedido.REJEITADO,
+          observacoes: pedido.observacoes
+            ? `${pedido.observacoes}\nRejeitado: ${motivo}`
+            : `Rejeitado: ${motivo}`,
+        },
+      }),
+      this.prisma.logAuditoria.create({
+        data: {
+          usuarioId,
+          acao: 'REJEITAR_PEDIDO',
+          entidade: 'Pedido',
+          entidadeId: id,
+          detalhes: { motivo },
         },
       }),
     ]);
-    return this.findOne(id, usuarioId, papel);
+    return this.findOne(id);
+  }
+
+  async atualizarItensAntesAprovacao(
+    id: string,
+    itens: { produtoId: string; quantidade: number; valorUnitario: number }[],
+    usuarioId: string,
+  ) {
+    const pedido = await this.findOne(id);
+    if (pedido.status !== StatusPedido.AGUARDANDO_APROVACAO) {
+      throw new BadRequestException('Itens só podem ser ajustados antes da aprovação');
+    }
+    return this.atualizar(id, { itens }, usuarioId, PapelUsuario.ADMINISTRADOR);
+  }
+
+  async atribuir(id: string, dto: AtribuirPedidoDto, usuarioId: string) {
+    const pedido = await this.findOne(id);
+    if (pedido.status === StatusPedido.AGUARDANDO_APROVACAO) {
+      throw new BadRequestException('Atribuição só é permitida a partir de Aprovado');
+    }
+    if (pedido.status === StatusPedido.CANCELADO || pedido.status === StatusPedido.REJEITADO) {
+      throw new BadRequestException('Não é possível atribuir neste status');
+    }
+    if (!dto.vendedorId && !dto.entregadorId) {
+      throw new BadRequestException('Informe vendedorId ou entregadorId');
+    }
+
+    if (dto.entregadorId) {
+      const motorista = await this.prisma.usuario.findUnique({ where: { id: dto.entregadorId } });
+      if (!motorista || motorista.papel !== PapelUsuario.MOTORISTA || !motorista.ativo) {
+        throw new BadRequestException('Entregador precisa ser um motorista ativo');
+      }
+    }
+    if (dto.vendedorId) {
+      const vendedor = await this.prisma.usuario.findUnique({ where: { id: dto.vendedorId } });
+      if (!vendedor || vendedor.papel !== PapelUsuario.VENDEDOR || !vendedor.ativo) {
+        throw new BadRequestException('Vendedor inválido ou inativo');
+      }
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.pedido.update({
+        where: { id },
+        data: {
+          ...(dto.vendedorId ? { vendedorId: dto.vendedorId } : {}),
+          ...(dto.entregadorId ? { entregadorId: dto.entregadorId } : {}),
+        },
+      }),
+      this.prisma.logAuditoria.create({
+        data: {
+          usuarioId,
+          acao: 'ATRIBUIR_PEDIDO',
+          entidade: 'Pedido',
+          entidadeId: id,
+          detalhes: { vendedorId: dto.vendedorId ?? null, entregadorId: dto.entregadorId ?? null },
+        },
+      }),
+    ]);
+    return this.findOne(id);
   }
 
   async atualizarStatus(id: string, novoStatus: StatusPedido, usuarioId: string) {
@@ -465,12 +605,9 @@ export class PedidosService {
   ) {
     const pedido = await this.findOne(pedidoId, usuarioId, papel);
 
-    if (
-      pedido.status !== StatusPedido.APROVADO &&
-      pedido.status !== StatusPedido.SEPARACAO_ENTREGA
-    ) {
+    if (!this.statusPodeSolicitar.includes(pedido.status)) {
       throw new BadRequestException(
-        'Não é possível solicitar alteração depois que o pedido foi entregue',
+        'Não é possível solicitar alteração depois que o pedido saiu para entrega',
       );
     }
 

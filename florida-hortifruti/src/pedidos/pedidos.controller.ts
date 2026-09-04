@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Put,
   Param,
   Body,
   Query,
@@ -20,10 +21,21 @@ import {
   FiltrosPedidoDto,
   CriarSolicitacaoAlteracaoDto,
   MarcarEntregueDto,
+  RejeitarPedidoDto,
+  AtribuirPedidoDto,
+  AtualizarItensPedidoDto,
 } from './dto/pedido.dto';
+
+const EQUIPE = [PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR] as const;
+const EQUIPE_VENDEDOR = [
+  PapelUsuario.ADMINISTRATIVO,
+  PapelUsuario.ADMINISTRADOR,
+  PapelUsuario.VENDEDOR,
+] as const;
 
 @Controller('pedidos')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(...EQUIPE_VENDEDOR)
 export class PedidosController {
   constructor(private pedidosService: PedidosService) {}
 
@@ -32,7 +44,6 @@ export class PedidosController {
     return this.pedidosService.create(dto, req.user.id);
   }
 
-  // Seção 3.1: vendedor só vê os próprios pedidos. Admin/Financeiro vê todos com filtros.
   @Get()
   findAll(@Query() filtros: FiltrosPedidoDto, @Request() req: any) {
     return this.pedidosService.findAll(filtros, req.user.id, req.user.papel);
@@ -58,45 +69,71 @@ export class PedidosController {
   }
 
   @Patch(':id')
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  @Roles(...EQUIPE)
   atualizar(@Param('id') id: string, @Body() dto: UpdatePedidoDto, @Request() req: any) {
     return this.pedidosService.atualizar(id, dto, req.user.id, req.user.papel);
   }
 
-  // Seção 3.2: só administrativo/administrador aprova pedidos
+  @Put(':id/itens')
+  @Roles(...EQUIPE)
+  atualizarItens(
+    @Param('id') id: string,
+    @Body() dto: AtualizarItensPedidoDto,
+    @Request() req: any,
+  ) {
+    return this.pedidosService.atualizarItensAntesAprovacao(id, dto.itens, req.user.id);
+  }
+
   @Post(':id/aprovar')
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  @Roles(...EQUIPE)
   aprovar(@Param('id') id: string, @Request() req: any) {
     return this.pedidosService.aprovar(id, req.user.id);
   }
 
-  // Seção 13: transições de status pela equipe administrativa
+  @Post(':id/rejeitar')
+  @Roles(...EQUIPE)
+  rejeitar(@Param('id') id: string, @Body() dto: RejeitarPedidoDto, @Request() req: any) {
+    return this.pedidosService.rejeitar(id, req.user.id, dto);
+  }
+
   @Post(':id/separacao')
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  @Roles(...EQUIPE)
   separacao(@Param('id') id: string, @Request() req: any) {
-    return this.pedidosService.atualizarStatus(id, StatusPedido.SEPARACAO_ENTREGA, req.user.id);
+    return this.pedidosService.atualizarStatus(id, StatusPedido.EM_SEPARACAO, req.user.id);
+  }
+
+  @Post(':id/pronto-para-entrega')
+  @Roles(...EQUIPE)
+  pronto(@Param('id') id: string, @Request() req: any) {
+    return this.pedidosService.atualizarStatus(id, StatusPedido.PRONTO_PARA_ENTREGA, req.user.id);
+  }
+
+  @Post(':id/em-entrega')
+  @Roles(...EQUIPE)
+  emEntrega(@Param('id') id: string, @Request() req: any) {
+    return this.pedidosService.atualizarStatus(id, StatusPedido.EM_ENTREGA, req.user.id);
+  }
+
+  @Post(':id/atribuir')
+  @Roles(...EQUIPE)
+  atribuir(@Param('id') id: string, @Body() dto: AtribuirPedidoDto, @Request() req: any) {
+    return this.pedidosService.atribuir(id, dto, req.user.id);
+  }
+
+  @Post(':id/atribuir-entregador')
+  @Roles(...EQUIPE)
+  atribuirEntregador(@Param('id') id: string, @Body() dto: AtribuirPedidoDto, @Request() req: any) {
+    return this.pedidosService.atribuir(id, { entregadorId: dto.entregadorId }, req.user.id);
   }
 
   @Post(':id/entregue')
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.VENDEDOR)
+  @Roles(...EQUIPE_VENDEDOR)
   entregue(@Param('id') id: string, @Body() dto: MarcarEntregueDto, @Request() req: any) {
     return this.pedidosService.marcarEntregue(id, req.user.id, req.user.papel, dto);
   }
 
-  @Post(':id/faturado')
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
-  faturado(@Param('id') id: string, @Request() req: any) {
-    return this.pedidosService.atualizarStatus(id, StatusPedido.FATURADO, req.user.id);
-  }
-
-  @Post(':id/pago')
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
-  pago(@Param('id') id: string, @Request() req: any) {
-    return this.pedidosService.atualizarStatus(id, StatusPedido.PAGO, req.user.id);
-  }
-
   @Post(':id/cancelar')
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  @Roles(...EQUIPE)
   cancelar(@Param('id') id: string, @Request() req: any) {
     return this.pedidosService.cancelar(id, req.user.id);
   }

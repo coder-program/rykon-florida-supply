@@ -1,6 +1,17 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, Pencil, Trash2, RotateCcw, FileSpreadsheet, FileText } from 'lucide-react'
+import {
+  Search,
+  Plus,
+  Pencil,
+  Trash2,
+  RotateCcw,
+  FileSpreadsheet,
+  FileText,
+  Copy,
+  Check,
+  MessageCircle,
+} from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import ExcelJS from 'exceljs'
@@ -179,6 +190,8 @@ type Cliente = {
   necessitaNF?: boolean
   observacoes?: string | null
   ativo?: boolean
+  statusConvite?: 'NAO_CONVIDADO' | 'CONVITE_ENVIADO' | 'ATIVO'
+  usuarioId?: string | null
   enderecos?: Array<{
     id: string
     principal: boolean
@@ -207,6 +220,9 @@ export function ClientesPage() {
   const [form, setForm] = useState<any>(EMPTY_FORM)
   const [formErros, setFormErros] = useState<FormErros>({})
   const [erroApiSalvar, setErroApiSalvar] = useState('')
+  const [linkConvite, setLinkConvite] = useState('')
+  const [emailConvite, setEmailConvite] = useState('')
+  const [linkCopiado, setLinkCopiado] = useState(false)
 
   const { data: clientes = [], isLoading } = useQuery<Cliente[]>({
     queryKey: ['clientes', busca],
@@ -264,6 +280,17 @@ export function ClientesPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['clientes'] }),
   })
 
+  const ativarAcesso = useMutation({
+    mutationFn: ({ id, email }: { id: string; email?: string }) =>
+      api.post(`/clientes/${id}/ativar-acesso`, email ? { email } : {}),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['clientes'] })
+      setLinkConvite(res.data.linkConvite)
+      setLinkCopiado(false)
+      setDetalhesCliente((prev) => (prev ? { ...prev, ...res.data, linkConvite: undefined } : prev))
+    },
+  })
+
   function getPrincipalEndereco(c: Cliente | null | undefined) {
     return c?.enderecos?.find((e) => e.principal) ?? c?.enderecos?.[0] ?? null
   }
@@ -308,11 +335,17 @@ export function ClientesPage() {
   }
   function abrirDetalhes(c: Cliente) {
     setDetalhesCliente(c)
+    setEmailConvite(c.email ?? '')
+    setLinkConvite('')
+    setLinkCopiado(false)
     setModalDetalhes(true)
   }
   function fecharDetalhes() {
     setModalDetalhes(false)
     setDetalhesCliente(null)
+    setLinkConvite('')
+    setEmailConvite('')
+    setLinkCopiado(false)
   }
   function confirmarExclusaoCliente() {
     if (!clienteParaExcluir) return
@@ -980,91 +1013,186 @@ export function ClientesPage() {
         )}
       </Modal>
 
-      <Modal open={modalDetalhes} onClose={fecharDetalhes} title="Detalhes do Cliente" size="lg">
+      <Modal open={modalDetalhes} onClose={fecharDetalhes} title="Cliente" size="lg">
         {detalhesCliente && (
-          <div className="space-y-4 text-sm">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="min-w-0 rounded-lg bg-gray-50 p-3">
-                <span className="block text-xs text-gray-500">Nome</span>
-                <strong className="break-all">{detalhesCliente.razaoSocialOuNome}</strong>
-              </div>
-              <div className="min-w-0 rounded-lg bg-gray-50 p-3">
-                <span className="block text-xs text-gray-500">Nome Fantasia</span>
-                <strong className="break-all">{detalhesCliente.nomeFantasia ?? '—'}</strong>
-              </div>
-              <div className="rounded-lg bg-gray-50 p-3">
-                <span className="block text-xs text-gray-500">CNPJ/CPF</span>
-                <strong>{detalhesCliente.cnpjCpf ?? '—'}</strong>
-              </div>
-              <div className="rounded-lg bg-gray-50 p-3">
-                <span className="block text-xs text-gray-500">Telefone</span>
-                <strong>{detalhesCliente.telefone ?? '—'}</strong>
-              </div>
-              <div className="rounded-lg bg-gray-50 p-3">
-                <span className="block text-xs text-gray-500">WhatsApp</span>
-                <strong>{detalhesCliente.whatsapp ?? '—'}</strong>
-              </div>
-              <div className="rounded-lg bg-gray-50 p-3">
-                <span className="block text-xs text-gray-500">E-mail</span>
-                <strong>{detalhesCliente.email ?? '—'}</strong>
-              </div>
-              <div className="rounded-lg bg-gray-50 p-3">
-                <span className="block text-xs text-gray-500">Responsável</span>
-                <strong>{detalhesCliente.responsavelContato ?? '—'}</strong>
-              </div>
-              <div className="rounded-lg bg-gray-50 p-3">
-                <span className="block text-xs text-gray-500">Pagamento habitual</span>
-                <strong>{detalhesCliente.formaPagamentoUsual ?? '—'}</strong>
-              </div>
-              <div className="rounded-lg bg-gray-50 p-3">
-                <span className="block text-xs text-gray-500">Condição de pagamento</span>
-                <strong>{detalhesCliente.condicaoPagamento ?? '—'}</strong>
-              </div>
-              <div className="rounded-lg bg-gray-50 p-3">
-                <span className="block text-xs text-gray-500">Necessita NF</span>
-                <strong>{detalhesCliente.necessitaNF ? 'Sim' : 'Não'}</strong>
-              </div>
-              <div className="sm:col-span-2 rounded-lg bg-gray-50 p-3">
-                <span className="block text-xs text-gray-500">Observações</span>
-                <strong>{detalhesCliente.observacoes ?? '—'}</strong>
-              </div>
+          <div className="space-y-5 text-sm">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900">
+                {detalhesCliente.razaoSocialOuNome}
+              </h3>
+              <p className="mt-0.5 text-gray-500">
+                {[detalhesCliente.nomeFantasia, detalhesCliente.cnpjCpf, detalhesCliente.telefone]
+                  .filter(Boolean)
+                  .join(' · ') || 'Sem documento ou telefone'}
+              </p>
             </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white p-3">
-              <p className="font-semibold text-gray-800 mb-3">Endereço</p>
+            <section className="rounded-xl border border-gray-200 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="font-semibold text-gray-900">Acesso ao app</p>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                    detalhesCliente.statusConvite === 'ATIVO'
+                      ? 'bg-green-100 text-green-800'
+                      : detalhesCliente.statusConvite === 'CONVITE_ENVIADO'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  {detalhesCliente.statusConvite === 'ATIVO'
+                    ? 'Ativo'
+                    : detalhesCliente.statusConvite === 'CONVITE_ENVIADO'
+                      ? 'Convite gerado'
+                      : 'Sem acesso'}
+                </span>
+              </div>
+
+              {detalhesCliente.statusConvite === 'ATIVO' ? (
+                <p className="text-gray-600">
+                  Já entra com {detalhesCliente.email ?? 'o e-mail cadastrado'}.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <Input
+                    label="E-mail de login"
+                    type="email"
+                    value={emailConvite}
+                    onChange={(e) => setEmailConvite(e.target.value)}
+                    placeholder="cliente@empresa.com"
+                  />
+                  <Button
+                    type="button"
+                    disabled={ativarAcesso.isPending || !emailConvite.trim()}
+                    onClick={() =>
+                      ativarAcesso.mutate({
+                        id: detalhesCliente.id,
+                        email: emailConvite.trim(),
+                      })
+                    }
+                  >
+                    {ativarAcesso.isPending ? 'Gerando link...' : 'Gerar link de acesso'}
+                  </Button>
+                  {ativarAcesso.isError && (
+                    <p className="text-xs text-red-600">
+                      {(ativarAcesso.error as any)?.response?.data?.message ??
+                        'Não foi possível gerar o convite.'}
+                    </p>
+                  )}
+                  {linkConvite && (
+                    <div className="space-y-2 rounded-lg bg-gray-50 p-3">
+                      <p className="text-xs text-gray-500">
+                        Válido por 48 horas. Envie ao cliente.
+                      </p>
+                      <input
+                        readOnly
+                        value={linkConvite}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={async () => {
+                            await navigator.clipboard.writeText(linkConvite)
+                            setLinkCopiado(true)
+                          }}
+                        >
+                          {linkCopiado ? (
+                            <Check className="h-3.5 w-3.5" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5" />
+                          )}
+                          {linkCopiado ? 'Copiado' : 'Copiar'}
+                        </Button>
+                        {(detalhesCliente.whatsapp || detalhesCliente.telefone) && (
+                          <a
+                            href={`https://wa.me/55${somenteDigitos(detalhesCliente.whatsapp || detalhesCliente.telefone || '')}?text=${encodeURIComponent(`Olá! Seu acesso ao app da Flórida Supply: ${linkConvite}`)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-green-600 px-3 text-xs font-medium text-white"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+
+            <section className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+              <div>
+                <p className="text-xs text-gray-500">E-mail</p>
+                <p className="font-medium text-gray-800">
+                  {detalhesCliente.email || emailConvite || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">WhatsApp</p>
+                <p className="font-medium text-gray-800">{detalhesCliente.whatsapp ?? '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Responsável</p>
+                <p className="font-medium text-gray-800">
+                  {detalhesCliente.responsavelContato ?? '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Pagamento</p>
+                <p className="font-medium text-gray-800">
+                  {[detalhesCliente.formaPagamentoUsual, detalhesCliente.condicaoPagamento]
+                    .filter(Boolean)
+                    .join(' · ') || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Nota fiscal</p>
+                <p className="font-medium text-gray-800">
+                  {detalhesCliente.necessitaNF ? 'Sim' : 'Não'}
+                </p>
+              </div>
+              {detalhesCliente.observacoes && (
+                <div className="sm:col-span-2">
+                  <p className="text-xs text-gray-500">Observações</p>
+                  <p className="font-medium text-gray-800">{detalhesCliente.observacoes}</p>
+                </div>
+              )}
+            </section>
+
+            <section>
+              <p className="mb-1 text-xs text-gray-500">Endereço</p>
               {(() => {
                 const principal = getPrincipalEndereco(detalhesCliente)
                 if (!principal) return <p className="text-gray-500">Nenhum endereço cadastrado.</p>
                 const cidade = principal.cidade?.nome ?? ''
                 const estado = principal.cidade?.estado?.sigla ?? ''
+                const linha = [
+                  principal.logradouro,
+                  principal.numero,
+                  principal.complemento,
+                  principal.bairro,
+                  cidade && estado ? `${cidade}/${estado}` : cidade,
+                  principal.cep,
+                ]
+                  .filter(Boolean)
+                  .join(', ')
                 return (
-                  <div className="space-y-1 text-gray-700">
-                    <p>
-                      <strong>CEP:</strong> {principal.cep ?? '—'}
-                    </p>
-                    <p>
-                      <strong>Logradouro:</strong> {principal.logradouro ?? '—'}
-                    </p>
-                    <p>
-                      <strong>Número:</strong> {principal.numero ?? '—'}
-                    </p>
-                    <p>
-                      <strong>Complemento:</strong> {principal.complemento ?? '—'}
-                    </p>
-                    <p>
-                      <strong>Bairro:</strong> {principal.bairro ?? '—'}
-                    </p>
-                    <p>
-                      <strong>Cidade/UF:</strong> {cidade}
-                      {estado ? `/${estado}` : ''}
-                    </p>
-                    <p>
-                      <strong>Ponto de referência:</strong> {principal.pontoReferencia ?? '—'}
-                    </p>
+                  <div>
+                    <p className="font-medium text-gray-800">{linha || '—'}</p>
+                    {principal.pontoReferencia && (
+                      <p
+                        className="mt-1 truncate text-xs text-gray-500"
+                        title={principal.pontoReferencia}
+                      >
+                        Ref.: {principal.pontoReferencia}
+                      </p>
+                    )}
                   </div>
                 )
               })()}
-            </div>
+            </section>
           </div>
         )}
       </Modal>

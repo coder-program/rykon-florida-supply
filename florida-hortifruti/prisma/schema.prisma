@@ -18,24 +18,30 @@ enum PapelUsuario {
   VENDEDOR
   ADMINISTRATIVO
   ADMINISTRADOR
+  MOTORISTA
+  CLIENTE
 }
 
 model Usuario {
-  id           String        @id @default(uuid())
-  nome         String
-  email        String        @unique
-  senhaHash    String
-  papel        PapelUsuario
-  ativo        Boolean       @default(true)
-  criadoEm     DateTime      @default(now())
+  id        String       @id @default(uuid())
+  nome      String
+  email     String       @unique
+  senhaHash String
+  papel     PapelUsuario
+  ativo     Boolean      @default(true)
+  criadoEm  DateTime     @default(now())
 
-  pedidosCriados           Pedido[]                     @relation("VendedorPedido")
-  ajustesEstoque           MovimentacaoEstoque[]
-  comprasEstoque           CompraEstoque[]
-  historicoPrecos          HistoricoPreco[]
-  logs                     LogAuditoria[]
-  solicitacoesEnviadas     SolicitacaoAlteracaoPedido[] @relation("SolicitanteAlteracao")
-  solicitacoesRespondidas  SolicitacaoAlteracaoPedido[] @relation("ResponsavelAlteracao")
+  pedidosCriados          Pedido[]                     @relation("VendedorPedido")
+  pedidosEntrega          Pedido[]                     @relation("EntregadorPedido")
+  cliente                 Cliente?
+  ajustesEstoque          MovimentacaoEstoque[]
+  comprasEstoque          CompraEstoque[]
+  historicoPrecos         HistoricoPreco[]
+  precosCliente           PrecoCliente[]
+  logs                    LogAuditoria[]
+  solicitacoesEnviadas    SolicitacaoAlteracaoPedido[] @relation("SolicitanteAlteracao")
+  solicitacoesRespondidas SolicitacaoAlteracaoPedido[] @relation("ResponsavelAlteracao")
+  comprovantesEntrega     ComprovanteEntrega[]
 
   @@map("usuarios")
 }
@@ -74,21 +80,21 @@ model Cidade {
 }
 
 model Endereco {
-  id              String                @id @default(uuid())
+  id              String               @id @default(uuid())
   entidadeTipo    TipoEntidadeEndereco
   entidadeId      String
-  tipo            TipoEndereco          @default(PRINCIPAL)
-  principal       Boolean               @default(true)
+  tipo            TipoEndereco         @default(PRINCIPAL)
+  principal       Boolean              @default(true)
   cep             String?
   logradouro      String
   numero          String?
   complemento     String?
   bairro          String?
   cidadeId        String
-  cidade          Cidade                @relation(fields: [cidadeId], references: [id])
+  cidade          Cidade               @relation(fields: [cidadeId], references: [id])
   pontoReferencia String?
-  criadoEm        DateTime              @default(now())
-  atualizadoEm    DateTime              @updatedAt
+  criadoEm        DateTime             @default(now())
+  atualizadoEm    DateTime             @updatedAt
 
   @@index([entidadeTipo, entidadeId])
   @@map("enderecos")
@@ -98,23 +104,37 @@ model Endereco {
 // CLIENTES
 // ==========================================
 
+enum StatusConviteCliente {
+  NAO_CONVIDADO
+  CONVITE_ENVIADO
+  ATIVO
+}
+
 model Cliente {
-  id                  String   @id @default(uuid())
+  id                  String                @id @default(uuid())
   razaoSocialOuNome   String
   nomeFantasia        String?
-  cnpjCpf             String   @unique
+  cnpjCpf             String                @unique
   telefone            String?
   whatsapp            String?
   email               String?
   responsavelContato  String?
   condicaoPagamento   String?
   formaPagamentoUsual String?
-  necessitaNF         Boolean  @default(false)
+  necessitaNF         Boolean               @default(false)
   observacoes         String?
-  ativo               Boolean  @default(true)
-  criadoEm            DateTime @default(now())
+  ativo               Boolean               @default(true)
+  criadoEm            DateTime              @default(now())
 
-  pedidos Pedido[]
+  usuarioId            String?               @unique
+  usuario              Usuario?              @relation(fields: [usuarioId], references: [id])
+  statusConvite        StatusConviteCliente  @default(NAO_CONVIDADO)
+  tokenConvite         String?               @unique
+  tokenConviteExpiraEm DateTime?
+
+  pedidos         Pedido[]
+  precos          PrecoCliente[]
+  historicoPrecos HistoricoPreco[]
 
   @@map("clientes")
 }
@@ -123,24 +143,61 @@ model Cliente {
 // PRODUTOS
 // ==========================================
 
-model Produto {
-  id             String   @id @default(uuid())
-  codigoInterno  String   @unique
-  nome           String
-  categoria      String?
-  unidadeVenda   String   @default("CAIXA")
-  precoSugerido  Decimal  @db.Decimal(10, 2)
-  custo          Decimal? @db.Decimal(10, 2)
-  estoqueMinimo  Decimal? @db.Decimal(10, 2)
-  ativo          Boolean  @default(true)
-  criadoEm       DateTime @default(now())
+enum UnidadeVenda {
+  KG
+  CAIXA
+  UNIDADE
+  SACO
+  BANDEJA
+  DUZIA
+}
 
-  itensPedido      ItemPedido[]
-  movimentacoes    MovimentacaoEstoque[]
-  itensCompra      ItemCompraEstoque[]
-  historicoPrecos  HistoricoPreco[]
+model Categoria {
+  id       String    @id @default(uuid())
+  nome     String    @unique
+  produtos Produto[]
+
+  @@map("categorias")
+}
+
+model Produto {
+  id                         String       @id @default(uuid())
+  codigoInterno              String       @unique
+  nome                       String
+  categoriaId                String?
+  categoria                  Categoria?   @relation(fields: [categoriaId], references: [id])
+  unidadeVenda               UnidadeVenda @default(CAIXA)
+  precoSugerido              Decimal      @db.Decimal(10, 2)
+  custo                      Decimal?     @db.Decimal(10, 2)
+  estoqueMinimo              Decimal?     @db.Decimal(10, 2)
+  limiteEstoqueBaixo         Decimal?     @db.Decimal(10, 2)
+  exibirQuantidadeAproximada Boolean      @default(false)
+  exibirNoPortalCliente      Boolean      @default(true)
+  ativo                      Boolean      @default(true)
+  criadoEm                   DateTime     @default(now())
+
+  itensPedido     ItemPedido[]
+  movimentacoes   MovimentacaoEstoque[]
+  itensCompra     ItemCompraEstoque[]
+  historicoPrecos HistoricoPreco[]
+  precosCliente   PrecoCliente[]
 
   @@map("produtos")
+}
+
+model PrecoCliente {
+  id              String   @id @default(uuid())
+  clienteId       String
+  cliente         Cliente  @relation(fields: [clienteId], references: [id])
+  produtoId       String
+  produto         Produto  @relation(fields: [produtoId], references: [id])
+  precoUnitario   Decimal  @db.Decimal(10, 2)
+  atualizadoEm    DateTime @updatedAt
+  atualizadoPorId String
+  atualizadoPor   Usuario  @relation(fields: [atualizadoPorId], references: [id])
+
+  @@unique([clienteId, produtoId])
+  @@map("precos_cliente")
 }
 
 // ==========================================
@@ -148,15 +205,19 @@ model Produto {
 // ==========================================
 
 enum StatusPedido {
-  RASCUNHO
-  ENVIADO
-  EM_CONFERENCIA
+  AGUARDANDO_APROVACAO
   APROVADO
-  SEPARACAO_ENTREGA
+  REJEITADO
+  EM_SEPARACAO
+  PRONTO_PARA_ENTREGA
+  EM_ENTREGA
   ENTREGUE
-  FATURADO
-  PAGO
   CANCELADO
+}
+
+enum OrigemPedido {
+  VENDEDOR
+  CLIENTE
 }
 
 enum FormaPagamento {
@@ -173,69 +234,94 @@ enum StatusPagamento {
 }
 
 model Pedido {
-  id               String          @id @default(uuid())
-  numero           Int             @unique @default(autoincrement())
-  clienteId        String
-  cliente          Cliente         @relation(fields: [clienteId], references: [id])
-  vendedorId       String
-  vendedor         Usuario         @relation("VendedorPedido", fields: [vendedorId], references: [id])
-  data             DateTime        @default(now())
+  id        String  @id @default(uuid())
+  numero    Int     @unique @default(autoincrement())
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id])
 
-  status           StatusPedido    @default(RASCUNHO)
+  vendedorId String?
+  vendedor   Usuario? @relation("VendedorPedido", fields: [vendedorId], references: [id])
 
-  subtotal         Decimal         @db.Decimal(10, 2)
-  valorFrete       Decimal         @default(0) @db.Decimal(10, 2)
-  freteInclusoNoPreco Boolean      @default(false)
-  descontoValor    Decimal         @default(0) @db.Decimal(10, 2)
-  descontoPercentual Decimal?      @db.Decimal(5, 2)
-  totalFinal       Decimal         @db.Decimal(10, 2)
+  entregadorId String?
+  entregador   Usuario? @relation("EntregadorPedido", fields: [entregadorId], references: [id])
 
-  formaPagamento   FormaPagamento
-  dataVencimento   DateTime?
+  origem OrigemPedido @default(VENDEDOR)
+  data   DateTime     @default(now())
+
+  status StatusPedido @default(AGUARDANDO_APROVACAO)
+
+  subtotal            Decimal  @db.Decimal(10, 2)
+  valorFrete          Decimal  @default(0) @db.Decimal(10, 2)
+  freteInclusoNoPreco Boolean  @default(false)
+  descontoValor       Decimal  @default(0) @db.Decimal(10, 2)
+  descontoPercentual  Decimal? @db.Decimal(5, 2)
+  totalFinal          Decimal  @db.Decimal(10, 2)
+
+  formaPagamento    FormaPagamento
+  dataVencimento    DateTime?
   condicaoNegociada String?
-  statusPagamento  StatusPagamento @default(EM_ABERTO)
+  statusPagamento   StatusPagamento @default(EM_ABERTO)
 
-  necessitaNF      Boolean         @default(false)
-  observacoes      String?
+  necessitaNF Boolean @default(false)
+  observacoes String?
 
-  entregueEm         DateTime?
-  recebidoPor        String?
-  observacaoEntrega  String?
-  fotoEntrega        String?  @db.Text
+  entregueEm        DateTime?
+  recebidoPor       String?
+  observacaoEntrega String?
+  fotoEntrega       String?   @db.Text
 
-  criadoEm         DateTime        @default(now())
-  atualizadoEm     DateTime        @updatedAt
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
 
   caixasEtiquetadas Int @default(0)
 
-  itens                  ItemPedido[]
-  movimentacoes          MovimentacaoEstoque[]
-  etiqueta               Etiqueta?
-  solicitacoesAlteracao  SolicitacaoAlteracaoPedido[]
+  itens                 ItemPedido[]
+  movimentacoes         MovimentacaoEstoque[]
+  etiqueta              Etiqueta?
+  solicitacoesAlteracao SolicitacaoAlteracaoPedido[]
+  comprovanteEntrega    ComprovanteEntrega?
 
+  @@index([entregadorId, status])
   @@map("pedidos")
 }
 
 model ItemPedido {
-  id             String   @id @default(uuid())
-  pedidoId       String
-  pedido         Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  produtoId      String
-  produto        Produto  @relation(fields: [produtoId], references: [id])
-  quantidade     Decimal  @db.Decimal(10, 2)
-  valorUnitario  Decimal  @db.Decimal(10, 2)
-  valorTotal     Decimal  @db.Decimal(10, 2)
+  id            String  @id @default(uuid())
+  pedidoId      String
+  pedido        Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  produtoId     String
+  produto       Produto @relation(fields: [produtoId], references: [id])
+  quantidade    Decimal @db.Decimal(10, 2)
+  valorUnitario Decimal @db.Decimal(10, 2)
+  valorTotal    Decimal @db.Decimal(10, 2)
 
   @@map("itens_pedido")
 }
 
-// Registra quem alterou o preço sugerido para um cliente/pedido específico
+model ComprovanteEntrega {
+  id            String   @id @default(uuid())
+  pedidoId      String   @unique
+  pedido        Pedido   @relation(fields: [pedidoId], references: [id])
+  motoristaId   String
+  motorista     Usuario  @relation(fields: [motoristaId], references: [id])
+  fotoUrl       String   @db.Text
+  nomeRecebedor String
+  dataHora      DateTime @default(now())
+  latitude      Float?
+  longitude     Float?
+  observacao    String?
+
+  @@map("comprovantes_entrega")
+}
+
 model HistoricoPreco {
   id            String   @id @default(uuid())
   produtoId     String
   produto       Produto  @relation(fields: [produtoId], references: [id])
   usuarioId     String
   usuario       Usuario  @relation(fields: [usuarioId], references: [id])
+  clienteId     String?
+  cliente       Cliente? @relation(fields: [clienteId], references: [id])
   valorAnterior Decimal  @db.Decimal(10, 2)
   valorNovo     Decimal  @db.Decimal(10, 2)
   data          DateTime @default(now())
@@ -254,53 +340,53 @@ enum TipoMovimentacao {
 }
 
 model MovimentacaoEstoque {
-  id             String           @id @default(uuid())
-  produtoId      String
-  produto        Produto          @relation(fields: [produtoId], references: [id])
-  tipo           TipoMovimentacao
-  quantidade     Decimal          @db.Decimal(10, 2) // positivo ou negativo
-  origem         String           // ex: "Compra", "Pedido 000123", "Correção"
-  pedidoId       String?
-  pedido         Pedido?          @relation(fields: [pedidoId], references: [id])
-  fornecedor     String?
-  custoTotal     Decimal?         @db.Decimal(10, 2)
-  custoUnitario  Decimal?         @db.Decimal(10, 2)
-  motivoAjuste   String?
-  usuarioId      String
-  usuario        Usuario          @relation(fields: [usuarioId], references: [id])
-  observacao     String?
-  data           DateTime         @default(now())
-  itemCompra     ItemCompraEstoque?
+  id            String           @id @default(uuid())
+  produtoId     String
+  produto       Produto          @relation(fields: [produtoId], references: [id])
+  tipo          TipoMovimentacao
+  quantidade    Decimal          @db.Decimal(10, 2)
+  origem        String
+  pedidoId      String?
+  pedido        Pedido?          @relation(fields: [pedidoId], references: [id])
+  fornecedor    String?
+  custoTotal    Decimal?         @db.Decimal(10, 2)
+  custoUnitario Decimal?         @db.Decimal(10, 2)
+  motivoAjuste  String?
+  usuarioId     String
+  usuario       Usuario          @relation(fields: [usuarioId], references: [id])
+  observacao    String?
+  data          DateTime         @default(now())
+  itemCompra    ItemCompraEstoque?
 
   @@map("movimentacoes_estoque")
 }
 
 model CompraEstoque {
-  id            String   @id @default(uuid())
+  id            String              @id @default(uuid())
   fornecedor    String
-  valorFrete    Decimal  @default(0) @db.Decimal(10, 2)
-  valorComissao Decimal  @default(0) @db.Decimal(10, 2)
+  valorFrete    Decimal             @default(0) @db.Decimal(10, 2)
+  valorComissao Decimal             @default(0) @db.Decimal(10, 2)
   observacao    String?
-  data          DateTime @default(now())
+  data          DateTime            @default(now())
   usuarioId     String
-  usuario       Usuario  @relation(fields: [usuarioId], references: [id])
+  usuario       Usuario             @relation(fields: [usuarioId], references: [id])
   itens         ItemCompraEstoque[]
 
   @@map("compras_estoque")
 }
 
 model ItemCompraEstoque {
-  id                    String   @id @default(uuid())
+  id                    String               @id @default(uuid())
   compraId              String
-  compra                CompraEstoque @relation(fields: [compraId], references: [id], onDelete: Cascade)
+  compra                CompraEstoque        @relation(fields: [compraId], references: [id], onDelete: Cascade)
   produtoId             String
-  produto               Produto  @relation(fields: [produtoId], references: [id])
-  quantidade            Decimal  @db.Decimal(10, 2)
-  valorProdutoInformado Decimal  @db.Decimal(10, 2)
-  rateioFrete           Decimal  @db.Decimal(10, 2)
-  rateioComissao        Decimal  @db.Decimal(10, 2)
-  custoUnitarioFinal    Decimal  @db.Decimal(12, 4)
-  movimentacaoId        String?  @unique
+  produto               Produto              @relation(fields: [produtoId], references: [id])
+  quantidade            Decimal              @db.Decimal(10, 2)
+  valorProdutoInformado Decimal              @db.Decimal(10, 2)
+  rateioFrete           Decimal              @db.Decimal(10, 2)
+  rateioComissao        Decimal              @db.Decimal(10, 2)
+  custoUnitarioFinal    Decimal              @db.Decimal(12, 4)
+  movimentacaoId        String?              @unique
   movimentacao          MovimentacaoEstoque? @relation(fields: [movimentacaoId], references: [id])
 
   @@map("itens_compra_estoque")
@@ -317,18 +403,18 @@ enum StatusSolicitacaoAlteracao {
 }
 
 model SolicitacaoAlteracaoPedido {
-  id              String                      @id @default(uuid())
+  id              String                     @id @default(uuid())
   pedidoId        String
-  pedido          Pedido                      @relation(fields: [pedidoId], references: [id])
+  pedido          Pedido                     @relation(fields: [pedidoId], references: [id])
   solicitanteId   String
-  solicitante     Usuario                     @relation("SolicitanteAlteracao", fields: [solicitanteId], references: [id])
-  status          StatusSolicitacaoAlteracao  @default(PENDENTE)
+  solicitante     Usuario                    @relation("SolicitanteAlteracao", fields: [solicitanteId], references: [id])
+  status          StatusSolicitacaoAlteracao @default(PENDENTE)
   itens           Json
   observacao      String?
   resposta        String?
   respondidoPorId String?
-  respondidoPor   Usuario?                    @relation("ResponsavelAlteracao", fields: [respondidoPorId], references: [id])
-  criadoEm        DateTime                    @default(now())
+  respondidoPor   Usuario?                   @relation("ResponsavelAlteracao", fields: [respondidoPorId], references: [id])
+  criadoEm        DateTime                   @default(now())
   respondidoEm    DateTime?
 
   @@index([pedidoId, status])
@@ -337,13 +423,13 @@ model SolicitacaoAlteracaoPedido {
 }
 
 model Etiqueta {
-  id            String   @id @default(uuid())
-  pedidoId      String   @unique
-  pedido        Pedido   @relation(fields: [pedidoId], references: [id])
-  tokenPublico  String   @unique @default(uuid()) // usado na URL pública do QR Code
-  ocultarValores Boolean @default(true)
-  geradaEm      DateTime @default(now())
-  reimpressoes  Int      @default(0)
+  id             String   @id @default(uuid())
+  pedidoId       String   @unique
+  pedido         Pedido   @relation(fields: [pedidoId], references: [id])
+  tokenPublico   String   @unique @default(uuid())
+  ocultarValores Boolean  @default(true)
+  geradaEm       DateTime @default(now())
+  reimpressoes   Int      @default(0)
 
   @@map("etiquetas")
 }
@@ -356,8 +442,8 @@ model LogAuditoria {
   id         String   @id @default(uuid())
   usuarioId  String
   usuario    Usuario  @relation(fields: [usuarioId], references: [id])
-  acao       String   // ex: "APROVAR_PEDIDO", "ALTERAR_PRECO", "AJUSTE_ESTOQUE"
-  entidade   String   // ex: "Pedido", "Produto"
+  acao       String
+  entidade   String
   entidadeId String
   detalhes   Json?
   data       DateTime @default(now())

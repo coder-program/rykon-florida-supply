@@ -15,6 +15,8 @@ const PAPEL_COLOR: Record<string, string> = {
   ADMINISTRADOR: 'bg-purple-100 text-purple-700',
   ADMINISTRATIVO: 'bg-blue-100 text-blue-700',
   VENDEDOR: 'bg-green-100 text-green-700',
+  MOTORISTA: 'bg-orange-100 text-orange-700',
+  CLIENTE: 'bg-teal-100 text-teal-700',
 }
 
 const EMPTY = { nome: '', email: '', senha: '', papel: 'VENDEDOR' }
@@ -285,6 +287,7 @@ export function UsuariosPage() {
           />
           <Select label="Papel *" value={form.papel} onChange={(e) => set('papel', e.target.value)}>
             <option value="VENDEDOR">Vendedor</option>
+            <option value="MOTORISTA">Motorista</option>
             <option value="ADMINISTRATIVO">Administrativo/Financeiro</option>
             <option value="ADMINISTRADOR">Administrador</option>
           </Select>

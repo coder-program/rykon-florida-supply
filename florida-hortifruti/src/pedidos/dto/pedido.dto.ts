@@ -193,3 +193,71 @@ export class MarcarEntregueDto {
   @IsString()
   fotoEntrega?: string;
 }
+
+export class RejeitarPedidoDto {
+  @IsString()
+  motivo: string;
+}
+
+export class AtribuirPedidoDto {
+  @IsOptional()
+  @IsString()
+  vendedorId?: string;
+
+  @IsOptional()
+  @IsString()
+  entregadorId?: string;
+}
+
+export class AtualizarItensPedidoDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ItemPedidoDto)
+  itens: ItemPedidoDto[];
+}
+
+export class ConfirmarEntregaMotoristaDto {
+  @IsString()
+  nomeRecebedor: string;
+
+  @IsOptional()
+  @IsString()
+  observacao?: string;
+
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
+
+  @IsOptional()
+  @IsString()
+  fotoEntrega?: string;
+}
+
+export class CriarPedidoPortalDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ItemPedidoPortalDto)
+  itens: ItemPedidoPortalDto[];
+
+  @IsOptional()
+  @IsString()
+  observacoes?: string;
+
+  @IsOptional()
+  @IsEnum(FormaPagamento)
+  formaPagamento?: FormaPagamento;
+}
+
+class ItemPedidoPortalDto {
+  @IsString()
+  produtoId: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  quantidade: number;
+}

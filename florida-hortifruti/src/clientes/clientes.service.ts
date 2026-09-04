@@ -1,6 +1,11 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { TipoEntidadeEndereco } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma, StatusConviteCliente, TipoEntidadeEndereco } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { EnderecosService } from '../enderecos/enderecos.service';
 import { CreateClienteDto, UpdateClienteDto } from './dto/cliente.dto';
@@ -140,5 +145,44 @@ export class ClientesService {
   async reativar(id: string) {
     await this.findOne(id);
     return this.prisma.cliente.update({ where: { id }, data: { ativo: true } });
+  }
+
+  async ativarAcesso(id: string, emailInformado?: string) {
+    const cliente = await this.findOne(id);
+    const email = (emailInformado ?? cliente.email)?.trim().toLowerCase();
+    if (!email) {
+      throw new BadRequestException('Informe o e-mail que o cliente vai usar para entrar');
+    }
+    if (email !== cliente.email) {
+      await this.prisma.cliente.update({ where: { id }, data: { email } });
+    }
+    if (cliente.statusConvite === StatusConviteCliente.ATIVO && cliente.usuarioId) {
+      throw new BadRequestException('Este cliente já possui acesso ativo');
+    }
+
+    const token = randomUUID();
+    const expira = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const atualizado = await this.prisma.cliente.update({
+      where: { id },
+      data: {
+        email,
+        tokenConvite: token,
+        tokenConviteExpiraEm: expira,
+        statusConvite: StatusConviteCliente.CONVITE_ENVIADO,
+      },
+    });
+
+    const base =
+      process.env.PWA_CLIENTE_PUBLIC_URL || process.env.PWA_PUBLIC_URL || 'http://localhost:5201';
+    return {
+      ...atualizado,
+      linkConvite: `${base.replace(/\/$/, '')}/definir-senha?token=${token}`,
+    };
+  }
+
+  async findByUsuarioId(usuarioId: string) {
+    const cliente = await this.prisma.cliente.findUnique({ where: { usuarioId } });
+    if (!cliente) throw new NotFoundException('Cliente não vinculado a este usuário');
+    return this.findOne(cliente.id);
   }
 }

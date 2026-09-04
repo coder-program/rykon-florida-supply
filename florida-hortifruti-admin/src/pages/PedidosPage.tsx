@@ -23,24 +23,34 @@ import { Modal } from '../components/ui/Modal'
 import { NovoPedidoModal } from './NovoPedidoModal'
 
 const STATUS_ACOES: Record<string, { label: string; next: string }[]> = {
-  ENVIADO: [
+  AGUARDANDO_APROVACAO: [
     { label: 'Aprovar', next: 'aprovar' },
-    { label: 'Cancelar', next: 'cancelar' },
-  ],
-  EM_CONFERENCIA: [
-    { label: 'Aprovar', next: 'aprovar' },
+    { label: 'Rejeitar', next: 'rejeitar' },
     { label: 'Cancelar', next: 'cancelar' },
   ],
   APROVADO: [
     { label: 'Em separação', next: 'separacao' },
     { label: 'Cancelar', next: 'cancelar' },
   ],
-  SEPARACAO_ENTREGA: [{ label: 'Marcar Entregue', next: 'entregue' }],
-  ENTREGUE: [{ label: 'Faturar', next: 'faturado' }],
-  FATURADO: [{ label: 'Marcar Pago', next: 'pago' }],
+  EM_SEPARACAO: [
+    { label: 'Pronto para entrega', next: 'pronto-para-entrega' },
+    { label: 'Cancelar', next: 'cancelar' },
+  ],
+  PRONTO_PARA_ENTREGA: [
+    { label: 'Saiu para entrega', next: 'em-entrega' },
+    { label: 'Cancelar', next: 'cancelar' },
+  ],
 }
 
-const STATUS_EDITAVEL = ['RASCUNHO', 'ENVIADO', 'EM_CONFERENCIA']
+const STATUS_EDITAVEL = ['AGUARDANDO_APROVACAO']
+const STATUS_COM_ETIQUETA = [
+  'APROVADO',
+  'EM_SEPARACAO',
+  'PRONTO_PARA_ENTREGA',
+  'EM_ENTREGA',
+  'ENTREGUE',
+]
+const STATUS_PODE_ATRIBUIR = ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA', 'EM_ENTREGA']
 
 function totalCaixasPedido(pedido: { itens?: { quantidade?: number }[] } | null) {
   const soma = (pedido?.itens ?? []).reduce(
@@ -57,6 +67,7 @@ export function PedidosPage() {
   const [filtroStatus, setFiltroStatus] = useState('')
   const [pedidoSelecionado, setPedidoSelecionado] = useState<any>(null)
   const [novoPedido, setNovoPedido] = useState(false)
+  const [entregadorId, setEntregadorId] = useState('')
   const [editando, setEditando] = useState(false)
   const [formEdit, setFormEdit] = useState({
     valorFrete: '',
@@ -81,8 +92,20 @@ export function PedidosPage() {
         .then((r) => r.data),
   })
 
+  const { data: usuarios = [] } = useQuery({
+    queryKey: ['usuarios'],
+    queryFn: () => api.get('/usuarios').then((r) => r.data),
+  })
+  const motoristas = (usuarios as any[]).filter((u) => u.papel === 'MOTORISTA' && u.ativo)
+
+  function abrirPedido(p: any) {
+    setPedidoSelecionado(p)
+    setEntregadorId(p.entregadorId ?? p.entregador?.id ?? '')
+  }
+
   const mudarStatus = useMutation({
-    mutationFn: ({ id, acao }: { id: string; acao: string }) => api.post(`/pedidos/${id}/${acao}`),
+    mutationFn: ({ id, acao, body }: { id: string; acao: string; body?: any }) =>
+      api.post(`/pedidos/${id}/${acao}`, body),
     onSuccess: (res, { acao }) => {
       qc.invalidateQueries({ queryKey: ['pedidos'] })
       if (acao === 'aprovar') {
@@ -97,6 +120,11 @@ export function PedidosPage() {
               }
             : prev,
         )
+        return
+      }
+      if (acao === 'atribuir') {
+        setPedidoSelecionado(res.data)
+        setEntregadorId(res.data.entregadorId ?? res.data.entregador?.id ?? entregadorId)
         return
       }
       setPedidoSelecionado(null)
@@ -289,7 +317,7 @@ export function PedidosPage() {
             <button
               key={p.id}
               type="button"
-              onClick={() => setPedidoSelecionado(p)}
+              onClick={() => abrirPedido(p)}
               className="w-full rounded-xl border border-gray-200 bg-white p-4 text-left"
             >
               <div className="flex items-start justify-between gap-3">
@@ -382,7 +410,7 @@ export function PedidosPage() {
                       {formatBRL(p.totalFinal)}
                     </td>
                     <td className="px-4 py-3">
-                      <Button size="sm" variant="ghost" onClick={() => setPedidoSelecionado(p)}>
+                      <Button size="sm" variant="ghost" onClick={() => abrirPedido(p)}>
                         <ChevronDown className="w-3.5 h-3.5" /> Ações
                       </Button>
                     </td>
@@ -712,18 +740,83 @@ export function PedidosPage() {
                 </button>
               </div>
             )}
+            {STATUS_PODE_ATRIBUIR.includes(pedidoSelecionado.status) && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-500">Motorista</p>
+                <p className="text-sm">
+                  {pedidoSelecionado.entregador?.nome
+                    ? `Atribuído: ${pedidoSelecionado.entregador.nome}`
+                    : 'Nenhum motorista atribuído — selecione e clique em Atribuir'}
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Select
+                    value={entregadorId}
+                    onChange={(e) => setEntregadorId(e.target.value)}
+                    className="flex-1"
+                  >
+                    <option value="">Selecionar motorista</option>
+                    {motoristas.map((m: any) => (
+                      <option key={m.id} value={m.id}>
+                        {m.nome}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={!entregadorId || mudarStatus.isPending}
+                    onClick={() =>
+                      mudarStatus.mutate({
+                        id: pedidoSelecionado.id,
+                        acao: 'atribuir',
+                        body: { entregadorId },
+                      })
+                    }
+                  >
+                    Atribuir
+                  </Button>
+                </div>
+              </div>
+            )}
             {(STATUS_ACOES[pedidoSelecionado.status] ||
               pedidoSelecionado.etiqueta ||
-              ['APROVADO', 'SEPARACAO_ENTREGA', 'ENTREGUE', 'FATURADO', 'PAGO'].includes(
-                pedidoSelecionado.status,
-              )) && (
+              STATUS_COM_ETIQUETA.includes(pedidoSelecionado.status)) && (
               <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:flex-wrap border-t border-gray-100">
                 {STATUS_ACOES[pedidoSelecionado.status]?.map(({ label, next }) => (
                   <Button
                     key={next}
-                    variant={next === 'cancelar' ? 'danger' : 'primary'}
+                    variant={next === 'cancelar' || next === 'rejeitar' ? 'danger' : 'primary'}
                     className="w-full sm:w-auto"
-                    onClick={() => mudarStatus.mutate({ id: pedidoSelecionado.id, acao: next })}
+                    onClick={async () => {
+                      if (next === 'rejeitar') {
+                        const motivo = window.prompt('Motivo da rejeição')
+                        if (!motivo?.trim()) return
+                        mudarStatus.mutate({
+                          id: pedidoSelecionado.id,
+                          acao: next,
+                          body: { motivo: motivo.trim() },
+                        })
+                        return
+                      }
+                      if (next === 'em-entrega') {
+                        const motoristaId =
+                          entregadorId ||
+                          pedidoSelecionado.entregadorId ||
+                          pedidoSelecionado.entregador?.id
+                        if (!motoristaId) {
+                          window.alert(
+                            'Selecione um motorista e clique em Atribuir antes de sair para entrega.',
+                          )
+                          return
+                        }
+                        if (motoristaId !== pedidoSelecionado.entregadorId) {
+                          await api.post(`/pedidos/${pedidoSelecionado.id}/atribuir`, {
+                            entregadorId: motoristaId,
+                          })
+                        }
+                      }
+                      mudarStatus.mutate({ id: pedidoSelecionado.id, acao: next })
+                    }}
                     disabled={mudarStatus.isPending || pedidoSelecionado.aguardandoAlteracao}
                   >
                     {label}
@@ -740,9 +833,7 @@ export function PedidosPage() {
                     etiqueta{totalCaixasPedido(pedidoSelecionado) === 1 ? '' : 's'}
                   </Button>
                 ) : (
-                  ['APROVADO', 'SEPARACAO_ENTREGA', 'ENTREGUE', 'FATURADO', 'PAGO'].includes(
-                    pedidoSelecionado.status,
-                  ) && (
+                  STATUS_COM_ETIQUETA.includes(pedidoSelecionado.status) && (
                     <Button
                       variant="secondary"
                       className="w-full sm:w-auto"

@@ -1,12 +1,15 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { json, urlencoded } from 'express';
+import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
   app.use(json({ limit: '6mb' }));
   app.use(urlencoded({ extended: true, limit: '6mb' }));
+  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
 
   const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
@@ -15,6 +18,8 @@ async function bootstrap() {
         'http://localhost:5174',
         'http://localhost:5176',
         'http://localhost:5200',
+        'http://localhost:5201',
+        'http://localhost:5202',
       ];
 
   app.enableCors({

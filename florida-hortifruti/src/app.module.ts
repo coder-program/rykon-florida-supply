@@ -11,6 +11,8 @@ import { RelatoriosModule } from './relatorios/relatorios.module';
 import { FinanceiroModule } from './financeiro/financeiro.module';
 import { LocalidadesModule } from './localidades/localidades.module';
 import { EnderecosModule } from './enderecos/enderecos.module';
+import { MotoristaModule } from './motorista/motorista.module';
+import { PortalClienteModule } from './portal-cliente/portal-cliente.module';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { EnderecosModule } from './enderecos/enderecos.module';
     FinanceiroModule,
     LocalidadesModule,
     EnderecosModule,
+    MotoristaModule,
+    PortalClienteModule,
   ],
 })
 export class AppModule {}

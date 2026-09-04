@@ -98,6 +98,12 @@ export class CreateEnderecoClienteDto {
   principal?: boolean;
 }
 
+export class AtivarAcessoDto {
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+}
+
 export class CreateClienteDto {
   @Trimmed()
   @IsString()

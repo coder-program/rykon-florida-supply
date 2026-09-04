@@ -5,7 +5,8 @@ import { ArrowLeft, Camera, Minus, Plus, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatBRL, formatDate, statusPedidoVisivel } from '../lib/utils'
 
-const STATUS_PODE_SOLICITAR = ['APROVADO', 'SEPARACAO_ENTREGA']
+const STATUS_PODE_SOLICITAR = ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA']
+const STATUS_PODE_EDITAR_DIRETO = ['ENVIADO']
 
 const SOLIC_LABEL: Record<string, string> = {
   PENDENTE: 'Pendente',
@@ -46,7 +47,9 @@ export function DetalhePedidoPage() {
   const { data: produtos = [] } = useQuery({
     queryKey: ['produtos'],
     queryFn: () => api.get('/produtos').then((r) => r.data),
-    enabled: !!p && STATUS_PODE_SOLICITAR.includes(p.status),
+    enabled:
+      !!p &&
+      (STATUS_PODE_SOLICITAR.includes(p.status) || STATUS_PODE_EDITAR_DIRETO.includes(p.status)),
   })
 
   const { data: solicitacoes = [] } = useQuery({
@@ -121,6 +124,32 @@ export function DetalhePedidoPage() {
     },
   })
 
+  const atualizarDireto = useMutation({
+    mutationFn: () =>
+      api.patch(`/pedidos/${id}`, {
+        itens: itens.map((i) => ({
+          produtoId: i.produtoId,
+          quantidade: i.quantidade,
+          valorUnitario: i.valorUnitario,
+        })),
+      }),
+    onSuccess: (res) => {
+      const atualizado = res.data
+      qc.setQueryData(['pedido', id], atualizado)
+      qc.invalidateQueries({ queryKey: ['pedidos'] })
+      qc.invalidateQueries({ queryKey: ['meus-pedidos'] })
+      qc.invalidateQueries({ queryKey: ['pedido', id] })
+      setItens((lista) => lista.map((i) => ({ ...i, original: i.quantidade })))
+      setErro('')
+    },
+    onError: (e: any) => {
+      const msg = e?.response?.data?.message
+      setErro(
+        Array.isArray(msg) ? msg.join(' ') : (msg ?? 'Não foi possível salvar as alterações.'),
+      )
+    },
+  })
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -143,7 +172,10 @@ export function DetalhePedidoPage() {
 
   const status = p.status as string
   const podeSolicitar = STATUS_PODE_SOLICITAR.includes(status)
-  const podeEntregar = ['APROVADO', 'SEPARACAO_ENTREGA'].includes(status)
+  const podeEditarDireto = STATUS_PODE_EDITAR_DIRETO.includes(status)
+  const podeEntregar = ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA', 'EM_ENTREGA'].includes(
+    status,
+  )
   const pendente =
     (solicitacoes as any[]).some((s) => s.status === 'PENDENTE') || !!p.aguardandoAlteracao
   const jaBaixou = podeSolicitar
@@ -275,14 +307,19 @@ export function DetalhePedidoPage() {
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
           <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
             <p className="text-xs font-semibold text-gray-500">PRODUTOS</p>
+            {podeEditarDireto && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                Você pode ajustar as quantidades agora. As alterações serão salvas direto no pedido.
+              </p>
+            )}
             {podeSolicitar && (
               <p className="text-xs text-gray-400 mt-0.5">
                 Se o cliente mudar a quantidade, solicite a alteração. O admin aprova ou nega.
               </p>
             )}
           </div>
-          {(podeSolicitar ? itens : (p.itens ?? [])).map((item: any) => {
-            const edit = podeSolicitar ? (item as ItemEdit) : null
+          {(podeSolicitar || podeEditarDireto ? itens : (p.itens ?? [])).map((item: any) => {
+            const edit = podeSolicitar || podeEditarDireto ? (item as ItemEdit) : null
             const qtd = edit ? edit.quantidade : Math.round(Number(item.quantidade))
             const unit = edit ? edit.valorUnitario : Number(item.valorUnitario)
             const nome = edit ? edit.nome : item.produto?.nome
@@ -354,7 +391,7 @@ export function DetalhePedidoPage() {
           </div>
         </div>
 
-        {(podeSolicitar || podeEntregar) && (
+        {(podeSolicitar || podeEditarDireto || podeEntregar) && (
           <div className="space-y-2">
             {erro && <p className="text-xs text-red-600">{erro}</p>}
             {podeSolicitar && !pendente && (
@@ -365,6 +402,16 @@ export function DetalhePedidoPage() {
                 className="w-full min-h-11 rounded-xl border border-green-600 text-green-700 text-sm font-medium disabled:opacity-50"
               >
                 {solicitar.isPending ? 'Enviando...' : 'Solicitar alteração'}
+              </button>
+            )}
+            {podeEditarDireto && (
+              <button
+                type="button"
+                disabled={!alterou || atualizarDireto.isPending}
+                onClick={() => atualizarDireto.mutate()}
+                className="w-full min-h-11 rounded-xl bg-green-600 text-white text-sm font-medium disabled:opacity-50"
+              >
+                {atualizarDireto.isPending ? 'Salvando...' : 'Salvar alterações'}
               </button>
             )}
             {podeEntregar && !pendente && (

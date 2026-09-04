@@ -36,14 +36,13 @@ const STATUS_PAGAMENTO_LABEL: Record<string, string> = {
 
 const statusPedidoOptions = [
   'TODOS',
-  'RASCUNHO',
-  'ENVIADO',
-  'EM_CONFERENCIA',
+  'AGUARDANDO_APROVACAO',
   'APROVADO',
-  'SEPARACAO_ENTREGA',
+  'REJEITADO',
+  'EM_SEPARACAO',
+  'PRONTO_PARA_ENTREGA',
+  'EM_ENTREGA',
   'ENTREGUE',
-  'FATURADO',
-  'PAGO',
   'CANCELADO',
 ]
 const statusPagamentoOptions = ['TODOS', 'PAGO', 'EM_ABERTO', 'VENCIDO']
