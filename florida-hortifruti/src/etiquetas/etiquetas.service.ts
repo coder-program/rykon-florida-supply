@@ -33,7 +33,16 @@ export class EtiquetasService {
       throw new BadRequestException('Etiqueta só pode ser gerada após a aprovação do pedido');
     }
 
-    return this.prisma.etiqueta.create({ data: { pedidoId } });
+    const etiqueta = await this.prisma.etiqueta.create({ data: { pedidoId } });
+
+    if (pedido.status === StatusPedido.APROVADO) {
+      await this.prisma.pedido.update({
+        where: { id: pedidoId },
+        data: { status: StatusPedido.EM_SEPARACAO },
+      });
+    }
+
+    return etiqueta;
   }
 
   // Retorna dados completos da etiqueta para exibição/impressão (item 34.1)

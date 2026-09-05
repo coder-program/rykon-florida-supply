@@ -8,6 +8,7 @@ import { HomePage } from './pages/HomePage'
 import { NovoPedidoPage } from './pages/NovoPedidoPage'
 import { DetalhePedidoPage } from './pages/DetalhePedidoPage'
 import { AbrirPedidoPage } from './pages/AbrirPedidoPage'
+import { DevolucoesPage } from './pages/DevolucoesPage'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -44,6 +45,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <DetalhePedidoPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/devolucoes"
+        element={
+          <PrivateRoute>
+            <DevolucoesPage />
           </PrivateRoute>
         }
       />

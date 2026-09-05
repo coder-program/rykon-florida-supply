@@ -5,7 +5,7 @@ import { Search, ChevronDown, Printer, Pencil, Plus, FileSpreadsheet, FileText }
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import ExcelJS from 'exceljs'
-import { api } from '../lib/api'
+import { api, resolveAssetUrl } from '../lib/api'
 import {
   formatBRL,
   formatDate,
@@ -29,7 +29,7 @@ const STATUS_ACOES: Record<string, { label: string; next: string }[]> = {
     { label: 'Cancelar', next: 'cancelar' },
   ],
   APROVADO: [
-    { label: 'Em separação', next: 'separacao' },
+    { label: 'Pedido em Andamento', next: 'separacao' },
     { label: 'Cancelar', next: 'cancelar' },
   ],
   EM_SEPARACAO: [
@@ -52,6 +52,18 @@ const STATUS_COM_ETIQUETA = [
 ]
 const STATUS_PODE_ATRIBUIR = ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA', 'EM_ENTREGA']
 
+const DEVOL_LABEL: Record<string, string> = {
+  PENDENTE: 'Pendente',
+  CONCLUIDA: 'Concluída',
+  NEGADA: 'Negada',
+}
+
+const DEVOL_COLOR: Record<string, string> = {
+  PENDENTE: 'bg-amber-100 text-amber-800',
+  CONCLUIDA: 'bg-emerald-100 text-emerald-700',
+  NEGADA: 'bg-red-100 text-red-700',
+}
+
 function totalCaixasPedido(pedido: { itens?: { quantidade?: number }[] } | null) {
   const soma = (pedido?.itens ?? []).reduce(
     (acc, item) => acc + Math.round(Number(item.quantidade) || 0),
@@ -66,6 +78,7 @@ export function PedidosPage() {
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
   const [pedidoSelecionado, setPedidoSelecionado] = useState<any>(null)
+  const [carregandoPedidoDetalhe, setCarregandoPedidoDetalhe] = useState(false)
   const [novoPedido, setNovoPedido] = useState(false)
   const [entregadorId, setEntregadorId] = useState('')
   const [editando, setEditando] = useState(false)
@@ -98,9 +111,17 @@ export function PedidosPage() {
   })
   const motoristas = (usuarios as any[]).filter((u) => u.papel === 'MOTORISTA' && u.ativo)
 
-  function abrirPedido(p: any) {
+  async function abrirPedido(p: any) {
     setPedidoSelecionado(p)
     setEntregadorId(p.entregadorId ?? p.entregador?.id ?? '')
+    setCarregandoPedidoDetalhe(true)
+    try {
+      const detalhe = await api.get(`/pedidos/${p.id}`).then((r) => r.data)
+      setPedidoSelecionado(detalhe)
+      setEntregadorId(detalhe.entregadorId ?? detalhe.entregador?.id ?? '')
+    } finally {
+      setCarregandoPedidoDetalhe(false)
+    }
   }
 
   const mudarStatus = useMutation({
@@ -201,6 +222,7 @@ export function PedidosPage() {
       Vendedor: p.vendedor?.nome ?? '',
       Status: STATUS_PEDIDO_LABEL[p.status] ?? p.status,
       Pagamento: FORMA_PAGAMENTO_LABEL[p.formaPagamento] ?? p.formaPagamento,
+      'Necessita NF': p.necessitaNF ? 'Sim' : 'Não',
       Total: Number(p.totalFinal ?? 0),
     }))
 
@@ -213,6 +235,7 @@ export function PedidosPage() {
       { header: 'Vendedor', key: 'Vendedor', width: 20 },
       { header: 'Status', key: 'Status', width: 22 },
       { header: 'Pagamento', key: 'Pagamento', width: 18 },
+      { header: 'Necessita NF', key: 'Necessita NF', width: 16 },
       { header: 'Total', key: 'Total', width: 16 },
     ]
     worksheet.addRows(linhas)
@@ -238,13 +261,14 @@ export function PedidosPage() {
 
     autoTable(doc, {
       startY: 26,
-      head: [['Nº', 'Cliente', 'Vendedor', 'Status', 'Pagamento', 'Total']],
+      head: [['Nº', 'Cliente', 'Vendedor', 'Status', 'Pagamento', 'NF', 'Total']],
       body: pedidosFiltrados.map((p: any) => [
         `#${String(p.numero ?? '').padStart(6, '0')}`,
         p.cliente?.razaoSocialOuNome ?? '',
         p.vendedor?.nome ?? '',
         STATUS_PEDIDO_LABEL[p.status] ?? p.status,
         FORMA_PAGAMENTO_LABEL[p.formaPagamento] ?? p.formaPagamento,
+        p.necessitaNF ? 'Sim' : 'Não',
         formatBRL(p.totalFinal),
       ]),
       styles: { fontSize: 8, cellPadding: 2 },
@@ -377,14 +401,14 @@ export function PedidosPage() {
               <tbody className="divide-y divide-gray-100">
                 {isLoading && (
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-gray-400">
+                    <td colSpan={8} className="text-center py-8 text-gray-400">
                       Carregando...
                     </td>
                   </tr>
                 )}
                 {!isLoading && pedidosFiltrados.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-gray-400">
+                    <td colSpan={8} className="text-center py-8 text-gray-400">
                       Nenhum pedido encontrado
                     </td>
                   </tr>
@@ -512,9 +536,76 @@ export function PedidosPage() {
               )}
             </div>
 
+            {((pedidoSelecionado.devolucoes as any[] | undefined)?.length ?? 0) > 0 && (
+              <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                <div className="bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500">
+                  HISTÓRICO DE DEVOLUÇÕES
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {(pedidoSelecionado.devolucoes as any[]).map((d) => (
+                    <div key={d.id} className="px-3 py-3 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium text-gray-800">
+                          {new Date(d.data).toLocaleDateString('pt-BR')} · Etiqueta{' '}
+                          {d.etiquetaToken ?? '—'}
+                        </p>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${DEVOL_COLOR[d.status] ?? 'bg-gray-100 text-gray-700'}`}
+                        >
+                          {DEVOL_LABEL[d.status] ?? d.status}
+                        </span>
+                      </div>
+                      {d.itensDevolvidos && (
+                        <p className="mt-1 text-xs text-gray-600">{d.itensDevolvidos}</p>
+                      )}
+                      <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                        {d.quantidadeCaixas ? <span>Caixas: {d.quantidadeCaixas}</span> : null}
+                        {d.valorDevolucao ? (
+                          <span>Valor: {formatBRL(d.valorDevolucao)}</span>
+                        ) : null}
+                        <span>Fotos: {Array.isArray(d.fotos) ? d.fotos.length : 0}</span>
+                      </div>
+                      {Array.isArray(d.fotos) && d.fotos.length > 0 && (
+                        <div className="mt-2 flex gap-1.5">
+                          {d.fotos.slice(0, 3).map((foto: string) => {
+                            const fotoUrl = resolveAssetUrl(foto)
+                            return (
+                              <a
+                                key={foto}
+                                href={fotoUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block"
+                              >
+                                <img
+                                  src={fotoUrl}
+                                  alt="Foto da devolução"
+                                  className="h-9 w-9 rounded-md border border-gray-200 object-cover"
+                                />
+                              </a>
+                            )
+                          })}
+                        </div>
+                      )}
+                      {d.observacao && (
+                        <p className="mt-1 text-xs text-gray-600">Obs.: {d.observacao}</p>
+                      )}
+                      {d.resposta && (
+                        <p className="mt-1 text-xs text-gray-600">Resposta: {d.resposta}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {carregandoPedidoDetalhe && (
+              <p className="text-xs text-gray-400">Atualizando detalhes do pedido...</p>
+            )}
+
             {/* Itens */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[420px] text-sm border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full min-w-105 text-sm border border-gray-200 rounded-lg overflow-hidden">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">
@@ -764,18 +855,50 @@ export function PedidosPage() {
               </div>
             )}
             {STATUS_PODE_ATRIBUIR.includes(pedidoSelecionado.status) && (
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
-                <p className="text-xs font-semibold text-gray-500">Motorista</p>
-                <p className="text-sm">
-                  {pedidoSelecionado.entregador?.nome
-                    ? `Atribuído: ${pedidoSelecionado.entregador.nome}`
-                    : 'Nenhum motorista atribuído — selecione e clique em Atribuir'}
-                </p>
-                <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="space-y-2 rounded-xl border border-gray-200 bg-linear-to-r from-white to-gray-50 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-semibold tracking-wide text-gray-500">MOTORISTA</p>
+                    <p className="mt-1 text-sm text-gray-800">
+                      {pedidoSelecionado.entregador?.nome
+                        ? `Atribuído: ${pedidoSelecionado.entregador.nome}`
+                        : 'Nenhum motorista atribuído ainda'}
+                    </p>
+                  </div>
+                  {mudarStatus.isPending ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                      Salvando...
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                      Atribuição automática
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2">
                   <Select
                     value={entregadorId}
-                    onChange={(e) => setEntregadorId(e.target.value)}
+                    onChange={(e) => {
+                      const novoEntregadorId = e.target.value
+                      setEntregadorId(novoEntregadorId)
+
+                      if (!novoEntregadorId || !pedidoSelecionado?.id) return
+                      if (
+                        novoEntregadorId ===
+                        (pedidoSelecionado.entregadorId ?? pedidoSelecionado.entregador?.id)
+                      ) {
+                        return
+                      }
+
+                      mudarStatus.mutate({
+                        id: pedidoSelecionado.id,
+                        acao: 'atribuir',
+                        body: { entregadorId: novoEntregadorId },
+                      })
+                    }}
                     className="flex-1"
+                    disabled={mudarStatus.isPending}
                   >
                     <option value="">Selecionar motorista</option>
                     {motoristas.map((m: any) => (
@@ -784,20 +907,10 @@ export function PedidosPage() {
                       </option>
                     ))}
                   </Select>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={!entregadorId || mudarStatus.isPending}
-                    onClick={() =>
-                      mudarStatus.mutate({
-                        id: pedidoSelecionado.id,
-                        acao: 'atribuir',
-                        body: { entregadorId },
-                      })
-                    }
-                  >
-                    Atribuir
-                  </Button>
+                  <p className="text-xs text-gray-500">
+                    Ao selecionar um motorista, a atribuição é salva automaticamente. Se trocar o
+                    nome, o novo motorista assume na hora.
+                  </p>
                 </div>
               </div>
             )}
@@ -828,7 +941,7 @@ export function PedidosPage() {
                           pedidoSelecionado.entregador?.id
                         if (!motoristaId) {
                           window.alert(
-                            'Selecione um motorista e clique em Atribuir antes de sair para entrega.',
+                            'Selecione um motorista para atribuição automática antes de sair para entrega.',
                           )
                           return
                         }

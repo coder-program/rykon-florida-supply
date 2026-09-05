@@ -14,6 +14,7 @@ import {
   BarChart3,
   RefreshCw,
   Download,
+  RotateCcw,
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { api } from '../lib/api'
@@ -73,6 +74,15 @@ interface LucroDiarioResponse {
   }
   porProduto?: VendaTipoItem[]
   porTipoMorango?: VendaTipoItem[]
+}
+
+interface DevolucoesResumo {
+  total: number
+  pendentes: number
+  concluidas: number
+  negadas: number
+  totalCaixas?: number
+  valorTotal?: number
 }
 
 function isoLocal(d: Date) {
@@ -268,6 +278,11 @@ export function DashboardPage() {
     queryFn: () => api.get('/dashboard', { params: datas }).then((r) => r.data),
   })
 
+  const { data: devolucoesResumoGeral } = useQuery<DevolucoesResumo>({
+    queryKey: ['devolucoes-resumo-geral'],
+    queryFn: () => api.get('/devolucoes/resumo').then((r) => r.data),
+  })
+
   const { data: vendasProduto = [] } = useQuery<VendaProduto[]>({
     queryKey: ['vendas-produto', datas.dataInicio, datas.dataFim],
     queryFn: () => api.get('/relatorios/vendas/por-produto', { params: datas }).then((r) => r.data),
@@ -304,6 +319,15 @@ export function DashboardPage() {
   const caixas = Number(data?.caixasVendidas ?? 0)
   const emAberto = Number(data?.valoresEmAberto ?? 0)
   const vencidos = Number(data?.valoresVencidos ?? 0)
+  const devolucoes: DevolucoesResumo = data?.devolucoes ?? {
+    total: 0,
+    pendentes: 0,
+    concluidas: 0,
+    negadas: 0,
+    totalCaixas: 0,
+    valorTotal: 0,
+  }
+  const devolucoesGerais: DevolucoesResumo = devolucoesResumoGeral ?? devolucoes
   const zerados = estoque.filter((e) => Number(e.saldoAtual) <= 0).length
   const baixos = estoque.filter((e) => Number(e.saldoAtual) > 0 && e.abaixoMinimo).length
   const ticketMedio = totalPedidos > 0 ? totalVendas / totalPedidos : null
@@ -475,8 +499,8 @@ export function DashboardPage() {
       </header>
 
       <div className="space-y-6 p-4 md:p-6">
-        {(zerados > 0 || vencidos > 0) && (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {(zerados > 0 || vencidos > 0 || devolucoesGerais.pendentes > 0) && (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             {zerados > 0 && (
               <Link
                 to="/estoque"
@@ -504,6 +528,23 @@ export function DashboardPage() {
                 </span>
                 <span className="ml-auto flex items-center gap-1 text-xs font-medium">
                   Financeiro <ArrowRight className="h-3.5 w-3.5" />
+                </span>
+              </Link>
+            )}
+            {devolucoesGerais.pendentes > 0 && (
+              <Link
+                to="/devolucoes"
+                className="flex items-center gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800 transition-colors hover:bg-red-100/70"
+              >
+                <RotateCcw className="h-4 w-4 shrink-0" />
+                <span>
+                  <strong className="font-semibold">{devolucoesGerais.pendentes}</strong>
+                  {devolucoesGerais.pendentes === 1
+                    ? ' devolução pendente'
+                    : ' devoluções pendentes'}
+                </span>
+                <span className="ml-auto flex items-center gap-1 text-xs font-medium">
+                  Ver fila <ArrowRight className="h-3.5 w-3.5" />
                 </span>
               </Link>
             )}
@@ -690,7 +731,7 @@ export function DashboardPage() {
           <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-400">
             Financeiro e catálogo
           </p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
             <KpiCard
               title="Em aberto"
               value={formatBRL(emAberto)}
@@ -718,6 +759,22 @@ export function DashboardPage() {
               icon={Package}
               accent="bg-gray-100 text-gray-600"
               to="/produtos"
+            />
+            <KpiCard
+              title="Devoluções"
+              value={String(devolucoesGerais.pendentes)}
+              hint={
+                devolucoesGerais.total > 0
+                  ? `${devolucoesGerais.total} geral · ${devolucoesGerais.concluidas} concluída(s) · ${Number(devolucoesGerais.totalCaixas ?? 0)} caixa(s) · ${formatBRL(Number(devolucoesGerais.valorTotal ?? 0))}`
+                  : 'Sem devoluções'
+              }
+              icon={RotateCcw}
+              accent={
+                devolucoesGerais.pendentes > 0
+                  ? 'bg-red-100 text-red-600'
+                  : 'bg-emerald-100 text-emerald-700'
+              }
+              to="/devolucoes"
             />
           </div>
         </section>

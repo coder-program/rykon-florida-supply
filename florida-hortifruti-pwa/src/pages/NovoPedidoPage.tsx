@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { Search, Plus, Minus, ChevronRight, ArrowLeft, Check, AlertTriangle, X } from 'lucide-react'
@@ -295,7 +295,7 @@ function EtapaCliente({
 
       <button
         onClick={onNovo}
-        className="mx-4 mb-3 flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-green-700"
+        className="mx-4 mb-3 flex cursor-pointer items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-green-700"
       >
         <Plus className="w-5 h-5" />
         <span className="font-medium text-sm">Cadastrar novo cliente</span>
@@ -307,7 +307,7 @@ function EtapaCliente({
           <button
             key={c.id}
             onClick={() => onSelecionar(c.id, c.razaoSocialOuNome)}
-            className={`w-full text-left bg-white rounded-xl px-4 py-3.5 border transition active:bg-green-50 ${
+            className={`w-full cursor-pointer text-left bg-white rounded-xl px-4 py-3.5 border transition active:bg-green-50 ${
               dados.clienteId === c.id ? 'border-green-500 bg-green-50' : 'border-gray-100'
             }`}
           >
@@ -384,18 +384,23 @@ function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: I
               }`}
             >
               <div className="flex items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => adicionar(p)}
+                  disabled={semEstoque || noLimite}
+                  className="flex-1 min-w-0 cursor-pointer text-left disabled:cursor-not-allowed"
+                >
                   <p className="font-semibold text-gray-900 text-sm">{p.nome}</p>
                   <p className="text-xs text-gray-400">
                     {p.codigoInterno} • {p.unidadeVenda}
                     {semEstoque ? ' • sem estoque' : ` • ${estoque} cx`}
                   </p>
-                </div>
+                </button>
                 <div className="flex items-center gap-2 shrink-0">
                   {item && (
                     <button
                       onClick={() => remover(p.id)}
-                      className="w-8 h-8 bg-red-100 text-red-600 rounded-lg flex items-center justify-center"
+                      className="w-8 h-8 cursor-pointer bg-red-100 text-red-600 rounded-lg flex items-center justify-center"
                     >
                       <Minus className="w-4 h-4" />
                     </button>
@@ -408,7 +413,7 @@ function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: I
                   <button
                     onClick={() => adicionar(p)}
                     disabled={semEstoque || noLimite}
-                    className="w-8 h-8 bg-green-100 text-green-700 rounded-lg flex items-center justify-center disabled:opacity-40 disabled:bg-gray-100 disabled:text-gray-400"
+                    className="w-8 h-8 cursor-pointer bg-green-100 text-green-700 rounded-lg flex items-center justify-center disabled:cursor-not-allowed disabled:opacity-40 disabled:bg-gray-100 disabled:text-gray-400"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
@@ -457,6 +462,54 @@ function EtapaExtras({
   dados: DadosPedido
   onChange: (p: Partial<DadosPedido>) => void
 }) {
+  const DESCONTO_REAIS_PRESETS = [10, 20, 30, 40, 50]
+  const DESCONTO_PERCENTUAL_PRESETS = [10, 20, 30, 40, 50]
+  const [editandoFrete, setEditandoFrete] = useState(false)
+  const [freteInput, setFreteInput] = useState('')
+  const [editandoDesconto, setEditandoDesconto] = useState(false)
+  const [descontoInput, setDescontoInput] = useState('')
+
+  useEffect(() => {
+    if (editandoFrete) return
+    setFreteInput(dados.valorFrete ? formatarNumeroBR(dados.valorFrete) : '')
+  }, [dados.valorFrete, editandoFrete])
+
+  useEffect(() => {
+    if (editandoDesconto) return
+    if (dados.usarPercentual) {
+      setDescontoInput(
+        dados.descontoPercentual ? formatarNumeroBR(dados.descontoPercentual, 1) : '',
+      )
+      return
+    }
+    setDescontoInput(dados.descontoValor ? formatarNumeroBR(dados.descontoValor) : '')
+  }, [dados.usarPercentual, dados.descontoPercentual, dados.descontoValor, editandoDesconto])
+
+  const descontoAtual = dados.usarPercentual ? dados.descontoPercentual : dados.descontoValor
+  const presetsAtivos = dados.usarPercentual ? DESCONTO_PERCENTUAL_PRESETS : DESCONTO_REAIS_PRESETS
+  const descontoEmPreset = presetsAtivos.some((valor) => Math.abs(valor - descontoAtual) < 0.0001)
+  const mostrarCampoOutros = editandoDesconto || (!descontoEmPreset && descontoAtual > 0)
+
+  function selecionarPresetDesconto(valor: number) {
+    setEditandoDesconto(false)
+    if (dados.usarPercentual) {
+      onChange({ descontoPercentual: valor })
+      return
+    }
+    onChange({ descontoValor: valor })
+  }
+
+  function abrirDescontoOutros() {
+    setEditandoDesconto(true)
+    if (dados.usarPercentual) {
+      setDescontoInput(
+        dados.descontoPercentual ? String(dados.descontoPercentual).replace('.', ',') : '',
+      )
+      return
+    }
+    setDescontoInput(dados.descontoValor ? String(dados.descontoValor).replace('.', ',') : '')
+  }
+
   return (
     <div className="flex-1 overflow-y-auto px-4 pt-4 pb-6 space-y-5">
       {/* Frete */}
@@ -467,8 +520,24 @@ function EtapaExtras({
           <input
             type="text"
             inputMode="decimal"
-            value={dados.valorFrete ? formatarNumeroBR(dados.valorFrete) : ''}
-            onChange={(e) => onChange({ valorFrete: parseNumeroBR(e.target.value) })}
+            value={
+              editandoFrete
+                ? freteInput
+                : dados.valorFrete
+                  ? formatarNumeroBR(dados.valorFrete)
+                  : ''
+            }
+            onFocus={() => {
+              setEditandoFrete(true)
+              setFreteInput(dados.valorFrete ? String(dados.valorFrete).replace('.', ',') : '')
+            }}
+            onChange={(e) => setFreteInput(e.target.value)}
+            onBlur={() => {
+              const valor = parseNumeroBR(freteInput)
+              onChange({ valorFrete: valor })
+              setFreteInput(valor ? formatarNumeroBR(valor) : '')
+              setEditandoFrete(false)
+            }}
             placeholder="0,00"
             className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-base text-right focus:outline-none focus:ring-2 focus:ring-green-500"
           />
@@ -489,37 +558,106 @@ function EtapaExtras({
         <h3 className="font-semibold text-gray-800 text-sm">Desconto</h3>
         <div className="flex gap-2 text-sm">
           <button
-            onClick={() => onChange({ usarPercentual: false })}
-            className={`flex-1 py-2 rounded-lg font-medium transition ${!dados.usarPercentual ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+            onClick={() => {
+              setEditandoDesconto(false)
+              onChange({ usarPercentual: false })
+            }}
+            className={`flex-1 cursor-pointer py-2 rounded-lg font-medium transition ${!dados.usarPercentual ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}
           >
             R$
           </button>
           <button
-            onClick={() => onChange({ usarPercentual: true })}
-            className={`flex-1 py-2 rounded-lg font-medium transition ${dados.usarPercentual ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+            onClick={() => {
+              setEditandoDesconto(false)
+              onChange({ usarPercentual: true })
+            }}
+            className={`flex-1 cursor-pointer py-2 rounded-lg font-medium transition ${dados.usarPercentual ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}
           >
             %
           </button>
         </div>
-        {dados.usarPercentual ? (
-          <input
-            type="text"
-            inputMode="decimal"
-            value={dados.descontoPercentual ? formatarNumeroBR(dados.descontoPercentual, 1) : ''}
-            onChange={(e) => onChange({ descontoPercentual: parseNumeroBR(e.target.value) })}
-            placeholder="0"
-            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base text-right focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-        ) : (
-          <input
-            type="text"
-            inputMode="decimal"
-            value={dados.descontoValor ? formatarNumeroBR(dados.descontoValor) : ''}
-            onChange={(e) => onChange({ descontoValor: parseNumeroBR(e.target.value) })}
-            placeholder="0,00"
-            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base text-right focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-        )}
+        <div className="grid grid-cols-3 gap-2">
+          {(dados.usarPercentual ? DESCONTO_PERCENTUAL_PRESETS : DESCONTO_REAIS_PRESETS).map(
+            (valor) => {
+              const ativo = Math.abs(valor - descontoAtual) < 0.0001 && !editandoDesconto
+              return (
+                <button
+                  key={valor}
+                  type="button"
+                  onClick={() => selecionarPresetDesconto(valor)}
+                  className={`cursor-pointer rounded-xl px-3 py-2 text-sm font-medium transition ${ativo ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                >
+                  {dados.usarPercentual ? `${valor}%` : `R$ ${formatarNumeroBR(valor)}`}
+                </button>
+              )
+            },
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={abrirDescontoOutros}
+          className={`w-full cursor-pointer rounded-xl border px-3 py-2 text-sm font-medium transition ${mostrarCampoOutros ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}
+        >
+          Outros
+        </button>
+        {mostrarCampoOutros &&
+          (dados.usarPercentual ? (
+            <input
+              type="text"
+              inputMode="decimal"
+              value={
+                editandoDesconto
+                  ? descontoInput
+                  : dados.descontoPercentual
+                    ? formatarNumeroBR(dados.descontoPercentual, 1)
+                    : ''
+              }
+              onFocus={() => {
+                setEditandoDesconto(true)
+                setDescontoInput(
+                  dados.descontoPercentual
+                    ? String(dados.descontoPercentual).replace('.', ',')
+                    : '',
+                )
+              }}
+              onChange={(e) => setDescontoInput(e.target.value)}
+              onBlur={() => {
+                const valor = parseNumeroBR(descontoInput)
+                onChange({ descontoPercentual: valor })
+                setDescontoInput(valor ? formatarNumeroBR(valor, 1) : '')
+                setEditandoDesconto(false)
+              }}
+              placeholder="Ex.: 12,5"
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base text-right focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          ) : (
+            <input
+              type="text"
+              inputMode="decimal"
+              value={
+                editandoDesconto
+                  ? descontoInput
+                  : dados.descontoValor
+                    ? formatarNumeroBR(dados.descontoValor)
+                    : ''
+              }
+              onFocus={() => {
+                setEditandoDesconto(true)
+                setDescontoInput(
+                  dados.descontoValor ? String(dados.descontoValor).replace('.', ',') : '',
+                )
+              }}
+              onChange={(e) => setDescontoInput(e.target.value)}
+              onBlur={() => {
+                const valor = parseNumeroBR(descontoInput)
+                onChange({ descontoValor: valor })
+                setDescontoInput(valor ? formatarNumeroBR(valor) : '')
+                setEditandoDesconto(false)
+              }}
+              placeholder="0,00"
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base text-right focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          ))}
       </section>
 
       {/* Pagamento */}
@@ -530,7 +668,7 @@ function EtapaExtras({
             <button
               key={f}
               onClick={() => onChange({ formaPagamento: f })}
-              className={`py-2.5 rounded-xl text-sm font-medium transition ${dados.formaPagamento === f ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+              className={`cursor-pointer py-2.5 rounded-xl text-sm font-medium transition ${dados.formaPagamento === f ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}
             >
               {f}
             </button>
@@ -1256,7 +1394,7 @@ export function NovoPedidoPage() {
               <button
                 type="button"
                 onClick={() => setFeedback((s) => ({ ...s, aberto: false }))}
-                className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                className="cursor-pointer rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
                 aria-label="Fechar aviso"
               >
                 <X className="h-4 w-4" />
@@ -1269,7 +1407,7 @@ export function NovoPedidoPage() {
               <button
                 type="button"
                 onClick={() => setFeedback((s) => ({ ...s, aberto: false }))}
-                className="rounded-xl bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
+                className="cursor-pointer rounded-xl bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
               >
                 Entendi
               </button>

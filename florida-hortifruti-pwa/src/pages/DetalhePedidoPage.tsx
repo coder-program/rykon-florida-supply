@@ -20,6 +20,18 @@ const SOLIC_COLOR: Record<string, string> = {
   NEGADA: 'bg-red-100 text-red-700',
 }
 
+const DEVOL_LABEL: Record<string, string> = {
+  PENDENTE: 'Pendente',
+  CONCLUIDA: 'Concluída',
+  NEGADA: 'Negada',
+}
+
+const DEVOL_COLOR: Record<string, string> = {
+  PENDENTE: 'bg-amber-100 text-amber-800',
+  CONCLUIDA: 'bg-emerald-100 text-emerald-700',
+  NEGADA: 'bg-red-100 text-red-700',
+}
+
 type ItemEdit = {
   produtoId: string
   nome: string
@@ -241,6 +253,10 @@ export function DetalhePedidoPage() {
           <Row label="Cliente" value={p.cliente?.razaoSocialOuNome} bold />
           {p.vendedor && <Row label="Vendedor" value={p.vendedor?.nome} />}
           <Row label="Pagamento" value={p.formaPagamento} />
+          <Row
+            label="Nota fiscal"
+            value={typeof p.necessitaNF === 'boolean' ? (p.necessitaNF ? 'Sim' : 'Não') : undefined}
+          />
           {p.dataVencimento && <Row label="Vencimento" value={formatDate(p.dataVencimento)} />}
           {p.observacoes && (
             <div className="pt-2 border-t border-gray-100">
@@ -298,6 +314,60 @@ export function DetalhePedidoPage() {
                 )}
                 {s.status === 'PENDENTE' && (
                   <p className="text-xs text-amber-700 mt-1">Aguardando o administrador.</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {(p.devolucoes as any[] | undefined)?.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+              <p className="text-xs font-semibold text-gray-500">HISTÓRICO DE DEVOLUÇÕES</p>
+            </div>
+            {(p.devolucoes as any[]).map((d) => (
+              <div key={d.id} className="px-4 py-3 border-b border-gray-50 last:border-b-0 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-gray-800 font-medium">
+                      {new Date(d.data).toLocaleDateString('pt-BR')} · Etiqueta{' '}
+                      {d.etiquetaToken ?? '—'}
+                    </p>
+                    {d.registradoPor && (
+                      <p className="text-xs text-gray-500">Registrado por: {d.registradoPor}</p>
+                    )}
+                  </div>
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${DEVOL_COLOR[d.status] ?? 'bg-gray-100 text-gray-700'}`}
+                  >
+                    {DEVOL_LABEL[d.status] ?? d.status}
+                  </span>
+                </div>
+
+                {Array.isArray(d.itens) && d.itens.length > 0 ? (
+                  <div className="mt-2 space-y-1">
+                    {d.itens.map((item: any) => (
+                      <p key={`${d.id}-${item.produtoId}`} className="text-xs text-gray-700">
+                        {Number(item.quantidade).toFixed(0)}x {item.nome} ·{' '}
+                        {formatBRL(Number(item.valorTotal ?? 0))}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  d.itensDevolvidos && (
+                    <p className="mt-2 text-xs text-gray-700">{d.itensDevolvidos}</p>
+                  )
+                )}
+
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                  {d.quantidadeCaixas ? <span>Caixas: {d.quantidadeCaixas}</span> : null}
+                  {d.valorDevolucao ? <span>Valor: {formatBRL(d.valorDevolucao)}</span> : null}
+                  <span>Fotos: {Array.isArray(d.fotos) ? d.fotos.length : 0}</span>
+                </div>
+
+                {d.observacao && <p className="mt-1 text-xs text-gray-600">Obs.: {d.observacao}</p>}
+                {d.resposta && (
+                  <p className="mt-1 text-xs text-gray-600">Resposta admin: {d.resposta}</p>
                 )}
               </div>
             ))}

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, LogOut, RefreshCw } from 'lucide-react'
+import { Plus, LogOut, RefreshCw, RotateCcw } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../contexts/useAuth'
 import { formatBRL, formatDate, statusPedidoVisivel } from '../lib/utils'
@@ -27,6 +27,7 @@ export function HomePage() {
   const {
     data: pedidos = [],
     isLoading,
+    isFetching,
     refetch,
   } = useQuery({
     queryKey: ['meus-pedidos'],
@@ -35,6 +36,13 @@ export function HomePage() {
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   })
+
+  const { data: devolucoes = [] } = useQuery({
+    queryKey: ['devolucoes-resumo-home'],
+    queryFn: () => api.get('/devolucoes/minhas').then((r) => (Array.isArray(r.data) ? r.data : [])),
+  })
+
+  const devolucoesPendentes = (devolucoes as any[]).filter((d) => d.status === 'PENDENTE').length
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-lg mx-auto">
@@ -47,14 +55,21 @@ export function HomePage() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => refetch()}
-              className="w-9 h-9 bg-green-500 rounded-full flex items-center justify-center text-white"
+              type="button"
+              onClick={() => refetch({ cancelRefetch: false })}
+              disabled={isFetching}
+              className="w-9 h-9 cursor-pointer bg-green-500 rounded-full flex items-center justify-center text-white disabled:cursor-not-allowed disabled:opacity-70"
+              title="Recarregar pedidos"
+              aria-label="Recarregar pedidos"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
             </button>
             <button
+              type="button"
               onClick={logout}
-              className="w-9 h-9 bg-green-500 rounded-full flex items-center justify-center text-white"
+              className="w-9 h-9 cursor-pointer bg-green-500 rounded-full flex items-center justify-center text-white"
+              title="Sair"
+              aria-label="Sair"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -66,8 +81,9 @@ export function HomePage() {
       {/* Botão novo pedido */}
       <div className="px-4 -mt-5">
         <button
+          type="button"
           onClick={() => navigate('/pedido/novo')}
-          className="w-full bg-white shadow-lg rounded-2xl px-5 py-4 flex items-center gap-4 border-2 border-green-500 active:scale-95 transition"
+          className="w-full cursor-pointer bg-white shadow-lg rounded-2xl px-5 py-4 flex items-center gap-4 border-2 border-green-500 active:scale-95 transition"
         >
           <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center shrink-0">
             <Plus className="w-6 h-6 text-white" />
@@ -79,12 +95,32 @@ export function HomePage() {
         </button>
       </div>
 
+      <div className="px-4 mt-3">
+        <button
+          type="button"
+          onClick={() => navigate('/devolucoes')}
+          className="w-full cursor-pointer bg-red-600 shadow-lg rounded-2xl px-5 py-4 flex items-center gap-4 border-2 border-red-700 active:scale-95 transition text-white"
+        >
+          <div className="w-12 h-12 bg-red-700 rounded-xl flex items-center justify-center shrink-0">
+            <RotateCcw className="w-6 h-6 text-white" />
+          </div>
+          <div className="text-left">
+            <p className="font-bold">Devolução</p>
+            <p className="text-xs text-red-100">
+              Escanear caixa e enviar 3 fotos
+              {devolucoesPendentes > 0 ? ` · ${devolucoesPendentes} pendente(s)` : ''}
+            </p>
+          </div>
+        </button>
+      </div>
+
       {/* Rascunho pendente */}
       {temRascunho && (
         <div className="px-4 mt-3">
           <button
+            type="button"
             onClick={() => navigate('/pedido/novo')}
-            className="w-full bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 flex items-center gap-3 text-left"
+            className="w-full cursor-pointer bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 flex items-center gap-3 text-left"
           >
             <span className="text-lg">📝</span>
             <div>
@@ -121,8 +157,9 @@ export function HomePage() {
         {pedidos.map((p: any) => (
           <button
             key={p.id}
+            type="button"
             onClick={() => navigate(`/pedido/${p.id}`)}
-            className="w-full bg-white rounded-xl p-4 text-left shadow-sm border border-gray-100 active:bg-gray-50 transition"
+            className="w-full cursor-pointer bg-white rounded-xl p-4 text-left shadow-sm border border-gray-100 active:bg-gray-50 transition"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">

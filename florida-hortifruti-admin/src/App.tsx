@@ -15,6 +15,7 @@ import { UsuariosPage } from './pages/UsuariosPage'
 import { EtiquetaPage } from './pages/EtiquetaPage'
 import { FinanceiroPage } from './pages/FinanceiroPage'
 import { SolicitacoesAlteracaoPage } from './pages/SolicitacoesAlteracaoPage'
+import { DevolucoesPage } from './pages/DevolucoesPage'
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } })
 
@@ -40,6 +41,7 @@ export default function App() {
               <Route path="/relatorios" element={<RelatoriosPage />} />
               <Route path="/financeiro" element={<FinanceiroPage />} />
               <Route path="/solicitacoes" element={<SolicitacoesAlteracaoPage />} />
+              <Route path="/devolucoes" element={<DevolucoesPage />} />
               <Route
                 path="/usuarios"
                 element={

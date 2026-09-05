@@ -195,7 +195,66 @@ export class PedidosService {
     if (papel === PapelUsuario.VENDEDOR && pedido.vendedorId !== usuarioId) {
       throw new ForbiddenException('Você não tem acesso a este pedido');
     }
-    return this.marcarAguardandoAlteracao(pedido);
+
+    const logsDevolucao = await this.prisma.logAuditoria.findMany({
+      where: { acao: 'REGISTRAR_DEVOLUCAO', entidadeId: id },
+      include: { usuario: { select: { id: true, nome: true } } },
+      orderBy: { data: 'desc' },
+    });
+
+    const devolucoes = logsDevolucao.map((log) => {
+      const detalhes = this.lerDetalhesDevolucao(log.detalhes as Prisma.JsonValue | null);
+      return {
+        id: log.id,
+        data: log.data,
+        status: detalhes.status,
+        etiquetaToken: detalhes.etiquetaToken,
+        itens: detalhes.itens,
+        itensDevolvidos: detalhes.itensDevolvidos,
+        quantidadeCaixas: detalhes.quantidadeCaixas,
+        valorDevolucao: detalhes.valorDevolucao,
+        observacao: detalhes.observacao,
+        resposta: detalhes.resposta,
+        fotos: detalhes.fotos,
+        registradoPor: log.usuario?.nome ?? null,
+      };
+    });
+
+    return this.marcarAguardandoAlteracao({ ...pedido, devolucoes });
+  }
+
+  private lerDetalhesDevolucao(raw: Prisma.JsonValue | null) {
+    const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, any>;
+    const itens = Array.isArray(obj.itens)
+      ? obj.itens
+          .map((item: any) => ({
+            produtoId: String(item?.produtoId ?? ''),
+            nome: String(item?.nome ?? ''),
+            quantidade: Number(item?.quantidade ?? 0),
+            valorUnitario: Number(item?.valorUnitario ?? 0),
+            valorTotal: Number(item?.valorTotal ?? 0),
+          }))
+          .filter((item: any) => item.produtoId && item.quantidade > 0)
+      : [];
+
+    return {
+      status:
+        obj.status === 'CONCLUIDA' || obj.status === 'NEGADA' ? String(obj.status) : 'PENDENTE',
+      etiquetaToken: obj.etiquetaToken ? String(obj.etiquetaToken) : null,
+      itens,
+      itensDevolvidos: obj.itensDevolvidos ? String(obj.itensDevolvidos) : null,
+      quantidadeCaixas:
+        typeof obj.quantidadeCaixas === 'number' && Number.isFinite(obj.quantidadeCaixas)
+          ? Number(obj.quantidadeCaixas)
+          : null,
+      valorDevolucao:
+        typeof obj.valorDevolucao === 'number' && Number.isFinite(obj.valorDevolucao)
+          ? Number(obj.valorDevolucao)
+          : null,
+      observacao: obj.observacao ? String(obj.observacao) : null,
+      resposta: obj.resposta ? String(obj.resposta) : null,
+      fotos: Array.isArray(obj.fotos) ? obj.fotos.map(String) : [],
+    };
   }
 
   private marcarAguardandoAlteracao<

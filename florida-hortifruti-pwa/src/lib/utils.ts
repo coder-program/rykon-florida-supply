@@ -10,9 +10,9 @@ export const STATUS_LABEL: Record<string, string> = {
   AGUARDANDO_APROVACAO: 'Aguardando aprovação',
   APROVADO: 'Aprovado',
   REJEITADO: 'Rejeitado',
-  EM_SEPARACAO: 'Em separação',
+  EM_SEPARACAO: 'Pedido em Andamento',
   PRONTO_PARA_ENTREGA: 'Pronto para entrega',
-  EM_ENTREGA: 'Em entrega',
+  EM_ENTREGA: 'A caminho',
   ENTREGUE: 'Entregue',
   CANCELADO: 'Cancelado',
 }

@@ -1,8 +1,8 @@
 export const STATUS_LABEL: Record<string, string> = {
   APROVADO: 'Aprovado',
-  EM_SEPARACAO: 'Em separação',
+  EM_SEPARACAO: 'Pedido em Andamento',
   PRONTO_PARA_ENTREGA: 'Pronto',
-  EM_ENTREGA: 'Em rota',
+  EM_ENTREGA: 'A caminho',
   ENTREGUE: 'Entregue',
 }
 

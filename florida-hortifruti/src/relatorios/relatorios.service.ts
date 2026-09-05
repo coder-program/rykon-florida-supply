@@ -191,20 +191,61 @@ export class RelatoriosService {
 
   async dashboard(query: RelatorioQuery = {}) {
     const base = this.buildPedidoWhere(query);
+    const data = this.periodoWhere(query.dataInicio, query.dataFim);
+    const devolucoesWhere: any = { acao: 'REGISTRAR_DEVOLUCAO' };
+    if (data) devolucoesWhere.data = data;
 
-    const [totalVendas, totalPedidos, emAberto, vencidos, estoque] = await Promise.all([
-      this.prisma.pedido.aggregate({ where: base, _sum: { totalFinal: true } }),
-      this.prisma.pedido.count({ where: base }),
-      this.prisma.pedido.aggregate({
-        where: { ...base, statusPagamento: StatusPagamento.EM_ABERTO },
-        _sum: { totalFinal: true },
-      }),
-      this.prisma.pedido.aggregate({
-        where: { ...base, statusPagamento: StatusPagamento.VENCIDO },
-        _sum: { totalFinal: true },
-      }),
-      this.estoqueAtual(query),
-    ]);
+    const [totalVendas, totalPedidos, emAberto, vencidos, estoque, devolucoesLogs] =
+      await Promise.all([
+        this.prisma.pedido.aggregate({ where: base, _sum: { totalFinal: true } }),
+        this.prisma.pedido.count({ where: base }),
+        this.prisma.pedido.aggregate({
+          where: { ...base, statusPagamento: StatusPagamento.EM_ABERTO },
+          _sum: { totalFinal: true },
+        }),
+        this.prisma.pedido.aggregate({
+          where: { ...base, statusPagamento: StatusPagamento.VENCIDO },
+          _sum: { totalFinal: true },
+        }),
+        this.estoqueAtual(query),
+        this.prisma.logAuditoria.findMany({ where: devolucoesWhere, select: { detalhes: true } }),
+      ]);
+
+    const devolucoes = {
+      total: devolucoesLogs.length,
+      pendentes: 0,
+      concluidas: 0,
+      negadas: 0,
+      totalCaixas: 0,
+      valorTotal: 0,
+    };
+
+    for (const item of devolucoesLogs) {
+      const detalhes = (
+        item.detalhes && typeof item.detalhes === 'object'
+          ? (item.detalhes as Record<string, unknown>)
+          : {}
+      ) as Record<string, unknown>;
+
+      const status =
+        detalhes.status === 'CONCLUIDA' || detalhes.status === 'NEGADA'
+          ? String(detalhes.status)
+          : 'PENDENTE';
+
+      if (status === 'CONCLUIDA') devolucoes.concluidas += 1;
+      else if (status === 'NEGADA') devolucoes.negadas += 1;
+      else devolucoes.pendentes += 1;
+
+      const quantidadeCaixas = Number(detalhes.quantidadeCaixas ?? 0);
+      if (Number.isFinite(quantidadeCaixas) && quantidadeCaixas > 0) {
+        devolucoes.totalCaixas += quantidadeCaixas;
+      }
+
+      const valorDevolucao = Number(detalhes.valorDevolucao ?? 0);
+      if (Number.isFinite(valorDevolucao) && valorDevolucao > 0) {
+        devolucoes.valorTotal += valorDevolucao;
+      }
+    }
 
     const caixasVendidas = await this.prisma.itemPedido.aggregate({
       where: { pedido: base },
@@ -218,6 +259,7 @@ export class RelatoriosService {
       valoresEmAberto: emAberto._sum.totalFinal ?? 0,
       valoresVencidos: vencidos._sum.totalFinal ?? 0,
       estoque,
+      devolucoes,
     };
   }
 

@@ -33,6 +33,17 @@ function linhasEndereco(c: {
   return linhas.length > 0 ? linhas : ['Endereço não informado']
 }
 
+function statusEtiqueta(status: string) {
+  if (status === 'APROVADO') return 'Pedido em Andamento'
+  if (status === 'EM_ENTREGA') return 'A caminho'
+  const mapa: Record<string, string> = {
+    EM_SEPARACAO: 'Pedido em Andamento',
+    PRONTO_PARA_ENTREGA: 'Pronto para entrega',
+    ENTREGUE: 'Entregue',
+  }
+  return mapa[status] ?? status
+}
+
 export function EtiquetaPage() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
@@ -205,6 +216,10 @@ function LabelContent({ etiqueta, caixa }: { etiqueta: any; caixa: number }) {
             {nomeCaixa(caixa)}
           </p>
         </div>
+
+        <p style={{ fontSize: '5.4pt', fontWeight: 700, margin: '0.8mm 0 0' }}>
+          STATUS: {statusEtiqueta(String(p.status ?? ''))}
+        </p>
 
         <div style={{ borderTop: '0.25mm dashed #000', margin: '1.1mm 0' }} />
 

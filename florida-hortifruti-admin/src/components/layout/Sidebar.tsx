@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -12,14 +13,17 @@ import {
   Leaf,
   Banknote,
   ClipboardList,
+  RotateCcw,
   X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/useAuth'
 import { cn } from '../../lib/utils'
+import { api } from '../../lib/api'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/pedidos', icon: ShoppingCart, label: 'Pedidos' },
+  { to: '/devolucoes', icon: RotateCcw, label: 'Devoluções' },
   { to: '/solicitacoes', icon: ClipboardList, label: 'Solicitações de Alteração' },
   { to: '/clientes', icon: Users, label: 'Clientes' },
   { to: '/produtos', icon: Package, label: 'Produtos' },
@@ -29,12 +33,45 @@ const navItems = [
   { to: '/usuarios', icon: UserCog, label: 'Usuários' },
 ]
 
+const PEDIDOS_VISTOS_STORAGE_KEY = 'admin-menu-pedidos-vistos-em'
+
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { logout, usuario, isFinanceiro } = useAuth()
   const location = useLocation()
 
+  const [pedidosVistosEm, setPedidosVistosEm] = useState<number>(() => {
+    const salvo = Number(localStorage.getItem(PEDIDOS_VISTOS_STORAGE_KEY) ?? '0')
+    return Number.isFinite(salvo) ? salvo : 0
+  })
+
+  const { data: pedidosPendentes = [] } = useQuery({
+    queryKey: ['menu-pedidos-pendentes'],
+    queryFn: async () => {
+      const res = await api.get('/pedidos', { params: { status: 'AGUARDANDO_APROVACAO' } })
+      return Array.isArray(res.data) ? res.data : []
+    },
+    refetchInterval: 15000,
+  })
+
+  const pedidosNovos = useMemo(() => {
+    return (pedidosPendentes as any[]).reduce((acc, pedido) => {
+      const criadoEm = new Date(
+        pedido?.criadoEm ?? pedido?.createdAt ?? pedido?.data ?? 0,
+      ).getTime()
+      if (!Number.isFinite(criadoEm)) return acc
+      return criadoEm > pedidosVistosEm ? acc + 1 : acc
+    }, 0)
+  }, [pedidosPendentes, pedidosVistosEm])
+
   useEffect(() => {
     onClose()
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (!location.pathname.startsWith('/pedidos')) return
+    const agora = Date.now()
+    localStorage.setItem(PEDIDOS_VISTOS_STORAGE_KEY, String(agora))
+    setPedidosVistosEm(agora)
   }, [location.pathname])
 
   useEffect(() => {
@@ -97,7 +134,18 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                 }
               >
                 <Icon className="h-4 w-4" />
-                {label}
+                <span className="flex items-center gap-2">
+                  {label}
+                  {to === '/pedidos' && pedidosNovos > 0 && (
+                    <span
+                      className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
+                      aria-label={`${pedidosNovos} pedidos novos aguardando aprovação`}
+                      title={`${pedidosNovos} pedidos novos aguardando aprovação`}
+                    >
+                      {pedidosNovos}
+                    </span>
+                  )}
+                </span>
               </NavLink>
             ))}
         </nav>

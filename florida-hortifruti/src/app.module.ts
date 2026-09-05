@@ -13,6 +13,7 @@ import { LocalidadesModule } from './localidades/localidades.module';
 import { EnderecosModule } from './enderecos/enderecos.module';
 import { MotoristaModule } from './motorista/motorista.module';
 import { PortalClienteModule } from './portal-cliente/portal-cliente.module';
+import { DevolucoesModule } from './devolucoes/devolucoes.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { PortalClienteModule } from './portal-cliente/portal-cliente.module';
     EnderecosModule,
     MotoristaModule,
     PortalClienteModule,
+    DevolucoesModule,
   ],
 })
 export class AppModule {}

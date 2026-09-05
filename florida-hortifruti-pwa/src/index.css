@@ -1,7 +1,30 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @layer base {
-  html { font-size: 16px; -webkit-tap-highlight-color: transparent; }
-  body { @apply bg-gray-50 text-gray-900 antialiased; }
-  input, select, textarea { font-size: 16px !important; } /* evita zoom no iOS */
+  html {
+    font-size: 16px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  } /* evita zoom no iOS */
+  a,
+  button,
+  [role='button'],
+  select,
+  input[type='checkbox'],
+  input[type='radio'] {
+    cursor: pointer;
+  }
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  textarea:disabled {
+    cursor: not-allowed;
+  }
 }
