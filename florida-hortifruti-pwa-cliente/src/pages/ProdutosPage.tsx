@@ -61,7 +61,7 @@ export function ProdutosPage() {
         <button
           type="button"
           onClick={() => setCategoriaId('')}
-          className={`rounded-full px-3 py-1 text-xs ${!categoriaId ? 'bg-green-600 text-white' : 'bg-white border'}`}
+          className={`cursor-pointer rounded-full px-3 py-1 text-xs ${!categoriaId ? 'bg-green-600 text-white' : 'bg-white border'}`}
         >
           Todas
         </button>
@@ -70,7 +70,7 @@ export function ProdutosPage() {
             key={id}
             type="button"
             onClick={() => setCategoriaId(id)}
-            className={`whitespace-nowrap rounded-full px-3 py-1 text-xs ${categoriaId === id ? 'bg-green-600 text-white' : 'bg-white border'}`}
+            className={`cursor-pointer whitespace-nowrap rounded-full px-3 py-1 text-xs ${categoriaId === id ? 'bg-green-600 text-white' : 'bg-white border'}`}
           >
             {nome}
           </button>
@@ -105,7 +105,7 @@ export function ProdutosPage() {
                     type="button"
                     disabled={p.disponibilidade === 'INDISPONIVEL'}
                     onClick={() => adicionar(p)}
-                    className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-green-600 px-3 text-xs font-medium text-white disabled:opacity-40"
+                    className="inline-flex min-h-9 cursor-pointer items-center gap-1 rounded-lg bg-green-600 px-3 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Plus className="h-3.5 w-3.5" /> Adicionar
                   </button>

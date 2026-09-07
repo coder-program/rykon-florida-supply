@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, MapPin } from 'lucide-react'
+import { ArrowLeft, CircleCheckBig, MapPin, Package2, Phone, Route, Truck } from 'lucide-react'
 import { api } from '../lib/api'
-import { mapsUrl, textoEndereco } from '../lib/utils'
+import { mapsUrl, STATUS_LABEL, textoEndereco } from '../lib/utils'
 
 export function EntregaDetalhePage() {
   const { id } = useParams<{ id: string }>()
@@ -28,51 +28,116 @@ export function EntregaDetalhePage() {
   const endereco = textoEndereco(e.endereco)
 
   return (
-    <div className="mx-auto min-h-dvh max-w-lg px-4 py-4 space-y-4">
+    <div className="mx-auto min-h-dvh max-w-lg space-y-4 px-4 py-4">
       <Link to="/" className="inline-flex items-center gap-1 text-sm text-gray-600">
         <ArrowLeft className="h-4 w-4" /> Entregas
       </Link>
-      <h1 className="text-lg font-semibold">Pedido #{String(e.numero).padStart(6, '0')}</h1>
-      <div className="rounded-xl border bg-white p-3 text-sm space-y-1">
-        <p className="font-medium">{e.cliente?.razaoSocialOuNome}</p>
-        <p className="text-gray-600">{e.cliente?.telefone || e.cliente?.whatsapp || '—'}</p>
-        <p className="text-gray-600">{endereco || 'Sem endereço'}</p>
-      </div>
+
+      <section className="overflow-hidden rounded-3xl bg-linear-to-br from-sky-700 via-cyan-600 to-emerald-400 p-5 text-white shadow-lg">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/75">
+              Entrega
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold leading-tight">
+              Pedido #{String(e.numero).padStart(6, '0')}
+            </h1>
+            <p className="mt-2 text-sm text-white/85">
+              Veja os dados do cliente, abra a rota e avance para a confirmação da entrega.
+            </p>
+          </div>
+          <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+            {STATUS_LABEL[e.status] ?? e.status}
+          </span>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <div className="rounded-2xl bg-white/14 px-3 py-3 backdrop-blur-sm">
+            <div className="flex items-center gap-2 text-white/75">
+              <Package2 className="h-3.5 w-3.5" />
+              <span className="text-[11px] font-semibold uppercase tracking-wide">Itens</span>
+            </div>
+            <p className="mt-1 text-sm font-semibold text-white">{e.itens?.length ?? 0} item(ns)</p>
+          </div>
+          <div className="rounded-2xl bg-white/14 px-3 py-3 backdrop-blur-sm">
+            <div className="flex items-center gap-2 text-white/75">
+              <Truck className="h-3.5 w-3.5" />
+              <span className="text-[11px] font-semibold uppercase tracking-wide">Status</span>
+            </div>
+            <p className="mt-1 text-sm font-semibold text-white">
+              {STATUS_LABEL[e.status] ?? e.status}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+            <Route className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-gray-900">Cliente e destino</p>
+            <p className="mt-2 text-base font-semibold text-gray-900">
+              {e.cliente?.razaoSocialOuNome}
+            </p>
+            <div className="mt-2 flex items-start gap-2 text-sm text-gray-600">
+              <Phone className="mt-0.5 h-4 w-4 shrink-0 text-cyan-700" />
+              <span>{e.cliente?.telefone || e.cliente?.whatsapp || 'Telefone não informado'}</span>
+            </div>
+            <div className="mt-2 flex items-start gap-2 text-sm text-gray-600">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-cyan-700" />
+              <span>{endereco || 'Sem endereço'}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {endereco && (
         <a
           href={mapsUrl(e.endereco)}
           target="_blank"
           rel="noreferrer"
-          className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 text-white text-sm font-medium"
+          className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 text-sm font-semibold text-white shadow-sm"
         >
           <MapPin className="h-4 w-4" /> Abrir no mapa
         </a>
       )}
-      <div className="rounded-xl border bg-white p-3 space-y-2">
-        <p className="text-xs font-semibold text-gray-500">Itens</p>
-        {e.itens.map((i: any) => (
-          <p key={i.produtoId} className="text-sm">
-            {i.quantidade} {i.unidadeVenda} · {i.nome}
-          </p>
-        ))}
-      </div>
+
+      <section className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-gray-900">Itens da entrega</p>
+          <p className="text-xs text-gray-500">{e.itens?.length ?? 0} item(ns)</p>
+        </div>
+        <div className="mt-3 space-y-2">
+          {e.itens.map((i: any) => (
+            <div key={i.produtoId} className="rounded-2xl bg-gray-50 px-3 py-3 text-sm">
+              <p className="font-semibold text-gray-900">{i.nome}</p>
+              <p className="mt-1 text-xs font-medium uppercase tracking-wide text-gray-500">
+                {i.quantidade} {i.unidadeVenda}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {e.status !== 'EM_ENTREGA' && e.status !== 'ENTREGUE' && (
         <button
           type="button"
           disabled={iniciar.isPending}
           onClick={() => iniciar.mutate()}
-          className="w-full min-h-11 rounded-xl bg-green-600 text-white font-medium"
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {iniciar.isPending ? 'Iniciando...' : 'Iniciar entrega'}
+          <Truck className="h-4 w-4" /> {iniciar.isPending ? 'Iniciando...' : 'Iniciar entrega'}
         </button>
       )}
       {e.status === 'EM_ENTREGA' && (
         <button
           type="button"
           onClick={() => navigate(`/entrega/${id}/confirmar`)}
-          className="w-full min-h-11 rounded-xl bg-green-600 text-white font-medium"
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-sm font-semibold text-white shadow-sm"
         >
-          Confirmar entrega
+          <CircleCheckBig className="h-4 w-4" /> Confirmar entrega
         </button>
       )}
     </div>

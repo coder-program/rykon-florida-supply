@@ -26,6 +26,12 @@ model Usuario {
   id        String       @id @default(uuid())
   nome      String
   email     String       @unique
+  cpf       String?      @unique
+  dataNascimento DateTime?
+  telefone  String?
+  whatsapp  String?
+  enderecoPrincipalId String? @unique
+  enderecoPrincipal Endereco? @relation("EnderecoPrincipalUsuario", fields: [enderecoPrincipalId], references: [id], onDelete: SetNull)
   senhaHash String
   papel     PapelUsuario
   ativo     Boolean      @default(true)
@@ -95,6 +101,7 @@ model Endereco {
   pontoReferencia String?
   criadoEm        DateTime             @default(now())
   atualizadoEm    DateTime             @updatedAt
+  usuariosComEnderecoPrincipal Usuario[] @relation("EnderecoPrincipalUsuario")
 
   @@index([entidadeTipo, entidadeId])
   @@map("enderecos")

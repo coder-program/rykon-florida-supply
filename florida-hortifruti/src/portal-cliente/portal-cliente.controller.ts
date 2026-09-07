@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Post, Put, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Request, UseGuards } from '@nestjs/common';
 import { PapelUsuario } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { PortalClienteService } from './portal-cliente.service';
 import { CriarPedidoPortalDto } from '../pedidos/dto/pedido.dto';
+import { UpdateClienteDto } from '../clientes/dto/cliente.dto';
 
 @Controller('portal-cliente')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -40,5 +41,10 @@ export class PortalClienteController {
   @Get('conta')
   conta(@Request() req: any) {
     return this.portal.conta(req.user.id);
+  }
+
+  @Patch('conta')
+  atualizarConta(@Body() dto: UpdateClienteDto, @Request() req: any) {
+    return this.portal.atualizarConta(req.user.id, dto);
   }
 }

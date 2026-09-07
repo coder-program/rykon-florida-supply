@@ -13,4 +13,20 @@
   textarea {
     font-size: 16px !important;
   }
+
+  a,
+  button,
+  [role='button'],
+  input[type='checkbox'],
+  input[type='radio'],
+  select {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    cursor: not-allowed;
+  }
 }

@@ -11,6 +11,7 @@ import { ProdutosService } from '../produtos/produtos.service';
 import { EnderecosService } from '../enderecos/enderecos.service';
 import { ClientesService } from '../clientes/clientes.service';
 import { CriarPedidoPortalDto } from '../pedidos/dto/pedido.dto';
+import { UpdateClienteDto } from '../clientes/dto/cliente.dto';
 
 @Injectable()
 export class PortalClienteService {
@@ -212,6 +213,11 @@ export class PortalClienteService {
       email: cliente.email,
       enderecos,
     };
+  }
+
+  async atualizarConta(usuarioId: string, dto: UpdateClienteDto) {
+    const cliente = await this.resolverCliente(usuarioId);
+    return this.clientes.update(cliente.id, dto);
   }
 
   private resumo(p: any) {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Minus, Plus, Search } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Minus, Package2, Plus, Save, Search, Wallet } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatBRL, formatDate, STATUS_COLOR, STATUS_LABEL } from '../lib/utils'
 
@@ -111,74 +111,155 @@ export function PedidoDetalhePage() {
       <Link to="/pedidos" className="inline-flex items-center gap-1 text-sm text-gray-600">
         <ArrowLeft className="h-4 w-4" /> Pedidos
       </Link>
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Pedido #{String(p.numero).padStart(6, '0')}</h1>
-        <span className={`rounded-full px-2 py-0.5 text-[11px] ${STATUS_COLOR[p.status]}`}>
-          {STATUS_LABEL[p.status] ?? p.status}
-        </span>
-      </div>
-      <p className="text-xs text-gray-500">{formatDate(p.data)}</p>
-      {editavel && (
-        <p className="text-xs text-gray-600">
-          Ainda dá para mudar a quantidade ou incluir produto até o pedido ser aprovado.
-        </p>
-      )}
 
-      <div className="space-y-2">
+      <section className="overflow-hidden rounded-[28px] bg-linear-to-br from-emerald-700 via-emerald-600 to-lime-400 p-5 text-white shadow-lg">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/75">
+              Pedido
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold leading-tight">
+              #{String(p.numero).padStart(6, '0')}
+            </h1>
+            <p className="mt-2 max-w-sm text-sm text-white/85">
+              {editavel
+                ? 'Seu pedido ainda pode ser ajustado antes da aprovação.'
+                : 'Acompanhe abaixo os itens, valor total e status atual do pedido.'}
+            </p>
+          </div>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${STATUS_COLOR[p.status]}`}
+          >
+            {STATUS_LABEL[p.status] ?? p.status}
+          </span>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <div className="rounded-2xl bg-white/14 px-3 py-3 backdrop-blur-sm">
+            <div className="flex items-center gap-2 text-white/75">
+              <CalendarDays className="h-3.5 w-3.5" />
+              <span className="text-[11px] font-semibold uppercase tracking-wide">Data</span>
+            </div>
+            <p className="mt-1 text-sm font-semibold text-white">{formatDate(p.data)}</p>
+          </div>
+
+          <div className="rounded-2xl bg-white/14 px-3 py-3 backdrop-blur-sm">
+            <div className="flex items-center gap-2 text-white/75">
+              <Package2 className="h-3.5 w-3.5" />
+              <span className="text-[11px] font-semibold uppercase tracking-wide">Itens</span>
+            </div>
+            <p className="mt-1 text-sm font-semibold text-white">{itens.length} item(ns)</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+            <Wallet className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Total estimado
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-gray-900">
+              {formatBRL(total || p.totalEstimado || 0)}
+            </p>
+          </div>
+        </div>
+        {editavel && (
+          <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Ainda dá para mudar a quantidade ou incluir produto até o pedido ser aprovado.
+          </p>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-900">Itens do pedido</p>
+          <p className="text-xs text-gray-500">{itens.length} item(ns)</p>
+        </div>
+
         {itens.map((i) => {
           const linha = i.valorUnitario != null ? i.valorUnitario * i.quantidade : null
           return (
-            <div key={i.produtoId} className="rounded-xl border bg-white p-3">
+            <div
+              key={i.produtoId}
+              className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm"
+            >
               <div className="flex items-start justify-between gap-3 text-sm">
                 <div className="min-w-0">
-                  <p className="font-medium text-gray-900">
-                    {i.quantidade} {i.unidadeVenda} · {i.nome}
+                  <p className="text-base font-semibold text-gray-900">{i.nome}</p>
+                  <p className="mt-1 text-xs font-medium uppercase tracking-wide text-gray-500">
+                    {i.quantidade} {i.unidadeVenda}
                   </p>
                   {i.valorUnitario != null && (
-                    <p className="mt-0.5 text-xs text-gray-500">{formatBRL(i.valorUnitario)}</p>
+                    <p className="mt-2 text-xs text-gray-500">
+                      Unitário: {formatBRL(i.valorUnitario)}
+                    </p>
                   )}
                 </div>
                 {linha != null && (
-                  <p className="shrink-0 font-semibold text-green-700">{formatBRL(linha)}</p>
+                  <div className="rounded-2xl bg-emerald-50 px-3 py-2 text-right">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700/70">
+                      Total
+                    </p>
+                    <p className="mt-1 shrink-0 font-semibold text-emerald-700">
+                      {formatBRL(linha)}
+                    </p>
+                  </div>
                 )}
               </div>
+
               {editavel && (
-                <div className="mt-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => mudarQtd(i.produtoId, -1)}
-                    disabled={itens.length === 1 && i.quantidade <= 1}
-                    className="rounded-lg border p-1 disabled:opacity-30"
-                    aria-label="Diminuir quantidade"
-                  >
-                    <Minus className="h-4 w-4" />
-                  </button>
-                  <span className="min-w-6 text-center text-sm">{i.quantidade}</span>
-                  <button
-                    type="button"
-                    onClick={() => mudarQtd(i.produtoId, 1)}
-                    className="rounded-lg border p-1"
-                    aria-label="Aumentar quantidade"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
+                <div className="mt-4 flex items-center justify-between rounded-2xl bg-gray-50 px-3 py-2.5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Quantidade
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => mudarQtd(i.produtoId, -1)}
+                      disabled={itens.length === 1 && i.quantidade <= 1}
+                      className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-gray-200 bg-white disabled:cursor-not-allowed disabled:opacity-30"
+                      aria-label="Diminuir quantidade"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <span className="min-w-8 text-center text-sm font-semibold text-gray-800">
+                      {i.quantidade}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => mudarQtd(i.produtoId, 1)}
+                      className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-gray-200 bg-white"
+                      aria-label="Aumentar quantidade"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           )
         })}
-      </div>
+      </section>
 
       {editavel && (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-gray-500">Adicionar produto</p>
+        <section className="space-y-3 rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Adicionar produto</p>
+            <p className="mt-1 text-xs text-gray-500">
+              Busque no catálogo e inclua novos itens antes da aprovação.
+            </p>
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar no catálogo"
-              className="w-full rounded-xl border border-gray-300 py-2.5 pl-9 pr-3 text-sm"
+              className="h-12 w-full rounded-2xl border border-gray-300 bg-gray-50 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-emerald-400 focus:bg-white"
             />
           </div>
           {paraAdicionar.slice(0, 8).map((prod: any) => (
@@ -186,10 +267,10 @@ export function PedidoDetalhePage() {
               key={prod.id}
               type="button"
               onClick={() => adicionar(prod)}
-              className="flex w-full items-center justify-between rounded-xl border bg-white px-3 py-2 text-left text-sm"
+              className="flex w-full cursor-pointer items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-left text-sm"
             >
-              <span>{prod.nome}</span>
-              <span className="text-green-700">
+              <span className="font-medium text-gray-800">{prod.nome}</span>
+              <span className="text-emerald-700">
                 {prod.preco != null ? formatBRL(prod.preco) : 'Adicionar'}
               </span>
             </button>
@@ -201,24 +282,26 @@ export function PedidoDetalhePage() {
                 : 'Todos os produtos disponíveis já estão no pedido.'}
             </p>
           )}
-        </div>
+        </section>
       )}
 
-      {(p.totalEstimado != null || editavel) && (
-        <p className="text-right font-semibold text-green-700">
-          {formatBRL(total || p.totalEstimado || 0)}
-        </p>
+      {p.observacoes && (
+        <section className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Observações</p>
+          <p className="mt-2 text-sm leading-6 text-gray-700">{p.observacoes}</p>
+        </section>
       )}
-      {p.observacoes && <p className="text-sm text-gray-600">{p.observacoes}</p>}
-      {erro && <p className="text-sm text-red-600">{erro}</p>}
+
+      {erro && <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-600">{erro}</p>}
+
       {editavel && (
         <button
           type="button"
           disabled={!mudou || salvar.isPending || itens.length === 0}
           onClick={() => salvar.mutate()}
-          className="w-full min-h-11 rounded-xl bg-green-600 text-white font-medium disabled:opacity-50"
+          className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {salvar.isPending ? 'Salvando...' : 'Salvar alterações'}
+          <Save className="h-4 w-4" /> {salvar.isPending ? 'Salvando...' : 'Salvar alterações'}
         </button>
       )}
     </div>
