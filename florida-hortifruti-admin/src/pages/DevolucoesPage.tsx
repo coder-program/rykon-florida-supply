@@ -151,6 +151,10 @@ export function DevolucoesPage() {
                           <span className="font-medium text-gray-500">Valor:</span>{' '}
                           {item.valorDevolucao ? formatBRL(item.valorDevolucao) : '—'}
                         </p>
+                        <p>
+                          <span className="font-medium text-gray-500">Fotos:</span>{' '}
+                          {Array.isArray(item.fotos) ? item.fotos.length : 0}
+                        </p>
                       </div>
 
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -203,6 +207,7 @@ export function DevolucoesPage() {
                         <th className="px-4 py-3 font-medium">Itens devolvidos</th>
                         <th className="px-4 py-3 font-medium">Caixas</th>
                         <th className="px-4 py-3 font-medium">Valor devolvido</th>
+                        <th className="px-4 py-3 font-medium">Fotos</th>
                         <th className="px-4 py-3 font-medium">Status</th>
                         <th className="px-4 py-3 font-medium">Data</th>
                         <th className="px-4 py-3 font-medium text-right">Ações</th>
@@ -234,6 +239,11 @@ export function DevolucoesPage() {
                           </td>
                           <td className="px-4 py-3 text-gray-700">
                             {item.valorDevolucao ? formatBRL(item.valorDevolucao) : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">
+                              {Array.isArray(item.fotos) ? item.fotos.length : 0}
+                            </span>
                           </td>
                           <td className="px-4 py-3">
                             <span
