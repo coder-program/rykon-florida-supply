@@ -64,7 +64,8 @@ export function ConfirmarPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['motorista-entregas'] })
-      navigate('/')
+      qc.invalidateQueries({ queryKey: ['motorista-entrega', id] })
+      navigate(`/entrega/${id}`)
     },
     onError: (e: any) => {
       const msg = e?.response?.data?.message ?? e.message

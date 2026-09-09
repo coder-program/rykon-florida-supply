@@ -873,6 +873,7 @@ export function NovoPedidoPage() {
     onSuccess: (c) => {
       patch({ clienteId: c.id, clienteNome: c.razaoSocialOuNome })
       setNovoCliente(false)
+      setEtapa('produtos')
       setFormCliente({
         razaoSocialOuNome: '',
         cnpjCpf: '',
@@ -1124,7 +1125,10 @@ export function NovoPedidoPage() {
         {etapa === 'cliente' && !novoCliente && (
           <EtapaCliente
             dados={dados}
-            onSelecionar={(id, nome) => patch({ clienteId: id, clienteNome: nome })}
+            onSelecionar={(id, nome) => {
+              patch({ clienteId: id, clienteNome: nome })
+              setEtapa('produtos')
+            }}
             onNovo={abrirNovoCliente}
           />
         )}

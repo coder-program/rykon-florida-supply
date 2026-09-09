@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { AlertCircle, ArrowLeft, Camera, CheckCircle2, XCircle } from 'lucide-react'
 import { BrowserQRCodeReader } from '@zxing/browser'
-import { api } from '../lib/api'
+import { api, resolveAssetUrl } from '../lib/api'
 
 function toDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -41,6 +41,7 @@ export function DevolucoesPage() {
   const [erro, setErro] = useState('')
   const [mostrarSucesso, setMostrarSucesso] = useState(false)
   const [scannerAberto, setScannerAberto] = useState(false)
+  const [devolucaoSelecionada, setDevolucaoSelecionada] = useState<any | null>(null)
 
   const { data: pedidos = [] } = useQuery({
     queryKey: ['pedidos-para-devolucao'],
@@ -452,7 +453,12 @@ export function DevolucoesPage() {
         )}
         <div className="space-y-2">
           {(devolucoes as any[]).map((item) => (
-            <div key={item.id} className="rounded-xl border bg-white p-3">
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setDevolucaoSelecionada(item)}
+              className="w-full cursor-pointer rounded-xl border bg-white p-3 text-left transition hover:border-red-300 hover:bg-red-50/30"
+            >
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-gray-900">
                   Pedido #{String(item.pedidoNumero ?? '').padStart(6, '0')}
@@ -493,10 +499,164 @@ export function DevolucoesPage() {
                   fotos
                 </span>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
+
+      {devolucaoSelecionada && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Detalhe da devolução
+                </p>
+                <h3 className="text-base font-semibold text-gray-900">
+                  Pedido #{String(devolucaoSelecionada.pedidoNumero ?? '').padStart(6, '0')}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDevolucaoSelecionada(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-600"
+                aria-label="Fechar"
+              >
+                <XCircle className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-500">Status</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_COLOR[devolucaoSelecionada.status] ?? 'bg-gray-100 text-gray-700'}`}
+                >
+                  {STATUS_LABEL[devolucaoSelecionada.status] ?? devolucaoSelecionada.status}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-500">Cliente</span>
+                <span className="text-right font-medium text-gray-900">
+                  {devolucaoSelecionada.cliente ?? '—'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-500">Etiqueta</span>
+                <span className="text-right font-mono text-xs text-gray-900">
+                  {devolucaoSelecionada.etiquetaToken ?? '—'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-500">Registrado por</span>
+                <span className="text-right text-gray-900">
+                  {devolucaoSelecionada.registradoPor ?? '—'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-500">Data</span>
+                <span className="text-right text-gray-900">
+                  {new Date(devolucaoSelecionada.criadoEm).toLocaleDateString('pt-BR')}
+                </span>
+              </div>
+            </div>
+
+            {(devolucaoSelecionada.itensDevolvidos || devolucaoSelecionada.quantidadeCaixas) && (
+              <div className="mt-3 rounded-xl border border-gray-200 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Itens devolvidos
+                </p>
+                {devolucaoSelecionada.itensDevolvidos && (
+                  <p className="mt-2 text-sm text-gray-700">
+                    {devolucaoSelecionada.itensDevolvidos}
+                  </p>
+                )}
+                {devolucaoSelecionada.quantidadeCaixas && (
+                  <p className="mt-2 text-xs text-gray-600">
+                    Caixas devolvidas: {devolucaoSelecionada.quantidadeCaixas}
+                  </p>
+                )}
+                {devolucaoSelecionada.valorDevolucao != null && (
+                  <p className="mt-2 text-xs text-gray-600">
+                    Valor:{' '}
+                    {Number(devolucaoSelecionada.valorDevolucao).toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {Array.isArray(devolucaoSelecionada.itens) && devolucaoSelecionada.itens.length > 0 && (
+              <div className="mt-3 rounded-xl border border-gray-200 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Detalhe dos itens
+                </p>
+                <div className="mt-2 space-y-2">
+                  {devolucaoSelecionada.itens.map((item: any, index: number) => (
+                    <div
+                      key={`${item.produtoId ?? index}-${item.nome ?? 'item'}`}
+                      className="flex items-center justify-between gap-3 rounded-lg bg-white px-2 py-1.5 text-xs text-gray-700"
+                    >
+                      <span>{item.nome}</span>
+                      <span className="font-medium text-gray-900">
+                        {Number(item.quantidade ?? 0)}x
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {devolucaoSelecionada.observacao && (
+              <div className="mt-3 rounded-xl border border-gray-200 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Observação
+                </p>
+                <p className="mt-2 text-sm text-gray-700">{devolucaoSelecionada.observacao}</p>
+              </div>
+            )}
+
+            {devolucaoSelecionada.resposta && (
+              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-red-700">
+                  Resposta do admin
+                </p>
+                <p className="mt-2 text-sm text-red-700">{devolucaoSelecionada.resposta}</p>
+              </div>
+            )}
+
+            {Array.isArray(devolucaoSelecionada.fotos) && devolucaoSelecionada.fotos.length > 0 && (
+              <div className="mt-3 rounded-xl border border-gray-200 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Fotos da devolução ({devolucaoSelecionada.fotos.length})
+                </p>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {devolucaoSelecionada.fotos.map((foto: string, index: number) => {
+                    const url = resolveAssetUrl(foto)
+                    return (
+                      <a
+                        key={`${foto}-${index}`}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block overflow-hidden rounded-lg border border-gray-200 bg-white"
+                      >
+                        <img
+                          src={url}
+                          alt={`Foto da devolução ${index + 1}`}
+                          className="h-24 w-full object-cover"
+                        />
+                      </a>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

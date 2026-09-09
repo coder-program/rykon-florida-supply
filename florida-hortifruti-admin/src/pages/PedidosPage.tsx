@@ -502,7 +502,7 @@ export function PedidosPage() {
                 )}
                 {pedidoSelecionado.fotoEntrega && (
                   <img
-                    src={pedidoSelecionado.fotoEntrega}
+                    src={resolveAssetUrl(pedidoSelecionado.fotoEntrega)}
                     alt="Foto da entrega"
                     className="mt-2 max-h-56 w-full rounded-lg object-contain bg-white"
                   />

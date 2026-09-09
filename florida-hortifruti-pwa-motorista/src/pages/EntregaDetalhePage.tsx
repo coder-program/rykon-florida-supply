@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, CircleCheckBig, MapPin, Package2, Phone, Route, Truck } from 'lucide-react'
-import { api } from '../lib/api'
+import { api, resolveAssetUrl } from '../lib/api'
 import { mapsUrl, STATUS_LABEL, textoEndereco } from '../lib/utils'
 
 export function EntregaDetalhePage() {
@@ -120,6 +120,27 @@ export function EntregaDetalhePage() {
           ))}
         </div>
       </section>
+
+      {e.comprovante?.fotoUrl && (
+        <section className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
+          <p className="text-sm font-semibold text-emerald-900">Comprovante de entrega</p>
+          {e.comprovante?.nomeRecebedor && (
+            <p className="mt-1 text-xs text-emerald-900/80">
+              Recebido por: {e.comprovante.nomeRecebedor}
+            </p>
+          )}
+          {e.comprovante?.dataHora && (
+            <p className="mt-1 text-xs text-emerald-900/80">
+              Registrado em: {new Date(e.comprovante.dataHora).toLocaleString('pt-BR')}
+            </p>
+          )}
+          <img
+            src={resolveAssetUrl(e.comprovante.fotoUrl)}
+            alt="Foto da entrega"
+            className="mt-3 max-h-72 w-full rounded-2xl border border-emerald-100 object-cover bg-white"
+          />
+        </section>
+      )}
 
       {e.status !== 'EM_ENTREGA' && e.status !== 'ENTREGUE' && (
         <button

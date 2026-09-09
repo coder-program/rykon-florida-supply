@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Camera, Minus, Plus, X } from 'lucide-react'
-import { api } from '../lib/api'
+import { api, resolveAssetUrl } from '../lib/api'
 import { formatBRL, formatDate, statusPedidoVisivel } from '../lib/utils'
 
 const STATUS_PODE_SOLICITAR = ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA']
@@ -87,12 +87,14 @@ export function DetalhePedidoPage() {
   }, [p])
 
   const marcarEntregue = useMutation({
-    mutationFn: () =>
-      api.post(`/pedidos/${id}/entregue`, {
+    mutationFn: () => {
+      if (!fotoEntrega) throw new Error('A foto da entrega é obrigatória')
+      return api.post(`/pedidos/${id}/entregue`, {
         recebidoPor: recebidoPor.trim() || undefined,
         observacaoEntrega: observacaoEntrega.trim() || undefined,
-        fotoEntrega: fotoEntrega || undefined,
-      }),
+        fotoEntrega,
+      })
+    },
     onSuccess: (res) => {
       const atualizado = res.data
       qc.setQueryData(['pedido', id], atualizado)
@@ -279,7 +281,7 @@ export function DetalhePedidoPage() {
             )}
             {p.fotoEntrega && (
               <img
-                src={p.fotoEntrega}
+                src={resolveAssetUrl(p.fotoEntrega)}
                 alt="Foto da entrega"
                 className="mt-2 w-full rounded-lg border border-gray-100"
               />
@@ -521,7 +523,7 @@ export function DetalhePedidoPage() {
               </button>
             </div>
             <p className="text-xs text-gray-500 mb-3">
-              Foto, quem recebeu e observação são opcionais.
+              A foto da entrega é obrigatória. Quem recebeu e observação são opcionais.
             </p>
             <label className="block mb-3">
               <span className="text-xs font-medium text-gray-600">Quem recebeu</span>
@@ -545,7 +547,7 @@ export function DetalhePedidoPage() {
             <label className="mb-3 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-4">
               <Camera className="w-6 h-6 text-gray-500" />
               <span className="text-sm text-gray-600">
-                {fotoEntrega ? 'Trocar foto' : 'Tirar ou enviar foto (opcional)'}
+                {fotoEntrega ? 'Trocar foto' : 'Tirar ou enviar foto (obrigatório)'}
               </span>
               <input
                 type="file"
@@ -572,7 +574,7 @@ export function DetalhePedidoPage() {
             )}
             <button
               type="button"
-              disabled={marcarEntregue.isPending}
+              disabled={marcarEntregue.isPending || !fotoEntrega}
               onClick={() => marcarEntregue.mutate()}
               className="w-full min-h-11 rounded-xl bg-green-600 text-white text-sm font-medium disabled:opacity-50"
             >

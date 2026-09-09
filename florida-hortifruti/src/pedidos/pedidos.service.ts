@@ -486,17 +486,18 @@ export class PedidosService {
         'Há uma solicitação de alteração pendente. Aprove ou negue antes de continuar.',
       );
     }
-    if (dto.fotoEntrega && !dto.fotoEntrega.startsWith('data:image/')) {
+    const fotoEntrega = dto.fotoEntrega?.trim() ?? '';
+    if (!fotoEntrega) {
+      throw new BadRequestException('A foto da entrega é obrigatória');
+    }
+    if (!fotoEntrega.startsWith('data:image/')) {
       throw new BadRequestException('A foto da entrega é inválida');
     }
-    if (dto.fotoEntrega && dto.fotoEntrega.length > 5_500_000) {
+    if (fotoEntrega.length > 5_500_000) {
       throw new BadRequestException('A foto é muito grande. Tire outra mais simples.');
     }
 
-    let fotoUrl: string | null = null;
-    if (dto.fotoEntrega) {
-      fotoUrl = await this.storage.salvarDataUrl(dto.fotoEntrega);
-    }
+    const fotoUrl = await this.storage.salvarDataUrl(fotoEntrega);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.pedido.update({
@@ -506,27 +507,25 @@ export class PedidosService {
           entregueEm: new Date(),
           recebidoPor: dto.recebidoPor?.trim() || null,
           observacaoEntrega: dto.observacaoEntrega?.trim() || null,
-          fotoEntrega: fotoUrl ?? dto.fotoEntrega ?? null,
+          fotoEntrega: fotoUrl,
         },
       });
-      if (dto.recebidoPor?.trim() || fotoUrl) {
-        await tx.comprovanteEntrega.upsert({
-          where: { pedidoId: id },
-          create: {
-            pedidoId: id,
-            motoristaId: pedido.entregadorId ?? usuarioId,
-            fotoUrl: fotoUrl ?? dto.fotoEntrega ?? '',
-            nomeRecebedor: dto.recebidoPor?.trim() || 'Não informado',
-            observacao: dto.observacaoEntrega?.trim() || null,
-          },
-          update: {
-            fotoUrl: fotoUrl ?? dto.fotoEntrega ?? '',
-            nomeRecebedor: dto.recebidoPor?.trim() || 'Não informado',
-            observacao: dto.observacaoEntrega?.trim() || null,
-            dataHora: new Date(),
-          },
-        });
-      }
+      await tx.comprovanteEntrega.upsert({
+        where: { pedidoId: id },
+        create: {
+          pedidoId: id,
+          motoristaId: pedido.entregadorId ?? usuarioId,
+          fotoUrl,
+          nomeRecebedor: dto.recebidoPor?.trim() || 'Não informado',
+          observacao: dto.observacaoEntrega?.trim() || null,
+        },
+        update: {
+          fotoUrl,
+          nomeRecebedor: dto.recebidoPor?.trim() || 'Não informado',
+          observacao: dto.observacaoEntrega?.trim() || null,
+          dataHora: new Date(),
+        },
+      });
       await tx.logAuditoria.create({
         data: {
           usuarioId,
