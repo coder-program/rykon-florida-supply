@@ -60,6 +60,11 @@ export class EstoqueController {
     return this.estoqueService.saldosTodos();
   }
 
+  @Get('lotes/:produtoId')
+  lotesProduto(@Param('produtoId') produtoId: string) {
+    return this.estoqueService.listarLotesProduto(produtoId);
+  }
+
   @Get(':produtoId/saldo')
   saldo(@Param('produtoId') produtoId: string) {
     return this.estoqueService.saldoAtual(produtoId);

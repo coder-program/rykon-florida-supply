@@ -25,7 +25,14 @@ export class FinanceiroController {
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
   ) {
-    return this.financeiroService.contasAReceber({ vendedorId, clienteId, formaPagamento, situacao, dataInicio, dataFim });
+    return this.financeiroService.contasAReceber({
+      vendedorId,
+      clienteId,
+      formaPagamento,
+      situacao,
+      dataInicio,
+      dataFim,
+    });
   }
 
   @Post('marcar-pago/:pedidoId')
@@ -36,5 +43,10 @@ export class FinanceiroController {
   @Post('reabrir/:pedidoId')
   reabrir(@Param('pedidoId') pedidoId: string, @Request() req: any) {
     return this.financeiroService.reabrir(pedidoId, req.user.id);
+  }
+
+  @Post('notificacoes-vencimento')
+  gerarNotificacoesVencimento() {
+    return this.financeiroService.gerarNotificacoesVencimento();
   }
 }

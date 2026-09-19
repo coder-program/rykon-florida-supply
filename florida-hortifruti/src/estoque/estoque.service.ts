@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { TipoMovimentacao } from '@prisma/client';
+import { Prisma, TipoMovimentacao } from '@prisma/client';
 
 type ItemEntrada = {
   produtoId: string;
   quantidade: number;
   valorProduto: number;
+  numeroLote?: string;
 };
 
 @Injectable()
@@ -94,7 +95,7 @@ export class EstoqueService {
         },
       });
 
-      for (const item of rateados) {
+      for (const [index, item] of rateados.entries()) {
         const movimentacao = await tx.movimentacaoEstoque.create({
           data: {
             produtoId: item.produtoId,
@@ -106,6 +107,30 @@ export class EstoqueService {
             custoUnitario: item.custoUnitarioFinal,
             usuarioId: params.usuarioId,
             observacao: params.observacao,
+          },
+        });
+
+        const numeroLote =
+          itens[index]?.numeroLote?.trim() ||
+          `L-${item.produtoId.slice(0, 8)}-${Date.now()}-${index + 1}`;
+
+        const lote = await tx.loteProduto.create({
+          data: {
+            produtoId: item.produtoId,
+            numero: numeroLote,
+            quantidadeInicial: item.quantidade,
+            quantidadeDisponivel: item.quantidade,
+            valorUnitario: item.custoUnitarioFinal,
+            observacao: params.observacao,
+          },
+        });
+
+        await tx.movimentacaoEstoqueLote.create({
+          data: {
+            loteId: lote.id,
+            movimentacaoId: movimentacao.id,
+            quantidade: item.quantidade,
+            origem: `Compra - ${params.fornecedor}`,
           },
         });
 
@@ -137,6 +162,110 @@ export class EstoqueService {
         },
       });
     });
+  }
+
+  async validarDisponibilidade(itens: { produtoId: string; quantidade: number }[]) {
+    const porProduto = new Map<string, number>();
+    for (const item of itens) {
+      porProduto.set(
+        item.produtoId,
+        (porProduto.get(item.produtoId) ?? 0) + Number(item.quantidade || 0),
+      );
+    }
+
+    const faltando: string[] = [];
+
+    for (const [produtoId, quantidade] of porProduto) {
+      const lotes = await this.prisma.loteProduto.findMany({
+        where: { produtoId, ativo: true, quantidadeDisponivel: { gt: 0 } },
+        orderBy: [{ dataEntrada: 'asc' }, { criadoEm: 'asc' }],
+        select: { quantidadeDisponivel: true, numero: true },
+      });
+
+      const disponivel = lotes.reduce(
+        (acc, lote) => acc + Number(lote.quantidadeDisponivel ?? 0),
+        0,
+      );
+
+      if (disponivel < quantidade) {
+        const produto = await this.prisma.produto.findUnique({
+          where: { id: produtoId },
+          select: { nome: true },
+        });
+
+        faltando.push(
+          `${produto?.nome ?? produtoId} (pedido ${quantidade} cx, estoque em lotes ${disponivel} cx)`,
+        );
+      }
+    }
+
+    if (faltando.length > 0) {
+      throw new BadRequestException(`Sem estoque suficiente: ${faltando.join('; ')}`);
+    }
+  }
+
+  async listarLotesProduto(produtoId: string) {
+    return this.prisma.loteProduto.findMany({
+      where: { produtoId, ativo: true },
+      orderBy: [{ dataEntrada: 'asc' }, { criadoEm: 'asc' }],
+    });
+  }
+
+  async consumirLotesEmTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      produtoId: string;
+      quantidade: number;
+      pedidoId: string;
+      origem: string;
+      usuarioId: string;
+      movimentacaoId: string;
+    },
+  ) {
+    const quantidadeRestante = Number(params.quantidade || 0);
+    if (quantidadeRestante <= 0) return [];
+
+    const lotes = await tx.loteProduto.findMany({
+      where: { produtoId: params.produtoId, ativo: true, quantidadeDisponivel: { gt: 0 } },
+      orderBy: [{ dataEntrada: 'asc' }, { criadoEm: 'asc' }],
+    });
+
+    let restante = quantidadeRestante;
+    const usados: { loteId: string; quantidade: number }[] = [];
+
+    for (const lote of lotes) {
+      if (restante <= 0) break;
+      const disponivel = Number(lote.quantidadeDisponivel ?? 0);
+      const consumido = Math.min(restante, disponivel);
+      if (consumido <= 0) continue;
+
+      restante -= consumido;
+      const novaDisponibilidade = Number((disponivel - consumido).toFixed(2));
+
+      await tx.loteProduto.update({
+        where: { id: lote.id },
+        data: { quantidadeDisponivel: novaDisponibilidade },
+      });
+
+      await tx.movimentacaoEstoqueLote.create({
+        data: {
+          loteId: lote.id,
+          movimentacaoId: params.movimentacaoId,
+          quantidade: consumido,
+          origem: params.origem,
+        },
+      });
+
+      usados.push({ loteId: lote.id, quantidade: consumido });
+    }
+
+    if (restante > 0) {
+      throw new BadRequestException(
+        `Sem estoque suficiente em lotes para o produto solicitado (faltam ${restante} unidades)`,
+      );
+    }
+
+    return usados;
   }
 
   async registrarSaida(params: {

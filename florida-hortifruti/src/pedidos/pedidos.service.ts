@@ -57,29 +57,7 @@ export class PedidosService {
   ];
 
   private async validarEstoque(itens: { produtoId: string; quantidade: number }[]) {
-    const porProduto = new Map<string, number>();
-    for (const item of itens) {
-      porProduto.set(
-        item.produtoId,
-        (porProduto.get(item.produtoId) ?? 0) + Number(item.quantidade),
-      );
-    }
-
-    const ids = [...porProduto.keys()];
-    const produtos = await this.prisma.produto.findMany({ where: { id: { in: ids } } });
-    const faltando: string[] = [];
-
-    for (const [produtoId, quantidade] of porProduto) {
-      const saldo = Number(await this.estoqueService.saldoAtual(produtoId));
-      if (saldo < quantidade) {
-        const nome = produtos.find((p) => p.id === produtoId)?.nome ?? produtoId;
-        faltando.push(`${nome} (pedido ${quantidade} cx, estoque ${saldo} cx)`);
-      }
-    }
-
-    if (faltando.length > 0) {
-      throw new BadRequestException(`Sem estoque suficiente: ${faltando.join('; ')}`);
-    }
+    await this.estoqueService.validarDisponibilidade(itens);
   }
 
   // Itens 6, 7 e 8 do escopo: cálculo automático de subtotal, frete, desconto e total
@@ -435,28 +413,41 @@ export class PedidosService {
       })),
     );
 
-    const saidasEstoque = pedido.itens.map((item) => ({
-      produtoId: item.produtoId,
-      tipo: TipoMovimentacao.SAIDA,
-      quantidade: -Math.abs(Number(item.quantidade)),
-      origem: `Pedido ${pedido.numero}`,
-      pedidoId: pedido.id,
-      usuarioId,
-    }));
-
     const totalCaixas = pedido.itens.reduce(
       (acc, item) => acc + Math.round(Number(item.quantidade)),
       0,
     );
 
-    const [pedidoAprovado] = await this.prisma.$transaction([
-      this.prisma.pedido.update({
+    const pedidoAprovado = await this.prisma.$transaction(async (tx) => {
+      const pedidoAtualizado = await tx.pedido.update({
         where: { id },
         data: { status: StatusPedido.APROVADO, caixasEtiquetadas: Math.max(1, totalCaixas) },
-      }),
-      ...saidasEstoque.map((s) => this.prisma.movimentacaoEstoque.create({ data: s })),
-      this.prisma.etiqueta.create({ data: { pedidoId: id } }),
-      this.prisma.logAuditoria.create({
+      });
+
+      for (const item of pedido.itens) {
+        const movimentacao = await tx.movimentacaoEstoque.create({
+          data: {
+            produtoId: item.produtoId,
+            tipo: TipoMovimentacao.SAIDA,
+            quantidade: -Math.abs(Number(item.quantidade)),
+            origem: `Pedido ${pedido.numero}`,
+            pedidoId: pedido.id,
+            usuarioId,
+          },
+        });
+
+        await this.estoqueService.consumirLotesEmTx(tx, {
+          produtoId: item.produtoId,
+          quantidade: Number(item.quantidade),
+          pedidoId: pedido.id,
+          origem: `Pedido ${pedido.numero}`,
+          usuarioId,
+          movimentacaoId: movimentacao.id,
+        });
+      }
+
+      await tx.etiqueta.create({ data: { pedidoId: id } });
+      await tx.logAuditoria.create({
         data: {
           usuarioId,
           acao: 'APROVAR_PEDIDO',
@@ -464,8 +455,10 @@ export class PedidosService {
           entidadeId: id,
           detalhes: { numeroPedido: pedido.numero, totalFinal: pedido.totalFinal },
         },
-      }),
-    ]);
+      });
+
+      return pedidoAtualizado;
+    });
 
     const etiqueta = await this.prisma.etiqueta.findUnique({ where: { pedidoId: id } });
     return { pedido: pedidoAprovado, etiqueta };

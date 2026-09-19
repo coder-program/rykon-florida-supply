@@ -15,12 +15,33 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     'groupBy',
   ]);
 
+  private readonly retryableConnectionCodes = new Set([
+    'P1001',
+    'P1017',
+    'ECONNRESET',
+    'ECONNREFUSED',
+    'ETIMEDOUT',
+  ]);
+
+  private async reconnectWithBackoff(attempt = 0) {
+    const maxRetries = Number(process.env.PRISMA_RETRY_MAX ?? 3);
+    const baseDelayMs = Number(process.env.PRISMA_RETRY_DELAY_MS ?? 500);
+
+    if (attempt >= maxRetries) return false;
+
+    await this.$disconnect().catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, baseDelayMs * (attempt + 1)));
+    await this.$connect().catch(() => undefined);
+
+    return true;
+  }
+
   constructor() {
     super();
 
     this.$use(async (params, next) => {
-      const maxRetries = Number(process.env.PRISMA_RETRY_MAX ?? 2);
-      const baseDelayMs = Number(process.env.PRISMA_RETRY_DELAY_MS ?? 300);
+      const maxRetries = Number(process.env.PRISMA_RETRY_MAX ?? 3);
+      const baseDelayMs = Number(process.env.PRISMA_RETRY_DELAY_MS ?? 500);
       const isReadQuery = this.retryableReadActions.has(params.action);
 
       let attempt = 0;
@@ -28,9 +49,17 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         try {
           return await next(params);
         } catch (error: any) {
-          const code = error?.code as string | undefined;
-          const retryableCode = code === 'P1001' || code === 'P1017';
-          const shouldRetry = isReadQuery && retryableCode && attempt < maxRetries;
+          const code = String(error?.code ?? '');
+          const message = String(error?.message ?? '');
+          const connectionClosed =
+            message.includes('Server has closed the connection') ||
+            message.includes('Connection terminated unexpectedly') ||
+            message.includes('connect ECONNRESET') ||
+            message.includes('closed the connection') ||
+            message.includes('Connection pool timeout');
+          const retryableCode =
+            this.retryableConnectionCodes.has(code) || code.startsWith('P1') || connectionClosed;
+          const shouldRetry = (isReadQuery || retryableCode) && attempt < maxRetries;
 
           if (!shouldRetry) {
             throw error;
@@ -41,14 +70,19 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
           await this.$disconnect().catch(() => undefined);
           await new Promise((resolve) => setTimeout(resolve, waitMs));
-          await this.$connect();
+          await this.$connect().catch(() => undefined);
         }
       }
     });
   }
 
   async onModuleInit() {
-    await this.$connect();
+    try {
+      await this.$connect();
+    } catch (error) {
+      await this.reconnectWithBackoff(0);
+      throw error;
+    }
   }
 
   async onModuleDestroy() {

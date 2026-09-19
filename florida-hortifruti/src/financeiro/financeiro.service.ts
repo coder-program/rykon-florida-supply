@@ -174,4 +174,80 @@ export class FinanceiroService {
     ]);
     return pedido;
   }
+
+  async gerarNotificacoesVencimento() {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    const pedidos = await this.prisma.pedido.findMany({
+      where: {
+        statusPagamento: StatusPagamento.EM_ABERTO,
+        dataVencimento: { not: null },
+      },
+      include: {
+        cliente: { select: { id: true, razaoSocialOuNome: true, email: true, whatsapp: true } },
+      },
+      orderBy: { dataVencimento: 'asc' },
+    });
+
+    const notificacoes: any[] = [];
+
+    for (const pedido of pedidos) {
+      if (!pedido.cliente || !pedido.dataVencimento) continue;
+
+      const vencimento = new Date(pedido.dataVencimento);
+      const diffDias = Math.ceil((vencimento.getTime() - hoje.getTime()) / 86400000);
+      const tipos: Array<{ tipo: string; titulo: string; mensagem: string; agendadaPara: Date }> =
+        [];
+
+      if (diffDias <= 0) {
+        tipos.push({
+          tipo: 'VENCIMENTO_HOJE',
+          titulo: 'Pedido vencido',
+          mensagem: `O pedido ${pedido.numero} de ${pedido.cliente.razaoSocialOuNome} está vencido e ainda não foi pago.`,
+          agendadaPara: vencimento,
+        });
+      }
+
+      if (diffDias === 3) {
+        tipos.push({
+          tipo: 'VENCE_EM_3_DIAS',
+          titulo: 'Pagamento próximo do vencimento',
+          mensagem: `Faltam 3 dias para o vencimento do pedido ${pedido.numero} de ${pedido.cliente.razaoSocialOuNome}.`,
+          agendadaPara: vencimento,
+        });
+      }
+
+      if (tipos.length === 0) continue;
+
+      for (const item of tipos) {
+        const existente = await this.prisma.notificacaoCliente.findFirst({
+          where: {
+            clienteId: pedido.clienteId,
+            pedidoId: pedido.id,
+            tipo: item.tipo,
+            status: { in: ['PENDENTE', 'ENVIADA'] },
+          },
+        });
+
+        if (existente) continue;
+
+        const criada = await this.prisma.notificacaoCliente.create({
+          data: {
+            clienteId: pedido.clienteId,
+            pedidoId: pedido.id,
+            tipo: item.tipo,
+            titulo: item.titulo,
+            mensagem: item.mensagem,
+            agendadaPara: item.agendadaPara,
+            status: 'PENDENTE',
+          },
+        });
+
+        notificacoes.push(criada);
+      }
+    }
+
+    return notificacoes;
+  }
 }

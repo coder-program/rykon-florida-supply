@@ -142,6 +142,7 @@ model Cliente {
   pedidos         Pedido[]
   precos          PrecoCliente[]
   historicoPrecos HistoricoPreco[]
+  notificacoes    NotificacaoCliente[]
 
   @@map("clientes")
 }
@@ -183,11 +184,13 @@ model Produto {
   ativo                      Boolean      @default(true)
   criadoEm                   DateTime     @default(now())
 
-  itensPedido     ItemPedido[]
-  movimentacoes   MovimentacaoEstoque[]
-  itensCompra     ItemCompraEstoque[]
-  historicoPrecos HistoricoPreco[]
-  precosCliente   PrecoCliente[]
+  itensPedido          ItemPedido[]
+  itensPedidoLote      ItemPedidoLote[]
+  movimentacoes        MovimentacaoEstoque[]
+  itensCompra          ItemCompraEstoque[]
+  historicoPrecos      HistoricoPreco[]
+  precosCliente        PrecoCliente[]
+  lotesProduto         LoteProduto[]
 
   @@map("produtos")
 }
@@ -283,10 +286,12 @@ model Pedido {
   caixasEtiquetadas Int @default(0)
 
   itens                 ItemPedido[]
+  itensLote             ItemPedidoLote[]
   movimentacoes         MovimentacaoEstoque[]
   etiqueta              Etiqueta?
   solicitacoesAlteracao SolicitacaoAlteracaoPedido[]
   comprovanteEntrega    ComprovanteEntrega?
+  notificacoes          NotificacaoCliente[]
 
   @@index([entregadorId, status])
   @@map("pedidos")
@@ -303,6 +308,22 @@ model ItemPedido {
   valorTotal    Decimal @db.Decimal(10, 2)
 
   @@map("itens_pedido")
+}
+
+model ItemPedidoLote {
+  id            String      @id @default(uuid())
+  pedidoId      String
+  pedido        Pedido      @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  produtoId     String
+  produto       Produto     @relation(fields: [produtoId], references: [id])
+  loteId        String
+  lote          LoteProduto @relation(fields: [loteId], references: [id])
+  quantidade    Decimal     @db.Decimal(10, 2)
+  valorUnitario Decimal     @db.Decimal(10, 2)
+  valorTotal    Decimal     @db.Decimal(10, 2)
+
+  @@index([pedidoId, produtoId])
+  @@map("itens_pedido_lote")
 }
 
 model ComprovanteEntrega {
@@ -347,25 +368,62 @@ enum TipoMovimentacao {
 }
 
 model MovimentacaoEstoque {
-  id            String           @id @default(uuid())
+  id            String                     @id @default(uuid())
   produtoId     String
-  produto       Produto          @relation(fields: [produtoId], references: [id])
+  produto       Produto                    @relation(fields: [produtoId], references: [id])
   tipo          TipoMovimentacao
-  quantidade    Decimal          @db.Decimal(10, 2)
+  quantidade    Decimal                    @db.Decimal(10, 2)
   origem        String
   pedidoId      String?
-  pedido        Pedido?          @relation(fields: [pedidoId], references: [id])
+  pedido        Pedido?                    @relation(fields: [pedidoId], references: [id])
   fornecedor    String?
-  custoTotal    Decimal?         @db.Decimal(10, 2)
-  custoUnitario Decimal?         @db.Decimal(10, 2)
+  custoTotal    Decimal?                   @db.Decimal(10, 2)
+  custoUnitario Decimal?                   @db.Decimal(10, 2)
   motivoAjuste  String?
   usuarioId     String
-  usuario       Usuario          @relation(fields: [usuarioId], references: [id])
+  usuario       Usuario                    @relation(fields: [usuarioId], references: [id])
   observacao    String?
-  data          DateTime         @default(now())
+  data          DateTime                   @default(now())
   itemCompra    ItemCompraEstoque?
+  lotes         MovimentacaoEstoqueLote[]
 
   @@map("movimentacoes_estoque")
+}
+
+model LoteProduto {
+  id                  String                 @id @default(uuid())
+  produtoId           String
+  produto             Produto                @relation(fields: [produtoId], references: [id])
+  numero              String
+  dataEntrada         DateTime               @default(now())
+  quantidadeInicial   Decimal                @db.Decimal(10, 2)
+  quantidadeDisponivel Decimal               @db.Decimal(10, 2)
+  valorUnitario       Decimal                @db.Decimal(10, 2)
+  observacao          String?
+  ativo               Boolean                @default(true)
+  criadoEm            DateTime               @default(now())
+
+  itensPedido         ItemPedidoLote[]
+  movimentacoesLote   MovimentacaoEstoqueLote[]
+
+  @@unique([produtoId, numero])
+  @@index([produtoId, ativo, dataEntrada])
+  @@map("lotes_produto")
+}
+
+model MovimentacaoEstoqueLote {
+  id            String              @id @default(uuid())
+  loteId        String
+  lote          LoteProduto         @relation(fields: [loteId], references: [id])
+  movimentacaoId String
+  movimentacao  MovimentacaoEstoque @relation(fields: [movimentacaoId], references: [id], onDelete: Cascade)
+  quantidade    Decimal             @db.Decimal(10, 2)
+  origem        String
+  data          DateTime            @default(now())
+
+  @@index([loteId, data])
+  @@index([movimentacaoId])
+  @@map("movimentacoes_estoque_lote")
 }
 
 model CompraEstoque {
@@ -444,6 +502,24 @@ model Etiqueta {
 // ==========================================
 // AUDITORIA
 // ==========================================
+
+model NotificacaoCliente {
+  id           String    @id @default(uuid())
+  clienteId    String
+  cliente      Cliente   @relation(fields: [clienteId], references: [id])
+  pedidoId     String?
+  pedido       Pedido?   @relation(fields: [pedidoId], references: [id])
+  tipo         String
+  titulo       String
+  mensagem     String
+  agendadaPara DateTime?
+  enviadaEm    DateTime?
+  status       String    @default("PENDENTE")
+  criadoEm     DateTime  @default(now())
+
+  @@index([clienteId, status, agendadaPara])
+  @@map("notificacoes_cliente")
+}
 
 model LogAuditoria {
   id         String   @id @default(uuid())
