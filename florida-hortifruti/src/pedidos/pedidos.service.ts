@@ -443,6 +443,7 @@ export class PedidosService {
           origem: `Pedido ${pedido.numero}`,
           usuarioId,
           movimentacaoId: movimentacao.id,
+          valorUnitario: Number(item.valorUnitario),
         });
       }
 

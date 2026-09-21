@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Query, UseGuards, Request } from '@nestjs/common';
 import { PapelUsuario, FormaPagamento } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { FinanceiroService } from './financeiro.service';
+import { RegistrarPagamentoDto } from './dto/financeiro.dto';
 
 @Controller('financeiro')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -38,6 +39,16 @@ export class FinanceiroController {
   @Post('marcar-pago/:pedidoId')
   marcarPago(@Param('pedidoId') pedidoId: string, @Request() req: any) {
     return this.financeiroService.marcarPago(pedidoId, req.user.id);
+  }
+
+  // Pagamento total ou parcial de um pedido a prazo - saldo devedor é recalculado automaticamente
+  @Post('pagamento/:pedidoId')
+  registrarPagamento(
+    @Param('pedidoId') pedidoId: string,
+    @Body() dto: RegistrarPagamentoDto,
+    @Request() req: any,
+  ) {
+    return this.financeiroService.registrarPagamento(pedidoId, dto, req.user.id);
   }
 
   @Post('reabrir/:pedidoId')

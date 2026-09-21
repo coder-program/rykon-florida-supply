@@ -48,6 +48,7 @@ model Usuario {
   solicitacoesEnviadas    SolicitacaoAlteracaoPedido[] @relation("SolicitanteAlteracao")
   solicitacoesRespondidas SolicitacaoAlteracaoPedido[] @relation("ResponsavelAlteracao")
   comprovantesEntrega     ComprovanteEntrega[]
+  pagamentosPedidoRegistrados PagamentoPedido[]
 
   @@map("usuarios")
 }
@@ -292,9 +293,27 @@ model Pedido {
   solicitacoesAlteracao SolicitacaoAlteracaoPedido[]
   comprovanteEntrega    ComprovanteEntrega?
   notificacoes          NotificacaoCliente[]
+  pagamentos            PagamentoPedido[]
 
   @@index([entregadorId, status])
   @@map("pedidos")
+}
+
+// Pagamentos parciais de um pedido a prazo - saldo devedor = totalFinal - soma(pagamentos)
+model PagamentoPedido {
+  id             String          @id @default(uuid())
+  pedidoId       String
+  pedido         Pedido          @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  valor          Decimal         @db.Decimal(10, 2)
+  data           DateTime        @default(now())
+  formaPagamento FormaPagamento?
+  observacao     String?
+  usuarioId      String
+  usuario        Usuario         @relation(fields: [usuarioId], references: [id])
+  criadoEm       DateTime        @default(now())
+
+  @@index([pedidoId])
+  @@map("pagamentos_pedido")
 }
 
 model ItemPedido {

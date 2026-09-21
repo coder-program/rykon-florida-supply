@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma.service';
 import { StatusPedido, StatusPagamento, FormaPagamento } from '@prisma/client';
 
@@ -19,6 +20,13 @@ export class FinanceiroService {
     return new Date(pedido.dataVencimento) < new Date();
   }
 
+  // Compra a prazo = por pedido inteiro. Saldo devedor = totalFinal - soma dos pagamentos registrados
+  private calcularSaldo(pedido: { totalFinal: any; pagamentos: { valor: any }[] }) {
+    const valorPago = pedido.pagamentos.reduce((acc, p) => acc + Number(p.valor), 0);
+    const saldoDevedor = Number((Number(pedido.totalFinal) - valorPago).toFixed(2));
+    return { valorPago: Number(valorPago.toFixed(2)), saldoDevedor: Math.max(0, saldoDevedor) };
+  }
+
   // KPIs do painel financeiro
   async resumo(dataInicio?: string, dataFim?: string) {
     const whereBase: any = {
@@ -33,53 +41,62 @@ export class FinanceiroService {
       periodoData.lte = fim;
     }
 
-    // Total recebido no período
-    const recebidos = await this.prisma.pedido.aggregate({
+    // Total recebido no período = soma dos pagamentos (totais ou parciais) registrados no período
+    const recebidos = await this.prisma.pagamentoPedido.aggregate({
       where: {
-        ...whereBase,
-        statusPagamento: StatusPagamento.PAGO,
         ...(Object.keys(periodoData).length ? { data: periodoData } : {}),
+        pedido: whereBase,
       },
-      _sum: { totalFinal: true },
+      _sum: { valor: true },
       _count: { id: true },
     });
 
-    // Em aberto (todos, independente de período)
-    const emAberto = await this.prisma.pedido.aggregate({
+    // Pedidos com pendência (EM_ABERTO), considerando saldo devedor real (após pagamentos parciais)
+    const pendentes = await this.prisma.pedido.findMany({
       where: { ...whereBase, statusPagamento: StatusPagamento.EM_ABERTO },
-      _sum: { totalFinal: true },
-      _count: { id: true },
-    });
-
-    // Vencidos: EM_ABERTO com dataVencimento < hoje
-    const vencidos = await this.prisma.pedido.aggregate({
-      where: {
-        ...whereBase,
-        statusPagamento: StatusPagamento.EM_ABERTO,
-        dataVencimento: { lt: new Date() },
+      select: {
+        totalFinal: true,
+        dataVencimento: true,
+        pagamentos: { select: { valor: true } },
       },
-      _sum: { totalFinal: true },
-      _count: { id: true },
     });
 
-    // A vencer nos próximos 7 dias
+    const hoje = new Date();
     const proximos7 = new Date();
-    proximos7.setDate(proximos7.getDate() + 7);
-    const aVencer = await this.prisma.pedido.aggregate({
-      where: {
-        ...whereBase,
-        statusPagamento: StatusPagamento.EM_ABERTO,
-        dataVencimento: { gte: new Date(), lte: proximos7 },
-      },
-      _sum: { totalFinal: true },
-      _count: { id: true },
-    });
+    proximos7.setDate(hoje.getDate() + 7);
+
+    let emAbertoTotal = 0;
+    let emAbertoQtd = 0;
+    let vencidoTotal = 0;
+    let vencidoQtd = 0;
+    let aVencerTotal = 0;
+    let aVencerQtd = 0;
+
+    for (const pedido of pendentes) {
+      const { saldoDevedor } = this.calcularSaldo(pedido);
+      if (saldoDevedor <= 0) continue; // quitado por pagamentos parciais somados
+
+      emAbertoTotal += saldoDevedor;
+      emAbertoQtd += 1;
+
+      if (pedido.dataVencimento && new Date(pedido.dataVencimento) < hoje) {
+        vencidoTotal += saldoDevedor;
+        vencidoQtd += 1;
+      } else if (
+        pedido.dataVencimento &&
+        new Date(pedido.dataVencimento) >= hoje &&
+        new Date(pedido.dataVencimento) <= proximos7
+      ) {
+        aVencerTotal += saldoDevedor;
+        aVencerQtd += 1;
+      }
+    }
 
     return {
-      recebido: { total: Number(recebidos._sum.totalFinal ?? 0), qtd: recebidos._count.id },
-      emAberto: { total: Number(emAberto._sum.totalFinal ?? 0), qtd: emAberto._count.id },
-      vencido: { total: Number(vencidos._sum.totalFinal ?? 0), qtd: vencidos._count.id },
-      aVencer7dias: { total: Number(aVencer._sum.totalFinal ?? 0), qtd: aVencer._count.id },
+      recebido: { total: Number(recebidos._sum.valor ?? 0), qtd: recebidos._count.id },
+      emAberto: { total: Number(emAbertoTotal.toFixed(2)), qtd: emAbertoQtd },
+      vencido: { total: Number(vencidoTotal.toFixed(2)), qtd: vencidoQtd },
+      aVencer7dias: { total: Number(aVencerTotal.toFixed(2)), qtd: aVencerQtd },
     };
   }
 
@@ -130,11 +147,12 @@ export class FinanceiroService {
       include: {
         cliente: { select: { razaoSocialOuNome: true, nomeFantasia: true, telefone: true } },
         vendedor: { select: { nome: true } },
+        pagamentos: { orderBy: { data: 'asc' } },
       },
       orderBy: [{ statusPagamento: 'asc' }, { dataVencimento: 'asc' }, { data: 'desc' }],
     });
 
-    // Enriquece com situação calculada
+    // Enriquece com situação calculada e saldo devedor (considera pagamentos parciais)
     return pedidos.map((p) => {
       let situacao: string = p.statusPagamento;
       if (p.statusPagamento === StatusPagamento.EM_ABERTO && p.dataVencimento) {
@@ -145,7 +163,8 @@ export class FinanceiroService {
         if (venc < hoje) situacao = 'VENCIDO';
         else if (venc <= proximos7) situacao = 'A_VENCER';
       }
-      return { ...p, situacaoCalculada: situacao };
+      const { valorPago, saldoDevedor } = this.calcularSaldo(p);
+      return { ...p, situacaoCalculada: situacao, valorPago, saldoDevedor };
     });
   }
 
@@ -162,17 +181,111 @@ export class FinanceiroService {
     return pedido;
   }
 
-  async marcarPago(pedidoId: string, usuarioId: string) {
-    const [pedido] = await this.prisma.$transaction([
-      this.prisma.pedido.update({
+  // Registra um pagamento (total ou parcial) de um pedido a prazo.
+  // O saldo devedor é sempre recalculado a partir da soma de todos os pagamentos.
+  async registrarPagamento(
+    pedidoId: string,
+    dto: { valor: number; formaPagamento?: FormaPagamento; observacao?: string },
+    usuarioId: string,
+  ) {
+    const pedido = await this.prisma.pedido.findUnique({
+      where: { id: pedidoId },
+      include: { pagamentos: true },
+    });
+    if (!pedido) throw new NotFoundException('Pedido não encontrado');
+    if (pedido.statusPagamento === StatusPagamento.PAGO) {
+      throw new BadRequestException('Este pedido já está quitado');
+    }
+
+    const valor = Number(dto.valor);
+    if (!valor || valor <= 0) {
+      throw new BadRequestException('Informe um valor de pagamento válido');
+    }
+
+    const { saldoDevedor } = this.calcularSaldo(pedido);
+    if (valor > saldoDevedor + 0.01) {
+      throw new BadRequestException(
+        `Valor informado (${valor.toFixed(2)}) é maior que o saldo devedor (${saldoDevedor.toFixed(2)})`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const pagamento = await tx.pagamentoPedido.create({
+        data: {
+          pedidoId,
+          valor,
+          formaPagamento: dto.formaPagamento,
+          observacao: dto.observacao,
+          usuarioId,
+        },
+      });
+
+      const novoSaldo = Number((saldoDevedor - valor).toFixed(2));
+      const quitado = novoSaldo <= 0.01;
+
+      const pedidoAtualizado = await tx.pedido.update({
         where: { id: pedidoId },
-        data: { statusPagamento: StatusPagamento.PAGO },
-      }),
-      this.prisma.logAuditoria.create({
-        data: { usuarioId, acao: 'MARCAR_PAGO', entidade: 'Pedido', entidadeId: pedidoId },
-      }),
-    ]);
-    return pedido;
+        data: { statusPagamento: quitado ? StatusPagamento.PAGO : StatusPagamento.EM_ABERTO },
+      });
+
+      // Pedido quitado (mesmo que por soma de pagamentos parciais): encerra notificações de cobrança ativas
+      if (quitado) {
+        await tx.notificacaoCliente.updateMany({
+          where: { pedidoId, status: { in: ['PENDENTE', 'ENVIADA'] } },
+          data: { status: 'CANCELADA' },
+        });
+      }
+
+      await tx.logAuditoria.create({
+        data: {
+          usuarioId,
+          acao: 'REGISTRAR_PAGAMENTO',
+          entidade: 'Pedido',
+          entidadeId: pedidoId,
+          detalhes: { valor, saldoRestante: Math.max(0, novoSaldo) },
+        },
+      });
+
+      return { pedido: pedidoAtualizado, pagamento, saldoDevedor: Math.max(0, novoSaldo) };
+    });
+  }
+
+  // Quitação total de uma vez: registra o saldo devedor restante como pagamento
+  async marcarPago(pedidoId: string, usuarioId: string) {
+    const pedido = await this.prisma.pedido.findUnique({
+      where: { id: pedidoId },
+      include: { pagamentos: true },
+    });
+    if (!pedido) throw new NotFoundException('Pedido não encontrado');
+    if (pedido.statusPagamento === StatusPagamento.PAGO) return pedido;
+
+    const { saldoDevedor } = this.calcularSaldo(pedido);
+    if (saldoDevedor <= 0) {
+      const [atualizado] = await this.prisma.$transaction([
+        this.prisma.pedido.update({
+          where: { id: pedidoId },
+          data: { statusPagamento: StatusPagamento.PAGO },
+        }),
+        this.prisma.logAuditoria.create({
+          data: { usuarioId, acao: 'MARCAR_PAGO', entidade: 'Pedido', entidadeId: pedidoId },
+        }),
+      ]);
+      return atualizado;
+    }
+
+    const { pedido: atualizado } = await this.registrarPagamento(
+      pedidoId,
+      { valor: saldoDevedor, formaPagamento: pedido.formaPagamento, observacao: 'Quitação total' },
+      usuarioId,
+    );
+    return atualizado;
+  }
+
+  // Roda todo dia às 8h e cobre a regra: 3 dias antes do vencimento + no dia do vencimento,
+  // sempre considerando o saldo devedor (não o valor original do pedido)
+  @Cron('0 8 * * *')
+  async executarNotificacoesDiarias() {
+    return this.gerarNotificacoesVencimento();
   }
 
   async gerarNotificacoesVencimento() {
@@ -186,14 +299,22 @@ export class FinanceiroService {
       },
       include: {
         cliente: { select: { id: true, razaoSocialOuNome: true, email: true, whatsapp: true } },
+        pagamentos: { select: { valor: true } },
       },
       orderBy: { dataVencimento: 'asc' },
     });
 
     const notificacoes: any[] = [];
+    const formatarBRL = (valor: number) =>
+      valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
     for (const pedido of pedidos) {
       if (!pedido.cliente || !pedido.dataVencimento) continue;
+
+      // Pagamento parcial já identificado: notifica apenas sobre o saldo restante
+      const { saldoDevedor } = this.calcularSaldo(pedido);
+      if (saldoDevedor <= 0) continue;
+      const saldoFormatado = formatarBRL(saldoDevedor);
 
       const vencimento = new Date(pedido.dataVencimento);
       const diffDias = Math.ceil((vencimento.getTime() - hoje.getTime()) / 86400000);
@@ -204,7 +325,7 @@ export class FinanceiroService {
         tipos.push({
           tipo: 'VENCIMENTO_HOJE',
           titulo: 'Pedido vencido',
-          mensagem: `O pedido ${pedido.numero} de ${pedido.cliente.razaoSocialOuNome} está vencido e ainda não foi pago.`,
+          mensagem: `O pedido ${pedido.numero} de ${pedido.cliente.razaoSocialOuNome} está vencido. Saldo em aberto: ${saldoFormatado}.`,
           agendadaPara: vencimento,
         });
       }
@@ -213,7 +334,7 @@ export class FinanceiroService {
         tipos.push({
           tipo: 'VENCE_EM_3_DIAS',
           titulo: 'Pagamento próximo do vencimento',
-          mensagem: `Faltam 3 dias para o vencimento do pedido ${pedido.numero} de ${pedido.cliente.razaoSocialOuNome}.`,
+          mensagem: `Faltam 3 dias para o vencimento do pedido ${pedido.numero} de ${pedido.cliente.razaoSocialOuNome}. Saldo em aberto: ${saldoFormatado}.`,
           agendadaPara: vencimento,
         });
       }

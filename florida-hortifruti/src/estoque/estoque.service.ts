@@ -220,6 +220,7 @@ export class EstoqueService {
       origem: string;
       usuarioId: string;
       movimentacaoId: string;
+      valorUnitario?: number;
     },
   ) {
     const quantidadeRestante = Number(params.quantidade || 0);
@@ -231,7 +232,12 @@ export class EstoqueService {
     });
 
     let restante = quantidadeRestante;
-    const usados: { loteId: string; quantidade: number }[] = [];
+    const usados: {
+      loteId: string;
+      quantidade: number;
+      saldoAntes: number;
+      saldoDepois: number;
+    }[] = [];
 
     for (const lote of lotes) {
       if (restante <= 0) break;
@@ -256,7 +262,25 @@ export class EstoqueService {
         },
       });
 
-      usados.push({ loteId: lote.id, quantidade: consumido });
+      // Registra o consumo por lote associado ao pedido, para rastreabilidade (qual lote saiu em qual venda)
+      const valorUnitario = Number(params.valorUnitario ?? 0);
+      await tx.itemPedidoLote.create({
+        data: {
+          pedidoId: params.pedidoId,
+          produtoId: params.produtoId,
+          loteId: lote.id,
+          quantidade: consumido,
+          valorUnitario,
+          valorTotal: Number((consumido * valorUnitario).toFixed(2)),
+        },
+      });
+
+      usados.push({
+        loteId: lote.id,
+        quantidade: consumido,
+        saldoAntes: disponivel,
+        saldoDepois: novaDisponibilidade,
+      });
     }
 
     if (restante > 0) {
@@ -266,6 +290,29 @@ export class EstoqueService {
     }
 
     return usados;
+  }
+
+  // Consulta de rastreabilidade: para um pedido, quais lotes foram usados em cada produto
+  async lotesUtilizadosNoPedido(pedidoId: string) {
+    const itens = await this.prisma.itemPedidoLote.findMany({
+      where: { pedidoId },
+      include: {
+        produto: { select: { nome: true, codigoInterno: true } },
+        lote: { select: { numero: true, dataEntrada: true } },
+      },
+      orderBy: [{ produtoId: 'asc' }, { lote: { dataEntrada: 'asc' } }],
+    });
+
+    return itens.map((item) => ({
+      produtoId: item.produtoId,
+      produtoNome: item.produto.nome,
+      codigoInterno: item.produto.codigoInterno,
+      loteId: item.loteId,
+      loteNumero: item.lote.numero,
+      quantidade: Number(item.quantidade),
+      valorUnitario: Number(item.valorUnitario),
+      valorTotal: Number(item.valorTotal),
+    }));
   }
 
   async registrarSaida(params: {

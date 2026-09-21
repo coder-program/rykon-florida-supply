@@ -65,6 +65,12 @@ export class EstoqueController {
     return this.estoqueService.listarLotesProduto(produtoId);
   }
 
+  // Rastreabilidade: quais lotes (e quantidades) foram usados em um pedido específico
+  @Get('pedido/:pedidoId/lotes')
+  lotesUtilizadosNoPedido(@Param('pedidoId') pedidoId: string) {
+    return this.estoqueService.lotesUtilizadosNoPedido(pedidoId);
+  }
+
   @Get(':produtoId/saldo')
   saldo(@Param('produtoId') produtoId: string) {
     return this.estoqueService.saldoAtual(produtoId);
