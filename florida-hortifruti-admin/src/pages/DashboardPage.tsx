@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { api } from '../lib/api'
-import { formatBRL } from '../lib/utils'
+import { formatBRL, STATUS_PEDIDO_LABEL } from '../lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -314,6 +314,8 @@ export function DashboardPage() {
     return rank(a) - rank(b) || a.nome.localeCompare(b.nome, 'pt-BR')
   })
 
+  const porStatus: Record<string, number> = data?.porStatus ?? {}
+
   const totalVendas = Number(data?.totalVendas ?? 0)
   const totalPedidos = Number(data?.totalPedidos ?? 0)
   const caixas = Number(data?.caixasVendidas ?? 0)
@@ -586,6 +588,35 @@ export function DashboardPage() {
               accent="bg-violet-100 text-violet-600"
             />
           </div>
+        </section>
+
+        <section>
+          <Card className="overflow-hidden rounded-2xl">
+            <CardHeader>
+              <CardTitle>Status dos pedidos</CardTitle>
+              <p className="mt-1 text-xs text-gray-500">
+                Quantos pedidos estão em cada etapa do fluxo · {rotuloPeriodo(periodo, datas)}
+              </p>
+            </CardHeader>
+            <CardContent className="p-5">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {Object.entries(porStatus)
+                  .filter(([status]) => status !== 'REJEITADO' && status !== 'CANCELADO')
+                  .map(([status, quantidade]) => (
+                    <Link
+                      key={status}
+                      to="/pedidos"
+                      className="rounded-xl border border-gray-200 bg-white px-3 py-3 transition-colors hover:bg-gray-50"
+                    >
+                      <p className="text-2xl font-semibold text-gray-900">{quantidade}</p>
+                      <p className="mt-1 text-xs font-medium text-gray-500">
+                        {STATUS_PEDIDO_LABEL[status] ?? status}
+                      </p>
+                    </Link>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
         </section>
 
         <section>

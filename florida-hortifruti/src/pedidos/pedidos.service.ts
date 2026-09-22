@@ -25,6 +25,7 @@ import {
   TipoMovimentacao,
 } from '@prisma/client';
 import { StorageService } from '../common/storage.service';
+import { registrarHistoricoStatus } from './historico-status.util';
 
 @Injectable()
 export class PedidosService {
@@ -80,7 +81,7 @@ export class PedidosService {
     const origem = opts.origem ?? OrigemPedido.VENDEDOR;
     const clienteId = opts.clienteId ?? dto.clienteId;
 
-    return this.prisma.pedido.create({
+    const pedido = await this.prisma.pedido.create({
       data: {
         clienteId,
         vendedorId: origem === OrigemPedido.VENDEDOR ? vendedorId : vendedorId,
@@ -108,6 +109,8 @@ export class PedidosService {
       },
       include: { itens: true },
     });
+    await registrarHistoricoStatus(this.prisma, pedido.id, StatusPedido.AGUARDANDO_APROVACAO);
+    return pedido;
   }
 
   // Seção 19 do escopo: filtros por data, cliente, vendedor, status, forma de pagamento
@@ -457,6 +460,7 @@ export class PedidosService {
           detalhes: { numeroPedido: pedido.numero, totalFinal: pedido.totalFinal },
         },
       });
+      await registrarHistoricoStatus(tx, id, StatusPedido.APROVADO);
 
       return pedidoAtualizado;
     });
@@ -532,6 +536,7 @@ export class PedidosService {
           },
         },
       });
+      await registrarHistoricoStatus(tx, id, StatusPedido.ENTREGUE);
     });
     return this.findOne(id, usuarioId, papel);
   }
@@ -562,6 +567,7 @@ export class PedidosService {
         },
       }),
     ]);
+    await registrarHistoricoStatus(this.prisma, id, StatusPedido.REJEITADO);
     return this.findOne(id);
   }
 
@@ -640,6 +646,7 @@ export class PedidosService {
           entidadeId: id,
         },
       }),
+      this.prisma.historicoStatusPedido.create({ data: { pedidoId: id, status: novoStatus } }),
     ]);
     return pedido;
   }

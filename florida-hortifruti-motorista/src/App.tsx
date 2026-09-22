@@ -7,6 +7,7 @@ import { LoginPage } from './pages/LoginPage'
 import { EntregasPage } from './pages/EntregasPage'
 import { EntregaDetalhePage } from './pages/EntregaDetalhePage'
 import { ConfirmarPage } from './pages/ConfirmarPage'
+import { ScannerPage } from './pages/ScannerPage'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 15_000 } },
@@ -42,6 +43,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <ConfirmarPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/scan"
+        element={
+          <PrivateRoute>
+            <ScannerPage />
           </PrivateRoute>
         }
       />

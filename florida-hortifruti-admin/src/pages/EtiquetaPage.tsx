@@ -44,6 +44,19 @@ function statusEtiqueta(status: string) {
   return mapa[status] ?? status
 }
 
+function formatDataEmbalagem(data?: string | null) {
+  if (!data) return null
+  return new Date(data).toLocaleDateString('pt-BR')
+}
+
+function lotesDoPedido(itens?: { lotes?: string[] }[]) {
+  const numeros = new Set<string>()
+  for (const item of itens ?? []) {
+    for (const numero of item.lotes ?? []) numeros.add(numero)
+  }
+  return Array.from(numeros)
+}
+
 export function EtiquetaPage() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
@@ -220,6 +233,20 @@ function LabelContent({ etiqueta, caixa }: { etiqueta: any; caixa: number }) {
         <p style={{ fontSize: '5.4pt', fontWeight: 700, margin: '0.8mm 0 0' }}>
           STATUS: {statusEtiqueta(String(p.status ?? ''))}
         </p>
+        {(formatDataEmbalagem(etiqueta.dataEmbalagem) ||
+          lotesDoPedido(etiqueta.itens).length > 0) && (
+          <p style={{ fontSize: '5pt', fontWeight: 600, margin: '0.4mm 0 0' }}>
+            {formatDataEmbalagem(etiqueta.dataEmbalagem) && (
+              <>EMB: {formatDataEmbalagem(etiqueta.dataEmbalagem)}</>
+            )}
+            {formatDataEmbalagem(etiqueta.dataEmbalagem) &&
+              lotesDoPedido(etiqueta.itens).length > 0 &&
+              '  ·  '}
+            {lotesDoPedido(etiqueta.itens).length > 0 && (
+              <>LOTE: {lotesDoPedido(etiqueta.itens).join(', ')}</>
+            )}
+          </p>
+        )}
 
         <div style={{ borderTop: '0.25mm dashed #000', margin: '1.1mm 0' }} />
 

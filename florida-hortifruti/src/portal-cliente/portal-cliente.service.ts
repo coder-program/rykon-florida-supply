@@ -147,6 +147,7 @@ export class PortalClienteService {
         comprovanteEntrega: {
           select: { nomeRecebedor: true, dataHora: true, fotoUrl: true },
         },
+        historicoStatus: { orderBy: { alteradoEm: 'asc' } },
       },
     });
     if (!pedido) throw new NotFoundException('Pedido não encontrado');
@@ -237,6 +238,11 @@ export class PortalClienteService {
         valorUnitario: this.exibirPreco() ? Number(i.valorUnitario) : null,
       })),
       comprovante: p.comprovanteEntrega ?? null,
+      // Timeline de acompanhamento da rota, só presente na tela de detalhe do pedido
+      historicoStatus: p.historicoStatus?.map((h: any) => ({
+        status: h.status,
+        alteradoEm: h.alteradoEm,
+      })),
     };
   }
 }

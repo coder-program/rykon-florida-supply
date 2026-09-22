@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma.service';
 import { EnderecosService } from '../enderecos/enderecos.service';
 import { StorageService } from '../common/storage.service';
 import { ConfirmarEntregaMotoristaDto } from '../pedidos/dto/pedido.dto';
+import { registrarHistoricoStatus } from '../pedidos/historico-status.util';
 
 const STATUS_LISTA: StatusPedido[] = [
   StatusPedido.APROVADO,
@@ -24,6 +25,14 @@ export class MotoristaService {
     private enderecos: EnderecosService,
     private storage: StorageService,
   ) {}
+
+  // Aceita tanto o token puro quanto a URL completa lida da câmera (ex.: .../p/<token>)
+  private extrairToken(raw: string) {
+    const valor = String(raw ?? '').trim();
+    if (!valor) return '';
+    const match = valor.match(/(?:\/abrir-pedido\/|\/p\/)?([0-9a-fA-F-]{36})$/);
+    return match?.[1] ?? valor;
+  }
 
   private async garantirPedido(id: string, motoristaId: string) {
     const pedido = await this.prisma.pedido.findUnique({
@@ -121,7 +130,22 @@ export class MotoristaService {
       where: { id },
       data: { status: StatusPedido.EM_ENTREGA },
     });
+    await registrarHistoricoStatus(this.prisma, id, StatusPedido.EM_ENTREGA);
     return this.detalhe(id, motoristaId);
+  }
+
+  // Chamado quando o motorista lê o QR Code da etiqueta pela câmera do celular (item 34.6)
+  async iniciarPorToken(tokenBruto: string, motoristaId: string) {
+    const token = this.extrairToken(tokenBruto);
+    const etiqueta = await this.prisma.etiqueta.findUnique({ where: { tokenPublico: token } });
+    if (!etiqueta) throw new NotFoundException('Etiqueta não encontrada');
+
+    const pedido = await this.garantirPedido(etiqueta.pedidoId, motoristaId);
+    // Idempotente: se já estiver em entrega/entregue, apenas retorna o estado atual sem erro
+    if (pedido.status === StatusPedido.EM_ENTREGA || pedido.status === StatusPedido.ENTREGUE) {
+      return this.detalhe(etiqueta.pedidoId, motoristaId);
+    }
+    return this.iniciar(etiqueta.pedidoId, motoristaId);
   }
 
   async confirmar(
@@ -181,6 +205,9 @@ export class MotoristaService {
           entidadeId: id,
           detalhes: { nomeRecebedor, temFoto: true },
         },
+      }),
+      this.prisma.historicoStatusPedido.create({
+        data: { pedidoId: id, status: StatusPedido.ENTREGUE },
       }),
     ]);
     return this.detalhe(id, motoristaId);

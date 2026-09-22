@@ -195,7 +195,7 @@ export class RelatoriosService {
     const devolucoesWhere: any = { acao: 'REGISTRAR_DEVOLUCAO' };
     if (data) devolucoesWhere.data = data;
 
-    const [totalVendas, totalPedidos, emAberto, vencidos, estoque, devolucoesLogs] =
+    const [totalVendas, totalPedidos, emAberto, vencidos, estoque, devolucoesLogs, porStatusRaw] =
       await Promise.all([
         this.prisma.pedido.aggregate({ where: base, _sum: { totalFinal: true } }),
         this.prisma.pedido.count({ where: base }),
@@ -209,7 +209,20 @@ export class RelatoriosService {
         }),
         this.estoqueAtual(query),
         this.prisma.logAuditoria.findMany({ where: devolucoesWhere, select: { detalhes: true } }),
+        // Quantidade de pedidos em cada etapa do fluxo (aguardando aprovação, em separação, a caminho etc.)
+        this.prisma.pedido.groupBy({
+          by: ['status'],
+          where: data ? { data } : undefined,
+          _count: { id: true },
+        }),
       ]);
+
+    const porStatus = Object.fromEntries(
+      Object.values(StatusPedido).map((status) => [status, 0]),
+    ) as Record<StatusPedido, number>;
+    for (const item of porStatusRaw) {
+      porStatus[item.status] = item._count.id;
+    }
 
     const devolucoes = {
       total: devolucoesLogs.length,
@@ -260,6 +273,7 @@ export class RelatoriosService {
       valoresVencidos: vencidos._sum.totalFinal ?? 0,
       estoque,
       devolucoes,
+      porStatus,
     };
   }
 

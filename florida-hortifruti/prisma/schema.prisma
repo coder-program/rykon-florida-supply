@@ -294,9 +294,22 @@ model Pedido {
   comprovanteEntrega    ComprovanteEntrega?
   notificacoes          NotificacaoCliente[]
   pagamentos            PagamentoPedido[]
+  historicoStatus       HistoricoStatusPedido[]
 
   @@index([entregadorId, status])
   @@map("pedidos")
+}
+
+// Timeline de status do pedido, usada no acompanhamento de rota do portal do cliente
+model HistoricoStatusPedido {
+  id         String       @id @default(uuid())
+  pedidoId   String
+  pedido     Pedido       @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  status     StatusPedido
+  alteradoEm DateTime     @default(now())
+
+  @@index([pedidoId, alteradoEm])
+  @@map("historico_status_pedido")
 }
 
 // Pagamentos parciais de um pedido a prazo - saldo devedor = totalFinal - soma(pagamentos)
@@ -507,13 +520,14 @@ model SolicitacaoAlteracaoPedido {
 }
 
 model Etiqueta {
-  id             String   @id @default(uuid())
-  pedidoId       String   @unique
-  pedido         Pedido   @relation(fields: [pedidoId], references: [id])
-  tokenPublico   String   @unique @default(uuid())
-  ocultarValores Boolean  @default(true)
-  geradaEm       DateTime @default(now())
-  reimpressoes   Int      @default(0)
+  id             String    @id @default(uuid())
+  pedidoId       String    @unique
+  pedido         Pedido    @relation(fields: [pedidoId], references: [id])
+  tokenPublico   String    @unique @default(uuid())
+  ocultarValores Boolean   @default(true)
+  geradaEm       DateTime  @default(now())
+  reimpressoes   Int       @default(0)
+  dataEmbalagem  DateTime?
 
   @@map("etiquetas")
 }

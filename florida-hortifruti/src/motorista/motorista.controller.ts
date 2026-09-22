@@ -15,7 +15,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { MotoristaService } from './motorista.service';
-import { ConfirmarEntregaMotoristaDto } from '../pedidos/dto/pedido.dto';
+import { ConfirmarEntregaMotoristaDto, ScanEtiquetaDto } from '../pedidos/dto/pedido.dto';
 
 @Controller('motorista/entregas')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -26,6 +26,12 @@ export class MotoristaController {
   @Get()
   listar(@Request() req: any) {
     return this.motoristaService.listar(req.user.id);
+  }
+
+  // Leitura do QR Code da etiqueta pela câmera do celular -> avança para "a caminho" (EM_ENTREGA)
+  @Post('scan')
+  scan(@Body() dto: ScanEtiquetaDto, @Request() req: any) {
+    return this.motoristaService.iniciarPorToken(dto.token, req.user.id);
   }
 
   @Get(':id')

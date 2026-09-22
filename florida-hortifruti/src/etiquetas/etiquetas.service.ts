@@ -3,6 +3,7 @@ import { StatusPedido } from '@prisma/client';
 import * as QRCode from 'qrcode';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma.service';
+import { registrarHistoricoStatus } from '../pedidos/historico-status.util';
 
 @Injectable()
 export class EtiquetasService {
@@ -40,6 +41,7 @@ export class EtiquetasService {
         where: { id: pedidoId },
         data: { status: StatusPedido.EM_SEPARACAO },
       });
+      await registrarHistoricoStatus(this.prisma, pedidoId, StatusPedido.EM_SEPARACAO);
     }
 
     return etiqueta;
@@ -47,7 +49,7 @@ export class EtiquetasService {
 
   // Retorna dados completos da etiqueta para exibição/impressão (item 34.1)
   async buscarCompleto(etiquetaId: string) {
-    const etiqueta = await this.prisma.etiqueta.findUnique({
+    let etiqueta = await this.prisma.etiqueta.findUnique({
       where: { id: etiquetaId },
       include: {
         pedido: {
@@ -60,6 +62,24 @@ export class EtiquetasService {
       },
     });
     if (!etiqueta) throw new NotFoundException('Etiqueta não encontrada');
+
+    // A data de embalagem é fixada na primeira vez que a etiqueta é aberta para impressão
+    if (!etiqueta.dataEmbalagem) {
+      const atualizada = await this.prisma.etiqueta.update({
+        where: { id: etiquetaId },
+        data: { dataEmbalagem: new Date() },
+        include: {
+          pedido: {
+            include: {
+              cliente: true,
+              vendedor: true,
+              itens: { include: { produto: true } },
+            },
+          },
+        },
+      });
+      etiqueta = atualizada;
+    }
 
     const urlPublica = this.urlDoQr(etiqueta.tokenPublico);
     const qrCodeDataUrl = await QRCode.toDataURL(urlPublica, { width: 220, margin: 1 });
@@ -78,10 +98,24 @@ export class EtiquetasService {
       orderBy: [{ principal: 'desc' }, { criadoEm: 'asc' }],
     });
     const enderecoPrincipal = enderecos.find((endereco) => endereco.principal) ?? enderecos[0];
+
+    // Lotes usados no pedido, agrupados por produto (um produto pode ter vindo de mais de um lote)
+    const itensLote = await this.prisma.itemPedidoLote.findMany({
+      where: { pedidoId: pedido.id },
+      include: { lote: { select: { numero: true } } },
+    });
+    const lotesPorProduto = new Map<string, string[]>();
+    for (const item of itensLote) {
+      const numeros = lotesPorProduto.get(item.produtoId) ?? [];
+      if (!numeros.includes(item.lote.numero)) numeros.push(item.lote.numero);
+      lotesPorProduto.set(item.produtoId, numeros);
+    }
+
     return {
       id: etiqueta.id,
       tokenPublico: etiqueta.tokenPublico,
       geradaEm: etiqueta.geradaEm,
+      dataEmbalagem: etiqueta.dataEmbalagem,
       reimpressoes: etiqueta.reimpressoes,
       urlPublica,
       qrCodeDataUrl,
@@ -113,12 +147,13 @@ export class EtiquetasService {
         telefone: pedido.cliente.telefone,
       },
       totalCaixas,
-      // Produtos (item 34.1)
+      // Produtos (item 34.1) — lote fica em branco quando o produto não tem controle de lote
       itens: pedido.itens.map((i) => ({
         codigo: i.produto.codigoInterno,
         nome: i.produto.nome,
         quantidade: Number(i.quantidade),
         unidade: i.produto.unidadeVenda,
+        lotes: lotesPorProduto.get(i.produtoId) ?? [],
       })),
     };
   }

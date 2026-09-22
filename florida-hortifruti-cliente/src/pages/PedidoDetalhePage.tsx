@@ -1,9 +1,40 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, CalendarDays, Minus, Package2, Plus, Save, Search, Wallet } from 'lucide-react'
+import {
+  ArrowLeft,
+  CalendarDays,
+  CheckCircle2,
+  Circle,
+  Minus,
+  Package2,
+  Plus,
+  Save,
+  Search,
+  Truck,
+  Wallet,
+} from 'lucide-react'
 import { api } from '../lib/api'
 import { formatBRL, formatDate, STATUS_COLOR, STATUS_LABEL } from '../lib/utils'
+
+// Ordem esperada do fluxo logístico, usada para montar a timeline de acompanhamento
+const ETAPAS_ROTA = [
+  'AGUARDANDO_APROVACAO',
+  'APROVADO',
+  'EM_SEPARACAO',
+  'PRONTO_PARA_ENTREGA',
+  'EM_ENTREGA',
+  'ENTREGUE',
+] as const
+
+function formatDataHora(data: string | Date) {
+  return new Date(data).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
 type ItemEdit = {
   produtoId: string
@@ -173,6 +204,51 @@ export function PedidoDetalhePage() {
           </p>
         )}
       </section>
+
+      {p.status !== 'REJEITADO' && p.status !== 'CANCELADO' && (
+        <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Truck className="h-4 w-4 text-emerald-700" />
+            <p className="text-sm font-semibold text-gray-900">Acompanhamento da rota</p>
+          </div>
+          <ol className="mt-4 space-y-4">
+            {ETAPAS_ROTA.map((etapa, index) => {
+              const registro = (p.historicoStatus ?? []).find((h: any) => h.status === etapa)
+              const indiceAtual = ETAPAS_ROTA.indexOf(p.status)
+              const concluida = registro != null || index <= indiceAtual
+              const ultima = index === ETAPAS_ROTA.length - 1
+              return (
+                <li key={etapa} className="relative flex gap-3 pl-1">
+                  {!ultima && (
+                    <span
+                      className={`absolute left-2.25 top-5 h-full w-0.5 ${
+                        concluida ? 'bg-emerald-300' : 'bg-gray-200'
+                      }`}
+                    />
+                  )}
+                  {concluida ? (
+                    <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+                  ) : (
+                    <Circle className="h-5 w-5 shrink-0 text-gray-300" />
+                  )}
+                  <div className="min-w-0 pb-1">
+                    <p
+                      className={`text-sm font-semibold ${concluida ? 'text-gray-900' : 'text-gray-400'}`}
+                    >
+                      {STATUS_LABEL[etapa] ?? etapa}
+                    </p>
+                    {registro && (
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        {formatDataHora(registro.alteradoEm)}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+        </section>
+      )}
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">

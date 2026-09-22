@@ -237,6 +237,11 @@ export class ConfirmarEntregaMotoristaDto {
   fotoEntrega?: string;
 }
 
+export class ScanEtiquetaDto {
+  @IsString()
+  token: string;
+}
+
 export class CriarPedidoPortalDto {
   @IsArray()
   @ValidateNested({ each: true })
