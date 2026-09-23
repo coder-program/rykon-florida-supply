@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ClipboardList, MapPin, TimerReset, Truck } from 'lucide-react'
+import { ArrowRight, ClipboardList, MapPin, QrCode, TimerReset, Truck } from 'lucide-react'
 import { api } from '../lib/api'
 import { STATUS_LABEL, textoEndereco } from '../lib/utils'
 import { useAuth } from '../contexts/useAuth'
@@ -66,6 +66,13 @@ export function EntregasPage() {
             <p className="mt-1 text-lg font-semibold">{resumo.rota}</p>
           </div>
         </div>
+
+        <Link
+          to="/scan"
+          className="mt-4 flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-white/15 text-sm font-semibold text-white backdrop-blur-sm"
+        >
+          <QrCode className="h-4 w-4" /> Escanear pedido
+        </Link>
       </section>
 
       {isLoading && <p className="py-6 text-center text-sm text-gray-500">Carregando...</p>}
