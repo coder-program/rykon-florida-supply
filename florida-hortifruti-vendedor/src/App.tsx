@@ -9,6 +9,8 @@ import { NovoPedidoPage } from './pages/NovoPedidoPage'
 import { DetalhePedidoPage } from './pages/DetalhePedidoPage'
 import { AbrirPedidoPage } from './pages/AbrirPedidoPage'
 import { DevolucoesPage } from './pages/DevolucoesPage'
+import { ROUTER_BASENAME } from './lib/session'
+import { PageTransition } from './components/PageTransition'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -21,43 +23,45 @@ function PrivateRoute({ children }: { children: ReactNode }) {
 
 function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/abrir-pedido/:token" element={<AbrirPedidoPage />} />
-      <Route
-        path="/"
-        element={
-          <PrivateRoute>
-            <HomePage />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/pedido/novo"
-        element={
-          <PrivateRoute>
-            <NovoPedidoPage />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/pedido/:id"
-        element={
-          <PrivateRoute>
-            <DetalhePedidoPage />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/devolucoes"
-        element={
-          <PrivateRoute>
-            <DevolucoesPage />
-          </PrivateRoute>
-        }
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <PageTransition>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/abrir-pedido/:token" element={<AbrirPedidoPage />} />
+        <Route
+          path="/"
+          element={
+            <PrivateRoute>
+              <HomePage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/pedido/novo"
+          element={
+            <PrivateRoute>
+              <NovoPedidoPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/pedido/:id"
+          element={
+            <PrivateRoute>
+              <DetalhePedidoPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/devolucoes"
+          element={
+            <PrivateRoute>
+              <DevolucoesPage />
+            </PrivateRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </PageTransition>
   )
 }
 
@@ -65,7 +69,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={ROUTER_BASENAME}>
           <AppRoutes />
         </BrowserRouter>
       </AuthProvider>

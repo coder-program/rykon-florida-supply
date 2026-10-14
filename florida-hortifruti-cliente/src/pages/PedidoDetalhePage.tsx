@@ -134,7 +134,7 @@ export function PedidoDetalhePage() {
   }
 
   if (isLoading || !p) {
-    return <p className="px-4 py-10 text-center text-sm text-gray-500">Carregando...</p>
+    return <p className="brand-loading px-4 py-10 text-center text-sm text-gray-500">Carregando...</p>
   }
 
   return (

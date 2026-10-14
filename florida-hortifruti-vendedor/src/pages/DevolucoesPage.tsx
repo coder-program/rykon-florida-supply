@@ -445,7 +445,7 @@ export function DevolucoesPage() {
 
       <div className="mt-5">
         <h2 className="mb-2 text-sm font-semibold text-gray-600">MINHAS DEVOLUÇÕES</h2>
-        {isLoading && <p className="text-sm text-gray-500">Carregando...</p>}
+        {isLoading && <p className="brand-loading text-sm text-gray-500">Carregando...</p>}
         {!isLoading && (devolucoes as any[]).length === 0 && (
           <p className="rounded-xl border bg-white px-4 py-6 text-center text-sm text-gray-500">
             Nenhuma devolução registrada.

@@ -10,7 +10,6 @@ import {
   BarChart3,
   UserCog,
   LogOut,
-  Leaf,
   Banknote,
   ClipboardList,
   RotateCcw,
@@ -19,6 +18,7 @@ import {
 import { useAuth } from '../../contexts/useAuth'
 import { cn } from '../../lib/utils'
 import { api } from '../../lib/api'
+import logo from '../../assets/logo.png'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -93,25 +93,27 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       />
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-green-700 text-white transition-transform duration-200',
+          'fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-forest-900 text-white transition-transform duration-200',
           'md:static md:z-auto md:w-60 md:max-w-none md:min-h-screen md:shrink-0 md:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex items-start justify-between border-b border-green-600 px-5 py-5">
-          <div>
-            <div className="mb-1 flex items-center gap-2">
-              <Leaf className="h-5 w-5 text-green-300" />
-              <span className="text-sm font-bold uppercase tracking-wide text-green-100">
-                Flórida Hortifruti
-              </span>
+        <div className="flex items-start justify-between border-b border-white/10 px-5 py-5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cream p-1.5 shadow-[0_6px_20px_-8px_rgba(0,0,0,0.6)]">
+              <img src={logo} alt="" className="h-full w-auto" />
+            </span>
+            <div className="leading-none">
+              <p className="text-[15px] font-bold text-white">Florida Supply</p>
+              <p className="mt-1.5 whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.16em] text-ember">
+                Painel administrativo
+              </p>
             </div>
-            <p className="text-xs text-green-300">Painel Administrativo</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="mt-0.5 rounded-lg p-2 text-green-100 hover:bg-green-600 md:hidden"
+            className="mt-0.5 rounded-lg p-2 text-green-100 hover:bg-white/10 md:hidden"
             aria-label="Fechar menu"
           >
             <X className="h-5 w-5" />
@@ -129,7 +131,9 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                 className={({ isActive }) =>
                   cn(
                     'flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                    isActive ? 'bg-green-600 text-white' : 'text-green-100 hover:bg-green-600/60',
+                    isActive
+                      ? 'bg-white/10 text-white shadow-[inset_3px_0_0_#e25a16]'
+                      : 'text-green-100/80 hover:bg-white/5 hover:text-white',
                   )
                 }
               >
@@ -138,7 +142,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                   {label}
                   {to === '/pedidos' && pedidosNovos > 0 && (
                     <span
-                      className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
+                      className="inline-flex min-w-5 items-center justify-center rounded-full bg-ember px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
                       aria-label={`${pedidosNovos} pedidos novos aguardando aprovação`}
                       title={`${pedidosNovos} pedidos novos aguardando aprovação`}
                     >
@@ -150,7 +154,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             ))}
         </nav>
 
-        <div className="border-t border-green-600 px-4 py-4">
+        <div className="border-t border-white/10 px-4 py-4">
           <p className="mb-1 truncate text-xs text-green-300">{usuario?.nome}</p>
           <p className="mb-3 truncate text-xs text-green-400">{usuario?.papel}</p>
           <button

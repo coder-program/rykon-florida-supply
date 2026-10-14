@@ -1,0 +1,289 @@
+/*
+ * Identidade visual Florida Supply (mesma do site).
+ * As cores do Tailwind usadas nas telas são redefinidas para a paleta da marca:
+ *   green / emerald / sky -> verde floresta  (#103B2E)
+ *   lime                  -> laranja ember   (#E25A16)
+ *   cyan                  -> oliva           (#A2A337)
+ *   gray                  -> neutro creme
+ * Os componentes não mudam; só o tom das cores.
+ */
+@theme {
+  --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+
+  --color-green-50: #eef5f0;
+  --color-green-100: #d7e9de;
+  --color-green-200: #b0d3bf;
+  --color-green-300: #82b79b;
+  --color-green-400: #559877;
+  --color-green-500: #2f7a5a;
+  --color-green-600: #1a5c45;
+  --color-green-700: #103b2e;
+  --color-green-800: #0b2a1e;
+  --color-green-900: #082219;
+  --color-green-950: #04140e;
+
+  --color-emerald-50: #eef5f0;
+  --color-emerald-100: #d7e9de;
+  --color-emerald-200: #b0d3bf;
+  --color-emerald-300: #82b79b;
+  --color-emerald-400: #559877;
+  --color-emerald-500: #2f7a5a;
+  --color-emerald-600: #1a5c45;
+  --color-emerald-700: #103b2e;
+  --color-emerald-800: #0b2a1e;
+  --color-emerald-900: #082219;
+  --color-emerald-950: #04140e;
+
+  --color-sky-50: #eef5f0;
+  --color-sky-100: #d7e9de;
+  --color-sky-200: #b0d3bf;
+  --color-sky-300: #82b79b;
+  --color-sky-400: #559877;
+  --color-sky-500: #2f7a5a;
+  --color-sky-600: #1a5c45;
+  --color-sky-700: #103b2e;
+  --color-sky-800: #0b2a1e;
+  --color-sky-900: #082219;
+  --color-sky-950: #04140e;
+
+  --color-lime-50: #fef4ee;
+  --color-lime-100: #fde5d6;
+  --color-lime-200: #fac7ab;
+  --color-lime-300: #f6a175;
+  --color-lime-400: #f0773f;
+  --color-lime-500: #e25a16;
+  --color-lime-600: #c94c0f;
+  --color-lime-700: #a53c10;
+  --color-lime-800: #843215;
+  --color-lime-900: #6b2b14;
+  --color-lime-950: #3a1308;
+
+  --color-cyan-50: #f7f8e8;
+  --color-cyan-100: #eef0cc;
+  --color-cyan-200: #dfe29f;
+  --color-cyan-300: #cbcf6b;
+  --color-cyan-400: #b4b844;
+  --color-cyan-500: #a2a337;
+  --color-cyan-600: #7a8326;
+  --color-cyan-700: #5f6620;
+  --color-cyan-800: #4c511d;
+  --color-cyan-900: #40441c;
+  --color-cyan-950: #22250b;
+
+  --color-gray-50: #faf7f2;
+  --color-gray-100: #f3eee6;
+  --color-gray-200: #e8e1d6;
+  --color-gray-300: #d6cdbf;
+  --color-gray-400: #a69e91;
+  --color-gray-500: #7b7468;
+  --color-gray-600: #5d574e;
+  --color-gray-700: #453f38;
+  --color-gray-800: #2a2a24;
+  --color-gray-900: #14231c;
+  --color-gray-950: #0a1510;
+
+  /* Cores da marca para usar direto */
+  --color-forest-950: #071c14;
+  --color-forest-900: #0b2a1e;
+  --color-forest-800: #103b2e;
+  --color-forest-700: #17503e;
+  --color-ember: #e25a16;
+  --color-ember-600: #c94c0f;
+  --color-cream: #f2e6d2;
+  --color-cream-50: #fbf6ee;
+}
+
+::selection {
+  background: #e25a16;
+  color: #fff;
+}
+
+/* Fundo das telas de login e cabeçalhos (verde floresta, como no site) */
+.brand-login {
+  background-color: #0b2a1e;
+}
+
+/* ------------------------------------------------------------------
+ * Efeitos (só CSS). Ficam na camada "components", então qualquer
+ * classe do Tailwind no próprio elemento continua tendo prioridade.
+ * ------------------------------------------------------------------ */
+@keyframes brand-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes brand-rise {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+}
+@keyframes brand-pop {
+  from {
+    opacity: 0;
+    scale: 0.94;
+    translate: 0 10px;
+  }
+}
+@keyframes brand-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(6%, -4%) scale(1.08);
+  }
+}
+@keyframes brand-shine {
+  from {
+    translate: -120% 0;
+  }
+  to {
+    translate: 120% 0;
+  }
+}
+@keyframes brand-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes brand-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@layer components {
+  /* Fundo com brilho que se move devagar */
+  .brand-login {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+  .brand-login::before {
+    content: '';
+    position: absolute;
+    inset: -20%;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(35% 35% at 20% 35%, rgba(226, 90, 22, 0.32), transparent 70%),
+      radial-gradient(30% 30% at 85% 15%, rgba(162, 163, 55, 0.25), transparent 70%);
+    animation: brand-drift 14s ease-in-out infinite;
+  }
+
+  /* Entrada dos elementos do login */
+  .brand-rise {
+    animation: brand-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .brand-pop {
+    animation: brand-pop 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+  }
+
+  /* Troca de tela: só opacidade (não mexe em elementos fixos) */
+  .brand-page {
+    animation: brand-fade 0.35s ease-out both;
+  }
+
+  /* Listas, tabelas e grades aparecem em sequência */
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > * {
+    animation: brand-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(2) {
+    animation-delay: 40ms;
+  }
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(3) {
+    animation-delay: 80ms;
+  }
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(4) {
+    animation-delay: 120ms;
+  }
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(5) {
+    animation-delay: 160ms;
+  }
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(6) {
+    animation-delay: 200ms;
+  }
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(7) {
+    animation-delay: 240ms;
+  }
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(n + 8) {
+    animation-delay: 280ms;
+  }
+
+  /* Cartões clicáveis sobem um pouco no hover */
+  .brand-page :is(a, button):is([class*='rounded-2xl'], [class*='rounded-3xl']):not(:disabled) {
+    transition:
+      translate 0.25s ease,
+      box-shadow 0.25s ease,
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+  @media (hover: hover) {
+    .brand-page
+      :is(a, button):is([class*='rounded-2xl'], [class*='rounded-3xl']):not(:disabled):hover {
+      translate: 0 -2px;
+      box-shadow: 0 14px 30px -18px rgba(11, 42, 30, 0.45);
+    }
+  }
+
+  /* Toque: botão "afunda" levemente */
+  button:not(:disabled):active {
+    scale: 0.98;
+  }
+
+  /* Brilho que atravessa os botões principais */
+  :is(button, a):is([class*='bg-ember'], [class*='bg-green-600']):not(:disabled) {
+    position: relative;
+    overflow: hidden;
+  }
+  :is(button, a):is([class*='bg-ember'], [class*='bg-green-600']):not(:disabled)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.28) 50%,
+      transparent 70%
+    );
+    translate: -120% 0;
+  }
+  @media (hover: hover) {
+    :is(button, a):is([class*='bg-ember'], [class*='bg-green-600']):not(:disabled):hover::after {
+      animation: brand-shine 0.8s ease;
+    }
+  }
+
+  /* "Carregando..." com indicador animado */
+  .brand-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    animation: brand-pulse 1.4s ease-in-out infinite;
+  }
+  .brand-loading::before {
+    content: '';
+    width: 1rem;
+    height: 1rem;
+    flex: none;
+    border-radius: 999px;
+    border: 2px solid #d7e9de;
+    border-top-color: #e25a16;
+    animation: brand-spin 0.7s linear infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

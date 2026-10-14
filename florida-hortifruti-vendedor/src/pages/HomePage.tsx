@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import { useAuth } from '../contexts/useAuth'
 import { formatBRL, formatDate, statusPedidoVisivel } from '../lib/utils'
 import { carregarRascunho } from '../lib/draft'
+import logo from '../assets/logo.png'
 
 function garantirLista<T>(valor: unknown): T[] {
   if (Array.isArray(valor)) return valor as T[]
@@ -47,18 +48,23 @@ export function HomePage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-lg mx-auto">
       {/* Header */}
-      <div className="bg-green-600 px-4 pt-10 pb-6">
+      <div className="brand-login px-4 pt-10 pb-8">
         <div className="flex items-center justify-between mb-1">
-          <div>
-            <p className="text-green-200 text-xs">Olá,</p>
-            <h1 className="text-white font-bold text-lg leading-tight">{usuario?.nome}</h1>
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cream p-1.5 shadow-lg">
+              <img src={logo} alt="" className="h-full w-auto" />
+            </span>
+            <div>
+              <p className="text-green-200 text-xs">Olá,</p>
+              <h1 className="text-white font-bold text-lg leading-tight">{usuario?.nome}</h1>
+            </div>
           </div>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => refetch({ cancelRefetch: false })}
               disabled={isFetching}
-              className="w-9 h-9 cursor-pointer bg-green-500 rounded-full flex items-center justify-center text-white disabled:cursor-not-allowed disabled:opacity-70"
+              className="w-9 h-9 cursor-pointer bg-white/10 rounded-full flex items-center justify-center text-white disabled:cursor-not-allowed disabled:opacity-70"
               title="Recarregar pedidos"
               aria-label="Recarregar pedidos"
             >
@@ -67,7 +73,7 @@ export function HomePage() {
             <button
               type="button"
               onClick={logout}
-              className="w-9 h-9 cursor-pointer bg-green-500 rounded-full flex items-center justify-center text-white"
+              className="w-9 h-9 cursor-pointer bg-white/10 rounded-full flex items-center justify-center text-white"
               title="Sair"
               aria-label="Sair"
             >
@@ -79,13 +85,13 @@ export function HomePage() {
       </div>
 
       {/* Botão novo pedido */}
-      <div className="px-4 -mt-5">
+      <div className="relative z-10 px-4 -mt-5">
         <button
           type="button"
           onClick={() => navigate('/pedido/novo')}
-          className="w-full cursor-pointer bg-white shadow-lg rounded-2xl px-5 py-4 flex items-center gap-4 border-2 border-green-500 active:scale-95 transition"
+          className="w-full cursor-pointer bg-white shadow-lg rounded-2xl px-5 py-4 flex items-center gap-4 border-2 border-ember active:scale-95 transition"
         >
-          <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center shrink-0">
+          <div className="w-12 h-12 bg-ember rounded-xl flex items-center justify-center shrink-0">
             <Plus className="w-6 h-6 text-white" />
           </div>
           <div className="text-left">

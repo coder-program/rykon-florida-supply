@@ -285,7 +285,9 @@ export function FinanceiroPage() {
         </div>
 
         <div className="space-y-3 md:hidden">
-          {loadingContas && <p className="py-8 text-center text-sm text-gray-400">Carregando...</p>}
+          {loadingContas && (
+            <p className="brand-loading py-8 text-center text-sm text-gray-400">Carregando...</p>
+          )}
           {!loadingContas && contas.length === 0 && (
             <p className="py-8 text-center text-sm text-gray-400">Nenhuma conta encontrada</p>
           )}

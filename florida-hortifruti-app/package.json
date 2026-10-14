@@ -1,0 +1,11 @@
+{
+  "name": "florida-hortifruti-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Publica os 4 sistemas em app.floridahortifruti.com.br/<perfil>",
+  "scripts": {
+    "build": "node build.mjs",
+    "preview": "node preview.mjs"
+  }
+}

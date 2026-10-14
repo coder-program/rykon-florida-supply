@@ -855,7 +855,7 @@ export function RelatoriosPage() {
 
         {aba === 'financeiro' &&
           (loadFinanceiro ? (
-            <p className="py-8 text-center text-sm text-gray-400">Carregando...</p>
+            <p className="brand-loading py-8 text-center text-sm text-gray-400">Carregando...</p>
           ) : financeiro ? (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {[

@@ -8,6 +8,8 @@ import { EntregasPage } from './pages/EntregasPage'
 import { EntregaDetalhePage } from './pages/EntregaDetalhePage'
 import { ConfirmarPage } from './pages/ConfirmarPage'
 import { ScannerPage } from './pages/ScannerPage'
+import { ROUTER_BASENAME } from './lib/session'
+import { PageTransition } from './components/PageTransition'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 15_000 } },
@@ -20,42 +22,44 @@ function PrivateRoute({ children }: { children: ReactNode }) {
 
 function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route
-        path="/"
-        element={
-          <PrivateRoute>
-            <EntregasPage />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/entrega/:id"
-        element={
-          <PrivateRoute>
-            <EntregaDetalhePage />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/entrega/:id/confirmar"
-        element={
-          <PrivateRoute>
-            <ConfirmarPage />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/scan"
-        element={
-          <PrivateRoute>
-            <ScannerPage />
-          </PrivateRoute>
-        }
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <PageTransition>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/"
+          element={
+            <PrivateRoute>
+              <EntregasPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/entrega/:id"
+          element={
+            <PrivateRoute>
+              <EntregaDetalhePage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/entrega/:id/confirmar"
+          element={
+            <PrivateRoute>
+              <ConfirmarPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/scan"
+          element={
+            <PrivateRoute>
+              <ScannerPage />
+            </PrivateRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </PageTransition>
   )
 }
 
@@ -63,7 +67,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={ROUTER_BASENAME}>
           <AppRoutes />
         </BrowserRouter>
       </AuthProvider>

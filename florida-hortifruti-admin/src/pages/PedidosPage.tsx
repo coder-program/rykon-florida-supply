@@ -333,7 +333,9 @@ export function PedidosPage() {
         </div>
 
         <div className="space-y-3 md:hidden">
-          {isLoading && <p className="py-8 text-center text-sm text-gray-400">Carregando...</p>}
+          {isLoading && (
+            <p className="brand-loading py-8 text-center text-sm text-gray-400">Carregando...</p>
+          )}
           {!isLoading && pedidosFiltrados.length === 0 && (
             <p className="py-8 text-center text-sm text-gray-400">Nenhum pedido encontrado</p>
           )}

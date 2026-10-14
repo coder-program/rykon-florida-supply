@@ -16,6 +16,7 @@ import { EtiquetaPage } from './pages/EtiquetaPage'
 import { FinanceiroPage } from './pages/FinanceiroPage'
 import { SolicitacoesAlteracaoPage } from './pages/SolicitacoesAlteracaoPage'
 import { DevolucoesPage } from './pages/DevolucoesPage'
+import { ROUTER_BASENAME } from './lib/session'
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } })
 
@@ -29,7 +30,7 @@ export default function App() {
   return (
     <QueryClientProvider client={qc}>
       <AuthProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={ROUTER_BASENAME}>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route element={<AppLayout />}>

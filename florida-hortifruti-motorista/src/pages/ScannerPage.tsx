@@ -65,7 +65,7 @@ export function ScannerPage() {
         <ArrowLeft className="h-4 w-4" /> Entregas
       </Link>
 
-      <section className="overflow-hidden rounded-3xl bg-linear-to-br from-sky-700 via-cyan-600 to-emerald-400 p-5 text-white shadow-lg">
+      <section className="overflow-hidden rounded-3xl brand-login p-5 text-white shadow-lg">
         <div className="flex items-center gap-2">
           <QrCode className="h-5 w-5" />
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/75">

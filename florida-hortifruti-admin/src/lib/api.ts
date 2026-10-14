@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { TOKEN_KEY, USUARIO_KEY, appUrl } from './session'
 
 // Em dev usa o proxy Vite (/api). Em produção usa a URL do Render via env.
 const baseURL = import.meta.env.VITE_API_URL ?? '/api'
@@ -22,7 +23,7 @@ export function resolveAssetUrl(path: string | null | undefined) {
 }
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
+  const token = localStorage.getItem(TOKEN_KEY)
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
@@ -32,9 +33,9 @@ api.interceptors.response.use(
   (err) => {
     const isLogin = err.config?.url?.includes('/auth/login')
     if (err.response?.status === 401 && !isLogin) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('usuario')
-      window.location.href = '/login'
+      localStorage.removeItem(TOKEN_KEY)
+      localStorage.removeItem(USUARIO_KEY)
+      window.location.href = appUrl('/login')
     }
     return Promise.reject(err)
   },

@@ -5,6 +5,7 @@ import { ArrowRight, ClipboardList, MapPin, QrCode, TimerReset, Truck } from 'lu
 import { api } from '../lib/api'
 import { STATUS_LABEL, textoEndereco } from '../lib/utils'
 import { useAuth } from '../contexts/useAuth'
+import logo from '../assets/logo.png'
 
 export function EntregasPage() {
   const { logout, usuario } = useAuth()
@@ -34,9 +35,12 @@ export function EntregasPage() {
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg px-4 py-4">
-      <section className="overflow-hidden rounded-3xl bg-linear-to-br from-sky-700 via-cyan-600 to-emerald-400 p-5 text-white shadow-lg">
+      <section className="overflow-hidden rounded-3xl brand-login p-5 text-white shadow-lg">
         <div className="flex items-start justify-between gap-3">
           <div>
+            <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-cream p-1.5 shadow-lg">
+              <img src={logo} alt="" className="h-full w-auto" />
+            </span>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/75">
               Rota do dia
             </p>
@@ -75,7 +79,7 @@ export function EntregasPage() {
         </Link>
       </section>
 
-      {isLoading && <p className="py-6 text-center text-sm text-gray-500">Carregando...</p>}
+      {isLoading && <p className="brand-loading py-6 text-center text-sm text-gray-500">Carregando...</p>}
       {!isLoading && listaEntregas.length === 0 && (
         <section className="mt-4 rounded-3xl border border-dashed border-gray-300 bg-white px-5 py-10 text-center shadow-sm">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100 text-gray-500">

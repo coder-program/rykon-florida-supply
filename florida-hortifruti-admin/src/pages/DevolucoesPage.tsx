@@ -99,7 +99,9 @@ export function DevolucoesPage() {
             <CardTitle>Fila de devoluções</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            {isLoading && <p className="px-5 py-8 text-sm text-gray-500">Carregando...</p>}
+            {isLoading && (
+              <p className="brand-loading px-5 py-8 text-sm text-gray-500">Carregando...</p>
+            )}
 
             {!isLoading && (devolucoes as any[]).length === 0 && (
               <p className="px-5 py-8 text-sm text-gray-500">Nenhuma devolução registrada.</p>

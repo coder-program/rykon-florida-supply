@@ -369,7 +369,9 @@ export function UsuariosPage() {
         )}
 
         <div className="space-y-3 md:hidden">
-          {isLoading && <p className="py-8 text-center text-sm text-gray-400">Carregando...</p>}
+          {isLoading && (
+            <p className="brand-loading py-8 text-center text-sm text-gray-400">Carregando...</p>
+          )}
           {usuarios.map((u) => {
             const principal = getPrincipalEndereco(u)
             return (

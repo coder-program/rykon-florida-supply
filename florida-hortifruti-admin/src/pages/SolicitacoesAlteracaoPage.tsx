@@ -87,7 +87,9 @@ export function SolicitacoesAlteracaoPage() {
           </Select>
         </div>
 
-        {isLoading && <p className="py-8 text-center text-sm text-gray-400">Carregando...</p>}
+        {isLoading && (
+          <p className="brand-loading py-8 text-center text-sm text-gray-400">Carregando...</p>
+        )}
         {!isLoading && solicitacoes.length === 0 && (
           <p className="py-8 text-center text-sm text-gray-400">Nenhuma solicitação encontrada</p>
         )}

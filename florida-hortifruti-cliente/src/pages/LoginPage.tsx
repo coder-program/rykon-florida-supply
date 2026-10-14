@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../contexts/useAuth'
+import logo from '../assets/logo.png'
 
 export function LoginPage() {
   const { login, usuario } = useAuth()
@@ -35,15 +36,15 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-green-600 flex flex-col items-center justify-center px-6">
-      <div className="mb-8 text-center">
-        <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-          <span className="text-3xl">🍓</span>
+    <div className="brand-login min-h-dvh flex flex-col items-center justify-center px-6">
+      <div className="brand-rise mb-8 text-center">
+        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-cream p-3 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.6)]">
+          <img src={logo} alt="Florida Supply" className="h-full w-auto" />
         </div>
-        <h1 className="text-white font-bold text-xl">Flórida Supply</h1>
-        <p className="text-green-200 text-sm mt-1">Pedidos do cliente</p>
+        <h1 className="text-2xl font-bold tracking-tight text-white">Florida Supply</h1>
+        <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-ember">Área do cliente</p>
       </div>
-      <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-xl">
+      <div className="brand-pop bg-cream-50 w-full max-w-sm rounded-3xl p-6 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.7)]">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">E-mail</label>
@@ -81,7 +82,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 bg-green-600 text-white font-semibold rounded-xl disabled:opacity-60"
+            className="w-full py-3.5 bg-ember text-white font-semibold rounded-xl shadow-[0_10px_30px_-10px_rgba(226,90,22,0.7)] hover:bg-ember-600 active:scale-95 transition disabled:opacity-60"
           >
             {loading ? 'Entrando...' : 'Entrar'}
           </button>

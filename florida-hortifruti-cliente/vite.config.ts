@@ -13,13 +13,13 @@ export default defineConfig({
         name: 'Flórida Supply — Cliente',
         short_name: 'Flórida Cliente',
         description: 'Peça hortifruti pelo celular',
-        theme_color: '#16a34a',
-        background_color: '#f0fdf4',
+        theme_color: '#0b2a1e',
+        background_color: '#fbf6ee',
         display: 'standalone',
         orientation: 'portrait',
         icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ],
       },
       workbox: {

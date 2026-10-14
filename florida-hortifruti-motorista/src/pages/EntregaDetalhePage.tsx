@@ -22,7 +22,7 @@ export function EntregaDetalhePage() {
   })
 
   if (isLoading || !e) {
-    return <p className="px-4 py-10 text-center text-sm text-gray-500">Carregando...</p>
+    return <p className="brand-loading px-4 py-10 text-center text-sm text-gray-500">Carregando...</p>
   }
 
   const endereco = textoEndereco(e.endereco)
@@ -33,7 +33,7 @@ export function EntregaDetalhePage() {
         <ArrowLeft className="h-4 w-4" /> Entregas
       </Link>
 
-      <section className="overflow-hidden rounded-3xl bg-linear-to-br from-sky-700 via-cyan-600 to-emerald-400 p-5 text-white shadow-lg">
+      <section className="overflow-hidden rounded-3xl brand-login p-5 text-white shadow-lg">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/75">

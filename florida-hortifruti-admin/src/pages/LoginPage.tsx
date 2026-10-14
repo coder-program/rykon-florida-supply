@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Leaf } from 'lucide-react'
 import { Input } from '../components/ui/Input'
 import { useAuth } from '../contexts/useAuth'
+import logo from '../assets/logo.png'
 
 export function LoginPage() {
   const { login, usuario } = useAuth()
@@ -28,15 +28,17 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-green-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-8">
+    <div className="brand-login min-h-screen flex items-center justify-center p-4">
+      <div className="brand-pop bg-cream-50 rounded-3xl shadow-[0_30px_80px_-30px_rgba(0,0,0,0.7)] w-full max-w-sm p-8">
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center">
-            <Leaf className="w-5 h-5 text-white" />
+          <div className="w-14 h-14 bg-cream rounded-2xl flex items-center justify-center p-2 shadow-sm">
+            <img src={logo} alt="Florida Supply" className="h-full w-auto" />
           </div>
           <div>
-            <p className="font-bold text-gray-900 leading-tight">Flórida Hortifruti</p>
-            <p className="text-xs text-gray-500">Painel Administrativo</p>
+            <p className="text-lg font-bold text-gray-900 leading-tight">Florida Supply</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ember">
+              Painel administrativo
+            </p>
           </div>
         </div>
 
@@ -47,7 +49,7 @@ export function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full px-3 py-2.5 text-sm border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="seu@email.com"
               required
             />
@@ -64,7 +66,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-60 transition-colors"
+            className="w-full py-3 text-sm font-semibold bg-ember text-white rounded-xl shadow-[0_10px_30px_-10px_rgba(226,90,22,0.7)] hover:bg-ember-600 disabled:opacity-60 transition-colors"
           >
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
