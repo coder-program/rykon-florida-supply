@@ -1,0 +1,120 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Paleta Florida Supply */
+  --color-forest-950: #071c14;
+  --color-forest-900: #0b2a1e;
+  --color-forest-800: #103b2e;
+  --color-forest-700: #17503e;
+  --color-forest-600: #1f6650;
+  --color-olive: #7a8326;
+  --color-lime: #a2a337;
+  --color-ember: #e25a16;
+  --color-ember-600: #c94c0f;
+  --color-ember-300: #f39a6b;
+  --color-wine: #5c1f3a;
+  --color-cream: #f2e6d2;
+  --color-cream-50: #fbf6ee;
+  --color-cream-100: #f7eee1;
+
+  --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+
+  --animate-marquee: marquee 40s linear infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-ring: pulse-ring 2.2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(0.8);
+      opacity: 0.7;
+    }
+    100% {
+      transform: scale(2.4);
+      opacity: 0;
+    }
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: auto;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-cream-50 font-sans text-forest-900 antialiased;
+    overflow-x: clip;
+  }
+  ::selection {
+    @apply bg-ember text-white;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ember;
+  }
+  section[id] {
+    scroll-margin-top: 80px;
+  }
+}
+
+@utility container-site {
+  width: min(1240px, 100% - 32px);
+  margin-inline: auto;
+}
+
+/* Textura de grão sutil, dá profundidade às seções escuras */
+@utility grain {
+  position: relative;
+  isolation: isolate;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.07;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
+
+@utility text-balance {
+  text-wrap: balance;
+}
+
+/* Lenis (smooth scroll) */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
