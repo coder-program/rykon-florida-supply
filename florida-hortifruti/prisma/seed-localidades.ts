@@ -2,7 +2,23 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// O Brasil tem 27 UFs e ~5.570 municípios. Se já estão no banco, não precisa ir ao IBGE:
+// assim o arranque da API não depende do IBGE estar no ar (nem do certificado dele).
+const TOTAL_ESTADOS = 27;
+const MINIMO_CIDADES = 5000;
+
 async function main() {
+  const [estadosNoBanco, cidadesNoBanco] = await Promise.all([
+    prisma.estado.count(),
+    prisma.cidade.count(),
+  ]);
+  if (estadosNoBanco >= TOTAL_ESTADOS && cidadesNoBanco >= MINIMO_CIDADES) {
+    console.log(
+      `Localidades já carregadas (${estadosNoBanco} estados, ${cidadesNoBanco} cidades). Nada a fazer.`,
+    );
+    return;
+  }
+
   const estadosResponse = await fetch(
     'https://servicodados.ibge.gov.br/api/v1/localidades/estados',
   );
