@@ -100,10 +100,14 @@ export function EstoquePage() {
     valorFrete: 0,
     valorComissao: 0,
     observacao: '',
+    dataLote: '',
+    numeroLote: '',
     itens: [{ ...ITEM_VAZIO }],
   })
+  const [erroEntrada, setErroEntrada] = useState('')
   const [formAjuste, setFormAjuste] = useState({
     produtoId: '',
+    loteId: '',
     quantidade: '',
     motivo: MOTIVOS_AJUSTE[0],
     observacao: '',
@@ -143,6 +147,8 @@ export function EstoquePage() {
         valorFrete: Number(formEntrada.valorFrete || 0),
         valorComissao: Number(formEntrada.valorComissao || 0),
         observacao: formEntrada.observacao || undefined,
+        dataLote: formEntrada.dataLote || undefined,
+        numeroLote: formEntrada.numeroLote.trim() || undefined,
         itens: formEntrada.itens
           .filter((item) => item.produtoId && Number(item.quantidade) > 0)
           .map((item) => ({
@@ -161,9 +167,27 @@ export function EstoquePage() {
         valorFrete: 0,
         valorComissao: 0,
         observacao: '',
+        dataLote: '',
+        numeroLote: '',
         itens: [{ ...ITEM_VAZIO }],
       })
     },
+    onError: (erro: any) => {
+      const msg = erro?.response?.data?.message
+      setErroEntrada(
+        Array.isArray(msg) ? msg.join(' ') : (msg ?? 'Não foi possível registrar a entrada.'),
+      )
+    },
+  })
+
+  // Ajuste sempre num lote, para o saldo do lote acompanhar o do produto
+  const { data: lotesAjuste = [] } = useQuery({
+    queryKey: ['lotes', formAjuste.produtoId, ''],
+    queryFn: () =>
+      api
+        .get('/estoque/lotes', { params: { produtoId: formAjuste.produtoId } })
+        .then((r) => r.data),
+    enabled: modalAjuste && !!formAjuste.produtoId,
   })
 
   const ajuste = useMutation({
@@ -172,6 +196,7 @@ export function EstoquePage() {
       qc.invalidateQueries({ queryKey: ['estoque-saldos'] })
       qc.invalidateQueries({ queryKey: ['produtos'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['lotes'] })
       setModalAjuste(false)
     },
   })
@@ -349,6 +374,7 @@ export function EstoquePage() {
         <form
           onSubmit={(e) => {
             e.preventDefault()
+            setErroEntrada('')
             entrada.mutate()
           }}
           className="space-y-4"
@@ -359,6 +385,20 @@ export function EstoquePage() {
             onChange={(e) => setFormEntrada((f) => ({ ...f, fornecedor: e.target.value }))}
             required
           />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input
+              label="Data do lote"
+              type="date"
+              value={formEntrada.dataLote}
+              onChange={(e) => setFormEntrada((f) => ({ ...f, dataLote: e.target.value }))}
+            />
+            <Input
+              label="Nº do lote"
+              placeholder="Automático (próximo do dia)"
+              value={formEntrada.numeroLote}
+              onChange={(e) => setFormEntrada((f) => ({ ...f, numeroLote: e.target.value }))}
+            />
+          </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <MoneyInput
               label="Frete da compra (opcional)"
@@ -478,6 +518,7 @@ export function EstoquePage() {
             value={formEntrada.observacao}
             onChange={(e) => setFormEntrada((f) => ({ ...f, observacao: e.target.value }))}
           />
+          {erroEntrada && <p className="text-sm text-red-600">{erroEntrada}</p>}
           <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
             <Button type="button" variant="secondary" onClick={() => setModalEntrada(false)}>
               Cancelar
@@ -505,13 +546,30 @@ export function EstoquePage() {
           <Select
             label="Produto *"
             value={formAjuste.produtoId}
-            onChange={(e) => setFormAjuste((f) => ({ ...f, produtoId: e.target.value }))}
+            onChange={(e) =>
+              setFormAjuste((f) => ({ ...f, produtoId: e.target.value, loteId: '' }))
+            }
             required
           >
             <option value="">Selecione</option>
             {listaProdutos.map((p: any) => (
               <option key={p.produtoId ?? p.id} value={p.produtoId ?? p.id}>
                 {p.nome}
+              </option>
+            ))}
+          </Select>
+          <Select
+            label="Lote *"
+            value={formAjuste.loteId}
+            onChange={(e) => setFormAjuste((f) => ({ ...f, loteId: e.target.value }))}
+            required
+            disabled={!formAjuste.produtoId}
+          >
+            <option value="">{formAjuste.produtoId ? 'Selecione' : 'Escolha o produto'}</option>
+            {lotesAjuste.map((l: any) => (
+              <option key={l.id} value={l.id}>
+                {formatDate(l.dataEntrada).slice(0, 5)} - lote {l.numero} • saldo{' '}
+                {Number(l.quantidadeDisponivel).toFixed(0)} cx
               </option>
             ))}
           </Select>
@@ -538,6 +596,16 @@ export function EstoquePage() {
             value={formAjuste.observacao}
             onChange={(e) => setFormAjuste((f) => ({ ...f, observacao: e.target.value }))}
           />
+          {ajuste.isError && (
+            <p className="text-sm text-red-600">
+              {(() => {
+                const msg = (ajuste.error as any)?.response?.data?.message
+                return Array.isArray(msg)
+                  ? msg.join(' ')
+                  : (msg ?? 'Não foi possível salvar o ajuste.')
+              })()}
+            </p>
+          )}
           <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
             <Button type="button" variant="secondary" onClick={() => setModalAjuste(false)}>
               Cancelar

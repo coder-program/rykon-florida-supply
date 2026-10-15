@@ -10,13 +10,14 @@ import { PedidosPage } from './pages/PedidosPage'
 import { ClientesPage } from './pages/ClientesPage'
 import { ProdutosPage } from './pages/ProdutosPage'
 import { EstoquePage } from './pages/EstoquePage'
+import { LotesPage } from './pages/LotesPage'
+import { MetasPage } from './pages/MetasPage'
 import { RelatoriosPage } from './pages/RelatoriosPage'
 import { UsuariosPage } from './pages/UsuariosPage'
 import { EtiquetaPage } from './pages/EtiquetaPage'
 import { FinanceiroPage } from './pages/FinanceiroPage'
 import { SolicitacoesAlteracaoPage } from './pages/SolicitacoesAlteracaoPage'
 import { DevolucoesPage } from './pages/DevolucoesPage'
-import { MetasPage } from './pages/MetasPage'
 import { ROUTER_BASENAME } from './lib/session'
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } })
@@ -41,6 +42,7 @@ export default function App() {
               <Route path="/clientes" element={<ClientesPage />} />
               <Route path="/produtos" element={<ProdutosPage />} />
               <Route path="/estoque" element={<EstoquePage />} />
+              <Route path="/lotes" element={<LotesPage />} />
               <Route path="/relatorios" element={<RelatoriosPage />} />
               <Route path="/financeiro" element={<FinanceiroPage />} />
               <Route path="/solicitacoes" element={<SolicitacoesAlteracaoPage />} />

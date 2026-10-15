@@ -34,6 +34,7 @@ const DEVOL_COLOR: Record<string, string> = {
 
 type ItemEdit = {
   produtoId: string
+  loteId: string | null
   nome: string
   quantidade: number
   valorUnitario: number
@@ -64,6 +65,15 @@ export function DetalhePedidoPage() {
       (STATUS_PODE_SOLICITAR.includes(p.status) || STATUS_PODE_EDITAR_DIRETO.includes(p.status)),
   })
 
+  // Saldo dos lotes: limite para aumentar a quantidade de cada linha (produto + lote)
+  const { data: lotesDisponiveis = [] } = useQuery<{ id: string; quantidadeDisponivel: number }[]>({
+    queryKey: ['lotes-disponiveis'],
+    queryFn: () => api.get('/estoque/lotes/disponiveis').then((r) => r.data),
+    enabled:
+      !!p &&
+      (STATUS_PODE_SOLICITAR.includes(p.status) || STATUS_PODE_EDITAR_DIRETO.includes(p.status)),
+  })
+
   const { data: solicitacoes = [] } = useQuery({
     queryKey: ['solicitacoes-pedido', id],
     queryFn: () => api.get(`/pedidos/${id}/solicitacoes-alteracao`).then((r) => r.data),
@@ -77,6 +87,7 @@ export function DetalhePedidoPage() {
     setItens(
       p.itens.map((item: any) => ({
         produtoId: item.produtoId,
+        loteId: item.loteId ?? null,
         nome: item.produto?.nome ?? '',
         quantidade: Math.max(1, Math.round(Number(item.quantidade) || 0)),
         valorUnitario: Number(item.valorUnitario),
@@ -123,7 +134,11 @@ export function DetalhePedidoPage() {
   const solicitar = useMutation({
     mutationFn: () =>
       api.post(`/pedidos/${id}/solicitacoes-alteracao`, {
-        itens: itens.map((i) => ({ produtoId: i.produtoId, quantidade: i.quantidade })),
+        itens: itens.map((i) => ({
+          produtoId: i.produtoId,
+          loteId: i.loteId ?? undefined,
+          quantidade: i.quantidade,
+        })),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['solicitacoes-pedido', id] })
@@ -143,6 +158,7 @@ export function DetalhePedidoPage() {
       api.patch(`/pedidos/${id}`, {
         itens: itens.map((i) => ({
           produtoId: i.produtoId,
+          loteId: i.loteId ?? undefined,
           quantidade: i.quantidade,
           valorUnitario: i.valorUnitario,
         })),
@@ -205,16 +221,19 @@ export function DetalhePedidoPage() {
     return Number(prod?.estoqueAtual ?? 0)
   }
 
+  // Com lote, o limite é o saldo do próprio lote (mais o que este pedido já tirou dele)
   function maxQtd(item: ItemEdit) {
-    const livre = estoqueLivre(item.produtoId)
+    const livre = item.loteId
+      ? (lotesDisponiveis.find((l) => l.id === item.loteId)?.quantidadeDisponivel ?? 0)
+      : estoqueLivre(item.produtoId)
     return jaBaixou ? livre + item.original : livre
   }
 
-  function alterar(produtoId: string, delta: number) {
+  function alterar(index: number, delta: number) {
     setErro('')
     setItens((lista) =>
-      lista.map((item) => {
-        if (item.produtoId !== produtoId) return item
+      lista.map((item, idx) => {
+        if (idx !== index) return item
         const proxima = item.quantidade + delta
         if (proxima < 1) return item
         if (delta > 0 && proxima > maxQtd(item)) return item
@@ -390,52 +409,70 @@ export function DetalhePedidoPage() {
               </p>
             )}
           </div>
-          {(podeSolicitar || podeEditarDireto ? itens : (p.itens ?? [])).map((item: any) => {
-            const edit = podeSolicitar || podeEditarDireto ? (item as ItemEdit) : null
-            const qtd = edit ? edit.quantidade : Math.round(Number(item.quantidade))
-            const unit = edit ? edit.valorUnitario : Number(item.valorUnitario)
-            const nome = edit ? edit.nome : item.produto?.nome
-            const noLimite = edit ? qtd >= maxQtd(edit) : false
-            return (
-              <div
-                key={edit?.produtoId ?? item.id}
-                className="px-4 py-3 border-b border-gray-50 text-sm last:border-b-0"
-              >
-                <div className="flex justify-between items-start gap-2">
-                  <span className="font-medium text-gray-900 flex-1">{nome}</span>
-                  <span className="font-semibold shrink-0">{formatBRL(qtd * unit)}</span>
-                </div>
-                {edit && !pendente ? (
-                  <div className="mt-2 flex items-center justify-between">
-                    <p className="text-xs text-gray-400">{formatBRL(unit)} / cx</p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => alterar(edit.produtoId, -1)}
-                        disabled={qtd <= 1}
-                        className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center disabled:opacity-40"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <span className="w-8 text-center font-semibold">{qtd}</span>
-                      <button
-                        type="button"
-                        onClick={() => alterar(edit.produtoId, 1)}
-                        disabled={noLimite}
-                        className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center disabled:opacity-40"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
+          {(podeSolicitar || podeEditarDireto ? itens : (p.itens ?? [])).map(
+            (item: any, index: number) => {
+              const edit = podeSolicitar || podeEditarDireto ? (item as ItemEdit) : null
+              const lote = edit
+                ? p.itens?.find(
+                    (i: any) => i.produtoId === edit.produtoId && i.loteId === edit.loteId,
+                  )?.lote
+                : item.lote
+              const qtd = edit ? edit.quantidade : Math.round(Number(item.quantidade))
+              const unit = edit ? edit.valorUnitario : Number(item.valorUnitario)
+              const nome = edit ? edit.nome : item.produto?.nome
+              const noLimite = edit ? qtd >= maxQtd(edit) : false
+              return (
+                <div
+                  key={edit ? `${edit.produtoId}-${edit.loteId ?? index}` : item.id}
+                  className="px-4 py-3 border-b border-gray-50 text-sm last:border-b-0"
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="font-medium text-gray-900 flex-1">
+                      {nome}
+                      {lote && (
+                        <span className="block text-xs font-normal text-gray-400">
+                          {new Date(lote.dataEntrada).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                          })}{' '}
+                          - lote {lote.numero}
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-semibold shrink-0">{formatBRL(qtd * unit)}</span>
                   </div>
-                ) : (
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {qtd} cx × {formatBRL(unit)}
-                  </p>
-                )}
-              </div>
-            )
-          })}
+                  {edit && !pendente ? (
+                    <div className="mt-2 flex items-center justify-between">
+                      <p className="text-xs text-gray-400">{formatBRL(unit)} / cx</p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => alterar(index, -1)}
+                          disabled={qtd <= 1}
+                          className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center disabled:opacity-40"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className="w-8 text-center font-semibold">{qtd}</span>
+                        <button
+                          type="button"
+                          onClick={() => alterar(index, 1)}
+                          disabled={noLimite}
+                          className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center disabled:opacity-40"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {qtd} cx × {formatBRL(unit)}
+                    </p>
+                  )}
+                </div>
+              )
+            },
+          )}
 
           <div className="px-4 pt-3 pb-4 space-y-1.5 text-sm border-t border-gray-100">
             <div className="flex justify-between text-gray-500">
@@ -462,6 +499,8 @@ export function DetalhePedidoPage() {
             </div>
           </div>
         </div>
+
+        {status !== 'AGUARDANDO_APROVACAO' && <RastreioLotes pedidoId={id!} />}
 
         {(podeSolicitar || podeEditarDireto || podeEntregar) && (
           <div className="space-y-2">
@@ -618,6 +657,39 @@ function Row({ label, value, bold }: { label: string; value?: string; bold?: boo
       <span className={`text-right ${bold ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
         {value}
       </span>
+    </div>
+  )
+}
+
+// De qual lote saiu cada caixa do pedido e como ficou o saldo do lote
+function RastreioLotes({ pedidoId }: { pedidoId: string }) {
+  const { data } = useQuery({
+    queryKey: ['pedido-lotes', pedidoId],
+    queryFn: () => api.get(`/pedidos/${pedidoId}/lotes`).then((r) => r.data),
+  })
+  const movimentos = (data?.movimentos ?? []) as any[]
+  if (movimentos.length === 0) return null
+
+  const dataLote = (d: string) =>
+    new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+        <p className="text-xs font-semibold text-gray-500">LOTES UTILIZADOS</p>
+      </div>
+      {movimentos.map((m) => (
+        <div key={m.id} className="px-4 py-2.5 border-b border-gray-50 text-sm last:border-b-0">
+          <p className="text-gray-900">
+            {m.tipo === 'SAIDA' ? '' : '↩ '}
+            {m.quantidade} cx {m.produtoNome} → {dataLote(m.loteData)} - lote {m.loteNumero}
+          </p>
+          <p className="text-xs text-gray-400">
+            {m.origem}
+            {m.saldoAntes != null && ` • saldo do lote ${m.saldoAntes} → ${m.saldoDepois} cx`}
+          </p>
+        </div>
+      ))}
     </div>
   )
 }

@@ -20,6 +20,11 @@ class ItemPedidoDto {
 
   @IsNumber()
   valorUnitario: number;
+
+  // Lote escolhido pelo vendedor (opcional: sem lote, a baixa sai do mais antigo)
+  @IsOptional()
+  @IsString()
+  loteId?: string;
 }
 
 export class CreatePedidoDto {
@@ -151,6 +156,11 @@ export class FiltrosPedidoDto {
 class ItemSolicitacaoAlteracaoDto {
   @IsString()
   produtoId: string;
+
+  // Linha do pedido a alterar quando o produto foi dividido entre lotes
+  @IsOptional()
+  @IsString()
+  loteId?: string;
 
   @IsNumber()
   @Min(1)

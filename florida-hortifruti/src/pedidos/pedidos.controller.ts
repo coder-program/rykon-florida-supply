@@ -68,6 +68,12 @@ export class PedidosController {
     return this.pedidosService.findOne(id, req.user.id, req.user.papel);
   }
 
+  // Rastreabilidade: de qual lote saiu cada caixa do pedido, com saldo do lote antes/depois
+  @Get(':id/lotes')
+  lotes(@Param('id') id: string, @Request() req: any) {
+    return this.pedidosService.rastreioLotes(id, req.user.id, req.user.papel);
+  }
+
   @Patch(':id')
   @Roles(...EQUIPE)
   atualizar(@Param('id') id: string, @Body() dto: UpdatePedidoDto, @Request() req: any) {

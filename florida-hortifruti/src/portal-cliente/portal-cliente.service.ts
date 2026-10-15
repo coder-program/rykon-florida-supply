@@ -201,6 +201,33 @@ export class PortalClienteService {
     return this.detalhe(id, usuarioId);
   }
 
+  async notificacoes(usuarioId: string) {
+    const cliente = await this.resolverCliente(usuarioId);
+    return this.prisma.notificacaoCliente.findMany({
+      where: { clienteId: cliente.id, status: { in: ['PENDENTE', 'ENVIADA'] } },
+      select: {
+        id: true,
+        tipo: true,
+        titulo: true,
+        mensagem: true,
+        criadoEm: true,
+        lidaEm: true,
+        pedidoId: true,
+      },
+      orderBy: { criadoEm: 'desc' },
+      take: 50,
+    });
+  }
+
+  async marcarNotificacoesLidas(usuarioId: string) {
+    const cliente = await this.resolverCliente(usuarioId);
+    const { count } = await this.prisma.notificacaoCliente.updateMany({
+      where: { clienteId: cliente.id, lidaEm: null },
+      data: { lidaEm: new Date() },
+    });
+    return { lidas: count };
+  }
+
   async conta(usuarioId: string) {
     const cliente = await this.resolverCliente(usuarioId);
     const enderecos = await this.enderecos.findByEntidade(TipoEntidadeEndereco.CLIENTE, cliente.id);

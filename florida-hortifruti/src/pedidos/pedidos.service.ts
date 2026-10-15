@@ -20,12 +20,14 @@ import {
   OrigemPedido,
   PapelUsuario,
   Prisma,
+  StatusPagamento,
   StatusPedido,
   StatusSolicitacaoAlteracao,
   TipoMovimentacao,
 } from '@prisma/client';
 import { StorageService } from '../common/storage.service';
 import { registrarHistoricoStatus } from './historico-status.util';
+import { montarAvisoCobranca } from '../financeiro/avisos-cobranca.util';
 
 @Injectable()
 export class PedidosService {
@@ -57,7 +59,9 @@ export class PedidosService {
     StatusPedido.EM_ENTREGA,
   ];
 
-  private async validarEstoque(itens: { produtoId: string; quantidade: number }[]) {
+  private async validarEstoque(
+    itens: { produtoId: string; quantidade: number; loteId?: string | null }[],
+  ) {
     await this.estoqueService.validarDisponibilidade(itens);
   }
 
@@ -67,6 +71,7 @@ export class PedidosService {
     vendedorId: string | null,
     opts: { origem?: OrigemPedido; clienteId?: string } = {},
   ) {
+    this.validarLotesRepetidos(dto.itens);
     await this.validarEstoque(dto.itens);
     const itensCalculados = dto.itens.map((item) => ({
       ...item,
@@ -101,6 +106,7 @@ export class PedidosService {
         itens: {
           create: itensCalculados.map((i) => ({
             produtoId: i.produtoId,
+            loteId: i.loteId || null,
             quantidade: i.quantidade,
             valorUnitario: i.valorUnitario,
             valorTotal: i.valorTotal,
@@ -142,7 +148,9 @@ export class PedidosService {
           cliente: true,
           vendedor: true,
           entregador: { select: { id: true, nome: true } },
-          itens: { include: { produto: true } },
+          itens: {
+            include: { produto: true, lote: { select: { numero: true, dataEntrada: true } } },
+          },
           etiqueta: true,
           comprovanteEntrega: true,
           solicitacoesAlteracao: {
@@ -163,7 +171,12 @@ export class PedidosService {
         cliente: true,
         vendedor: true,
         entregador: { select: { id: true, nome: true } },
-        itens: { include: { produto: { include: { categoria: true } } } },
+        itens: {
+          include: {
+            produto: { include: { categoria: true } },
+            lote: { select: { numero: true, dataEntrada: true } },
+          },
+        },
         etiqueta: true,
         comprovanteEntrega: true,
         solicitacoesAlteracao: {
@@ -202,6 +215,11 @@ export class PedidosService {
     });
 
     return this.marcarAguardandoAlteracao({ ...pedido, devolucoes });
+  }
+
+  async rastreioLotes(id: string, usuarioId?: string, papel?: PapelUsuario) {
+    await this.findOne(id, usuarioId, papel);
+    return this.estoqueService.lotesUtilizadosNoPedido(id);
   }
 
   private lerDetalhesDevolucao(raw: Prisma.JsonValue | null) {
@@ -259,6 +277,119 @@ export class PedidosService {
     return this.statusAposAprovacao.includes(status);
   }
 
+  // Edições que não informam o lote mantêm o lote anterior, quando o produto tinha um só lote
+  private manterLotes<T extends { produtoId: string; loteId?: string | null }>(
+    antigos: { produtoId: string; loteId: string | null }[],
+    novos: T[],
+  ) {
+    const lotePorProduto = new Map<string, string | null>();
+    const repetidos = new Set<string>();
+    for (const i of antigos) {
+      if (lotePorProduto.has(i.produtoId)) repetidos.add(i.produtoId);
+      lotePorProduto.set(i.produtoId, i.loteId);
+    }
+    return novos.map((i) => ({
+      ...i,
+      loteId:
+        i.loteId !== undefined
+          ? i.loteId || null
+          : repetidos.has(i.produtoId)
+            ? null
+            : (lotePorProduto.get(i.produtoId) ?? null),
+    }));
+  }
+
+  // Um produto pode ser dividido entre lotes, mas cada lote aparece uma vez por produto
+  private validarLotesRepetidos(itens: { produtoId: string; loteId?: string | null }[]) {
+    const vistos = new Set<string>();
+    for (const item of itens) {
+      if (!item.loteId) continue;
+      const chave = `${item.produtoId}|${item.loteId}`;
+      if (vistos.has(chave)) {
+        throw new BadRequestException(
+          'O mesmo lote foi escolhido duas vezes para o mesmo produto; junte as quantidades',
+        );
+      }
+      vistos.add(chave);
+    }
+  }
+
+  private chaveItem(item: { produtoId: string; loteId?: string | null }) {
+    return `${item.produtoId}|${item.loteId ?? ''}`;
+  }
+
+  // Devolve ao estoque (produto e lote de origem) as caixas de um item do pedido
+  private async devolverItemEmTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      pedidoId: string;
+      produtoId: string;
+      loteId: string | null;
+      quantidade: number;
+      origem: string;
+      usuarioId: string;
+    },
+  ) {
+    const movimentacao = await tx.movimentacaoEstoque.create({
+      data: {
+        produtoId: params.produtoId,
+        tipo: TipoMovimentacao.ENTRADA,
+        quantidade: Math.abs(params.quantidade),
+        origem: params.origem,
+        pedidoId: params.pedidoId,
+        usuarioId: params.usuarioId,
+      },
+    });
+    await this.estoqueService.devolverDoPedidoEmTx(tx, {
+      pedidoId: params.pedidoId,
+      produtoId: params.produtoId,
+      quantidade: Math.abs(params.quantidade),
+      movimentacaoId: movimentacao.id,
+      origem: params.origem,
+      loteIdPreferido: params.loteId,
+    });
+  }
+
+  // Baixa do produto e do lote escolhido para um item do pedido (nunca troca de lote sozinho)
+  private async baixarItemEmTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      pedidoId: string;
+      produtoId: string;
+      produtoNome?: string;
+      loteId: string | null;
+      quantidade: number;
+      valorUnitario: number;
+      origem: string;
+      usuarioId: string;
+    },
+  ) {
+    if (!params.loteId) {
+      throw new BadRequestException(
+        `Selecione o lote de ${params.produtoNome ?? 'cada produto'} antes de continuar`,
+      );
+    }
+    const movimentacao = await tx.movimentacaoEstoque.create({
+      data: {
+        produtoId: params.produtoId,
+        tipo: TipoMovimentacao.SAIDA,
+        quantidade: -Math.abs(params.quantidade),
+        origem: params.origem,
+        pedidoId: params.pedidoId,
+        usuarioId: params.usuarioId,
+      },
+    });
+    await this.estoqueService.baixarLoteEmTx(tx, {
+      loteId: params.loteId,
+      produtoId: params.produtoId,
+      quantidade: Math.abs(params.quantidade),
+      movimentacaoId: movimentacao.id,
+      origem: params.origem,
+      pedidoId: params.pedidoId,
+      valorUnitario: params.valorUnitario,
+    });
+  }
+
   private somarPorProduto(itens: { produtoId: string; quantidade: number }[]) {
     const mapa = new Map<string, number>();
     for (const item of itens) {
@@ -288,17 +419,20 @@ export class PedidosService {
       produtoId: i.produtoId,
       quantidade: Number(i.quantidade),
     }));
-    const itens =
+    const itens = this.manterLotes(
+      pedido.itens,
       dto.itens ??
-      pedido.itens.map((i) => ({
-        produtoId: i.produtoId,
-        quantidade: Number(i.quantidade),
-        valorUnitario: Number(i.valorUnitario),
-      }));
+        pedido.itens.map((i) => ({
+          produtoId: i.produtoId,
+          quantidade: Number(i.quantidade),
+          valorUnitario: Number(i.valorUnitario),
+        })),
+    );
 
     if (itens.length === 0) {
       throw new BadRequestException('O pedido precisa ter pelo menos um produto');
     }
+    this.validarLotesRepetidos(itens);
     if (itens.some((i) => Number(i.quantidade) <= 0)) {
       throw new BadRequestException('A quantidade de cada produto deve ser maior que zero');
     }
@@ -409,10 +543,19 @@ export class PedidosService {
       );
     }
 
+    // A escolha do lote é sempre manual: sem lote em algum item, o pedido não é aprovado
+    const semLote = pedido.itens.filter((item) => !item.loteId);
+    if (semLote.length > 0) {
+      throw new BadRequestException(
+        `Selecione o lote antes de aprovar: ${semLote.map((i) => i.produto.nome).join(', ')}`,
+      );
+    }
+
     await this.validarEstoque(
       pedido.itens.map((item) => ({
         produtoId: item.produtoId,
         quantidade: Number(item.quantidade),
+        loteId: item.loteId,
       })),
     );
 
@@ -428,25 +571,15 @@ export class PedidosService {
       });
 
       for (const item of pedido.itens) {
-        const movimentacao = await tx.movimentacaoEstoque.create({
-          data: {
-            produtoId: item.produtoId,
-            tipo: TipoMovimentacao.SAIDA,
-            quantidade: -Math.abs(Number(item.quantidade)),
-            origem: `Pedido ${pedido.numero}`,
-            pedidoId: pedido.id,
-            usuarioId,
-          },
-        });
-
-        await this.estoqueService.consumirLotesEmTx(tx, {
-          produtoId: item.produtoId,
-          quantidade: Number(item.quantidade),
+        await this.baixarItemEmTx(tx, {
           pedidoId: pedido.id,
+          produtoId: item.produtoId,
+          produtoNome: item.produto.nome,
+          loteId: item.loteId,
+          quantidade: Number(item.quantidade),
+          valorUnitario: Number(item.valorUnitario),
           origem: `Pedido ${pedido.numero}`,
           usuarioId,
-          movimentacaoId: movimentacao.id,
-          valorUnitario: Number(item.valorUnitario),
         });
       }
 
@@ -461,6 +594,25 @@ export class PedidosService {
         },
       });
       await registrarHistoricoStatus(tx, id, StatusPedido.APROVADO);
+
+      // Compra a prazo: avisa o cliente do valor que ficou para pagar
+      if (pedido.dataVencimento && pedido.statusPagamento !== StatusPagamento.PAGO) {
+        const { titulo, mensagem } = montarAvisoCobranca('COMPRA_A_PRAZO', {
+          numeroPedido: pedido.numero,
+          valor: Number(pedido.totalFinal),
+          vencimento: new Date(pedido.dataVencimento),
+        });
+        await tx.notificacaoCliente.create({
+          data: {
+            clienteId: pedido.clienteId,
+            pedidoId: id,
+            tipo: 'COMPRA_A_PRAZO',
+            titulo,
+            mensagem,
+            status: 'PENDENTE',
+          },
+        });
+      }
 
       return pedidoAtualizado;
     });
@@ -636,19 +788,37 @@ export class PedidosService {
         'Há uma solicitação de alteração pendente. Aprove ou negue antes de continuar.',
       );
     }
-    const [pedido] = await this.prisma.$transaction([
-      this.prisma.pedido.update({ where: { id }, data: { status: novoStatus } }),
-      this.prisma.logAuditoria.create({
+    // Cancelar pedido que já baixou estoque (e ainda não foi entregue) devolve as caixas ao lote de origem
+    const devolverEstoque =
+      novoStatus === StatusPedido.CANCELADO && this.statusPodeEntregar.includes(pedidoAtual.status);
+
+    return this.prisma.$transaction(async (tx) => {
+      const pedido = await tx.pedido.update({ where: { id }, data: { status: novoStatus } });
+      await tx.logAuditoria.create({
         data: {
           usuarioId,
           acao: `STATUS_${novoStatus}`,
           entidade: 'Pedido',
           entidadeId: id,
         },
-      }),
-      this.prisma.historicoStatusPedido.create({ data: { pedidoId: id, status: novoStatus } }),
-    ]);
-    return pedido;
+      });
+      await tx.historicoStatusPedido.create({ data: { pedidoId: id, status: novoStatus } });
+
+      if (devolverEstoque) {
+        for (const item of pedidoAtual.itens) {
+          await this.devolverItemEmTx(tx, {
+            pedidoId: id,
+            produtoId: item.produtoId,
+            loteId: item.loteId,
+            quantidade: Number(item.quantidade),
+            origem: `Cancelamento pedido ${pedidoAtual.numero}`,
+            usuarioId,
+          });
+        }
+      }
+
+      return pedido;
+    });
   }
 
   // Regra 6 do escopo: cancelamento não apaga o pedido, só muda o status
@@ -677,17 +847,25 @@ export class PedidosService {
       throw new BadRequestException('Já existe uma solicitação pendente para este pedido');
     }
 
-    const atuais = new Map(pedido.itens.map((i) => [i.produtoId, i]));
     if (dto.itens.length === 0) {
       throw new BadRequestException('Informe os produtos da alteração');
     }
 
+    // Cada linha do pedido é produto + lote; sem lote informado, vale quando o produto tem uma linha só
     const snapshot = dto.itens.map((item) => {
-      const atual = atuais.get(item.produtoId);
-      if (!atual)
+      const candidatos = pedido.itens.filter(
+        (i) => i.produtoId === item.produtoId && (!item.loteId || i.loteId === item.loteId),
+      );
+      if (candidatos.length === 0)
         throw new BadRequestException('Só é possível alterar produtos já presentes no pedido');
+      if (candidatos.length > 1)
+        throw new BadRequestException('Informe o lote do produto que será alterado');
+      const atual = candidatos[0];
       return {
         produtoId: item.produtoId,
+        loteId: atual.loteId,
+        loteNumero: atual.lote?.numero ?? null,
+        loteData: atual.lote?.dataEntrada ?? null,
         nome: atual.produto.nome,
         quantidadeOriginal: Math.round(Number(atual.quantidade)),
         quantidadeSolicitada: Math.round(Number(item.quantidade)),
@@ -702,10 +880,11 @@ export class PedidosService {
       throw new BadRequestException('A quantidade deve ser maior que zero');
     }
 
-    const extras: { produtoId: string; quantidade: number }[] = [];
+    const extras: { produtoId: string; quantidade: number; loteId: string | null }[] = [];
     for (const item of snapshot) {
       const extra = item.quantidadeSolicitada - item.quantidadeOriginal;
-      if (extra > 0) extras.push({ produtoId: item.produtoId, quantidade: extra });
+      if (extra > 0)
+        extras.push({ produtoId: item.produtoId, quantidade: extra, loteId: item.loteId });
     }
     if (extras.length > 0) await this.validarEstoque(extras);
 
@@ -771,8 +950,8 @@ export class PedidosService {
 
     const itens = (solicitacao.itens as any[]).map((i) => ({
       produtoId: i.produtoId,
+      loteId: (i.loteId as string | null | undefined) ?? null,
       quantidade: Number(i.quantidadeSolicitada),
-      valorUnitario: Number(i.valorUnitario),
     }));
 
     const pedido = await this.aplicarItensAposAprovacao(solicitacao.pedidoId, itens, usuarioId);
@@ -884,57 +1063,72 @@ export class PedidosService {
     };
   }
 
+  // Aplica a alteração aprovada linha a linha (produto + lote): aumento baixa do mesmo lote,
+  // redução devolve ao lote. Linhas que não estão na solicitação ficam como estão.
   private async aplicarItensAposAprovacao(
     pedidoId: string,
-    itens: { produtoId: string; quantidade: number; valorUnitario: number }[],
+    alteracoes: { produtoId: string; loteId: string | null; quantidade: number }[],
     usuarioId: string,
   ) {
     const pedido = await this.findOne(pedidoId);
-    const itensAntigos = pedido.itens.map((i) => ({
-      produtoId: i.produtoId,
-      quantidade: Number(i.quantidade),
-    }));
+    const porChave = new Map(alteracoes.map((a) => [this.chaveItem(a), a.quantidade]));
 
-    const antigo = this.somarPorProduto(itensAntigos);
-    const novo = this.somarPorProduto(itens);
-    const extras: { produtoId: string; quantidade: number }[] = [];
-    for (const [produtoId, quantidade] of novo) {
-      const extra = quantidade - (antigo.get(produtoId) ?? 0);
-      if (extra > 0) extras.push({ produtoId, quantidade: extra });
-    }
+    // Pedidos antigos: a linha não tinha lote e a solicitação não informa; casa pelo produto
+    const linha = (item: { produtoId: string; loteId: string | null }) =>
+      porChave.get(this.chaveItem(item)) ??
+      (item.loteId
+        ? porChave.get(this.chaveItem({ produtoId: item.produtoId, loteId: null }))
+        : undefined);
+
+    const extras = pedido.itens
+      .map((item) => ({
+        produtoId: item.produtoId,
+        loteId: item.loteId,
+        quantidade: (linha(item) ?? Number(item.quantidade)) - Number(item.quantidade),
+      }))
+      .filter((e) => e.quantidade > 0);
     if (extras.length > 0) await this.validarEstoque(extras);
 
-    const itensCalculados = itens.map((i) => ({
-      ...i,
-      valorTotal: i.quantidade * i.valorUnitario,
-    }));
-    const subtotal = itensCalculados.reduce((acc, i) => acc + i.valorTotal, 0);
-    const frete = Number(pedido.valorFrete);
-    const desconto = Number(pedido.descontoValor);
-    const totalFinal = subtotal + frete - desconto;
-
     return this.prisma.$transaction(async (tx) => {
-      await tx.itemPedido.deleteMany({ where: { pedidoId } });
-      await tx.itemPedido.createMany({
-        data: itensCalculados.map((i) => ({ pedidoId, ...i })),
-      });
-
-      const ids = new Set([...antigo.keys(), ...novo.keys()]);
-      for (const produtoId of ids) {
-        const delta = (novo.get(produtoId) ?? 0) - (antigo.get(produtoId) ?? 0);
+      let subtotal = 0;
+      for (const item of pedido.itens) {
+        const atual = Number(item.quantidade);
+        const nova = linha(item) ?? atual;
+        const valorUnitario = Number(item.valorUnitario);
+        subtotal += nova * valorUnitario;
+        const delta = nova - atual;
         if (delta === 0) continue;
-        await tx.movimentacaoEstoque.create({
-          data: {
-            produtoId,
-            tipo: delta > 0 ? TipoMovimentacao.SAIDA : TipoMovimentacao.ENTRADA,
-            quantidade: delta > 0 ? -delta : Math.abs(delta),
-            origem: `Ajuste pedido ${pedido.numero}`,
-            pedidoId,
-            usuarioId,
-          },
+
+        await tx.itemPedido.update({
+          where: { id: item.id },
+          data: { quantidade: nova, valorTotal: nova * valorUnitario },
         });
+
+        const origem = `Ajuste pedido ${pedido.numero}`;
+        if (delta > 0) {
+          await this.baixarItemEmTx(tx, {
+            pedidoId,
+            produtoId: item.produtoId,
+            produtoNome: item.produto.nome,
+            loteId: item.loteId,
+            quantidade: delta,
+            valorUnitario,
+            origem,
+            usuarioId,
+          });
+        } else {
+          await this.devolverItemEmTx(tx, {
+            pedidoId,
+            produtoId: item.produtoId,
+            loteId: item.loteId,
+            quantidade: Math.abs(delta),
+            origem,
+            usuarioId,
+          });
+        }
       }
 
+      const totalFinal = subtotal + Number(pedido.valorFrete) - Number(pedido.descontoValor);
       return tx.pedido.update({
         where: { id: pedidoId },
         data: { subtotal, totalFinal },

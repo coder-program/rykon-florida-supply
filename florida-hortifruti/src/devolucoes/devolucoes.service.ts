@@ -7,6 +7,7 @@ import {
 import { PapelUsuario, Prisma, TipoMovimentacao } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { StorageService } from '../common/storage.service';
+import { EstoqueService } from '../estoque/estoque.service';
 import {
   AtualizarStatusDevolucaoDto,
   CriarDevolucaoDto,
@@ -43,6 +44,7 @@ export class DevolucoesService {
   constructor(
     private prisma: PrismaService,
     private storage: StorageService,
+    private estoque: EstoqueService,
   ) {}
 
   private extrairToken(raw: string) {
@@ -365,7 +367,23 @@ export class DevolucoesService {
       throw new BadRequestException('Informe ao menos um item devolvido');
     }
 
-    const mapaPedido = new Map(itensPedido.map((item) => [item.produtoId, item]));
+    // Produto dividido entre lotes vira uma linha só (soma das quantidades, preço médio)
+    const mapaPedido = new Map<string, (typeof itensPedido)[number]>();
+    for (const item of itensPedido) {
+      const atual = mapaPedido.get(item.produtoId);
+      if (!atual) {
+        mapaPedido.set(item.produtoId, { ...item });
+        continue;
+      }
+      const quantidade = atual.quantidade + item.quantidade;
+      const valor = atual.quantidade * atual.valorUnitario + item.quantidade * item.valorUnitario;
+      mapaPedido.set(item.produtoId, {
+        ...atual,
+        quantidade,
+        valorUnitario:
+          quantidade > 0 ? Number((valor / quantidade).toFixed(2)) : atual.valorUnitario,
+      });
+    }
 
     return itensDto.map((itemDto) => {
       const pedidoItem = mapaPedido.get(itemDto.produtoId);
@@ -413,37 +431,54 @@ export class DevolucoesService {
         devolucao.itens.map((item) => [item.produtoId, Number(item.quantidade)]),
       );
 
-      for (const item of pedido.itens) {
-        const qtdDevolvida = mapaDevolucao.get(item.produtoId) ?? 0;
-        if (qtdDevolvida <= 0) continue;
-
-        const atual = Number(item.quantidade);
-        if (qtdDevolvida > atual) {
+      // Produto dividido entre lotes: a devolução é distribuída pelas linhas do produto,
+      // e cada parte volta para o lote de onde saiu
+      for (const [produtoId, qtdTotal] of mapaDevolucao) {
+        const linhas = pedido.itens.filter((item) => item.produtoId === produtoId);
+        const totalPedido = linhas.reduce((acc, item) => acc + Number(item.quantidade), 0);
+        if (qtdTotal <= 0) continue;
+        if (qtdTotal > totalPedido) {
           throw new BadRequestException('Quantidade devolvida excede o saldo atual do pedido');
         }
 
-        const novaQtd = atual - qtdDevolvida;
-        const valorUnitario = Number(item.valorUnitario);
-        const novoTotal = novaQtd * valorUnitario;
+        let restante = qtdTotal;
+        for (const item of [...linhas].reverse()) {
+          if (restante <= 0) break;
+          const atual = Number(item.quantidade);
+          const qtdDevolvida = Math.min(restante, atual);
+          if (qtdDevolvida <= 0) continue;
+          restante -= qtdDevolvida;
 
-        await tx.itemPedido.update({
-          where: { id: item.id },
-          data: {
-            quantidade: novaQtd,
-            valorTotal: novoTotal,
-          },
-        });
+          const novaQtd = atual - qtdDevolvida;
+          const valorUnitario = Number(item.valorUnitario);
+          await tx.itemPedido.update({
+            where: { id: item.id },
+            data: {
+              quantidade: novaQtd,
+              valorTotal: novaQtd * valorUnitario,
+            },
+          });
 
-        await tx.movimentacaoEstoque.create({
-          data: {
-            produtoId: item.produtoId,
-            tipo: TipoMovimentacao.ENTRADA,
-            quantidade: qtdDevolvida,
-            origem: `Devolução do pedido ${pedido.numero}`,
+          const origem = `Devolução do pedido ${pedido.numero}`;
+          const movimentacao = await tx.movimentacaoEstoque.create({
+            data: {
+              produtoId,
+              tipo: TipoMovimentacao.ENTRADA,
+              quantidade: qtdDevolvida,
+              origem,
+              pedidoId,
+              usuarioId,
+            },
+          });
+          await this.estoque.devolverDoPedidoEmTx(tx, {
             pedidoId,
-            usuarioId,
-          },
-        });
+            produtoId,
+            quantidade: qtdDevolvida,
+            movimentacaoId: movimentacao.id,
+            origem,
+            loteIdPreferido: item.loteId,
+          });
+        }
       }
 
       const itensAtualizados = await tx.itemPedido.findMany({ where: { pedidoId } });

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma.service';
 import { StatusPedido, StatusPagamento, FormaPagamento } from '@prisma/client';
+import { hojeBrasilia, montarAvisoCobranca, TipoAvisoCobranca } from './avisos-cobranca.util';
 
 @Injectable()
 export class FinanceiroService {
@@ -281,32 +282,36 @@ export class FinanceiroService {
     return atualizado;
   }
 
-  // Roda todo dia às 8h e cobre a regra: 3 dias antes do vencimento + no dia do vencimento,
+  // Roda todo dia às 8h (Brasília): 3 dias antes do vencimento + no dia do vencimento,
   // sempre considerando o saldo devedor (não o valor original do pedido)
-  @Cron('0 8 * * *')
+  @Cron('0 8 * * *', { timeZone: 'America/Sao_Paulo' })
   async executarNotificacoesDiarias() {
     return this.gerarNotificacoesVencimento();
   }
 
   async gerarNotificacoesVencimento() {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    const hoje = hojeBrasilia();
 
     const pedidos = await this.prisma.pedido.findMany({
       where: {
         statusPagamento: StatusPagamento.EM_ABERTO,
         dataVencimento: { not: null },
+        status: {
+          notIn: [
+            StatusPedido.CANCELADO,
+            StatusPedido.REJEITADO,
+            StatusPedido.AGUARDANDO_APROVACAO,
+          ],
+        },
       },
       include: {
-        cliente: { select: { id: true, razaoSocialOuNome: true, email: true, whatsapp: true } },
+        cliente: { select: { id: true, razaoSocialOuNome: true } },
         pagamentos: { select: { valor: true } },
       },
       orderBy: { dataVencimento: 'asc' },
     });
 
     const notificacoes: any[] = [];
-    const formatarBRL = (valor: number) =>
-      valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
     for (const pedido of pedidos) {
       if (!pedido.cliente || !pedido.dataVencimento) continue;
@@ -314,61 +319,75 @@ export class FinanceiroService {
       // Pagamento parcial já identificado: notifica apenas sobre o saldo restante
       const { saldoDevedor } = this.calcularSaldo(pedido);
       if (saldoDevedor <= 0) continue;
-      const saldoFormatado = formatarBRL(saldoDevedor);
 
       const vencimento = new Date(pedido.dataVencimento);
-      const diffDias = Math.ceil((vencimento.getTime() - hoje.getTime()) / 86400000);
-      const tipos: Array<{ tipo: string; titulo: string; mensagem: string; agendadaPara: Date }> =
-        [];
+      const diffDias = Math.round((vencimento.getTime() - hoje.getTime()) / 86400000);
+      let tipo: TipoAvisoCobranca | null = null;
+      if (diffDias <= 0) tipo = 'VENCIMENTO_HOJE';
+      else if (diffDias === 3) tipo = 'VENCE_EM_3_DIAS';
+      if (!tipo) continue;
 
-      if (diffDias <= 0) {
-        tipos.push({
-          tipo: 'VENCIMENTO_HOJE',
-          titulo: 'Pedido vencido',
-          mensagem: `O pedido ${pedido.numero} de ${pedido.cliente.razaoSocialOuNome} está vencido. Saldo em aberto: ${saldoFormatado}.`,
+      const existente = await this.prisma.notificacaoCliente.findFirst({
+        where: {
+          clienteId: pedido.clienteId,
+          pedidoId: pedido.id,
+          tipo,
+          status: { in: ['PENDENTE', 'ENVIADA'] },
+        },
+      });
+      if (existente) continue;
+
+      const { titulo, mensagem } = montarAvisoCobranca(tipo, {
+        numeroPedido: pedido.numero,
+        valor: saldoDevedor,
+        vencimento,
+        vencido: diffDias < 0,
+      });
+
+      const criada = await this.prisma.notificacaoCliente.create({
+        data: {
+          clienteId: pedido.clienteId,
+          pedidoId: pedido.id,
+          tipo,
+          titulo,
+          mensagem,
           agendadaPara: vencimento,
-        });
-      }
+          status: 'PENDENTE',
+        },
+      });
 
-      if (diffDias === 3) {
-        tipos.push({
-          tipo: 'VENCE_EM_3_DIAS',
-          titulo: 'Pagamento próximo do vencimento',
-          mensagem: `Faltam 3 dias para o vencimento do pedido ${pedido.numero} de ${pedido.cliente.razaoSocialOuNome}. Saldo em aberto: ${saldoFormatado}.`,
-          agendadaPara: vencimento,
-        });
-      }
-
-      if (tipos.length === 0) continue;
-
-      for (const item of tipos) {
-        const existente = await this.prisma.notificacaoCliente.findFirst({
-          where: {
-            clienteId: pedido.clienteId,
-            pedidoId: pedido.id,
-            tipo: item.tipo,
-            status: { in: ['PENDENTE', 'ENVIADA'] },
-          },
-        });
-
-        if (existente) continue;
-
-        const criada = await this.prisma.notificacaoCliente.create({
-          data: {
-            clienteId: pedido.clienteId,
-            pedidoId: pedido.id,
-            tipo: item.tipo,
-            titulo: item.titulo,
-            mensagem: item.mensagem,
-            agendadaPara: item.agendadaPara,
-            status: 'PENDENTE',
-          },
-        });
-
-        notificacoes.push(criada);
-      }
+      notificacoes.push(criada);
     }
 
     return notificacoes;
+  }
+
+  // Avisos de cobrança para a equipe acompanhar e mandar pelo WhatsApp
+  async listarNotificacoes(filtros: { status?: string; clienteId?: string }) {
+    const notificacoes = await this.prisma.notificacaoCliente.findMany({
+      where: {
+        ...(filtros.status ? { status: filtros.status } : {}),
+        ...(filtros.clienteId ? { clienteId: filtros.clienteId } : {}),
+      },
+      include: {
+        cliente: { select: { id: true, razaoSocialOuNome: true, whatsapp: true, telefone: true } },
+        pedido: { select: { id: true, numero: true, dataVencimento: true } },
+      },
+      orderBy: { criadoEm: 'desc' },
+      take: 300,
+    });
+    return notificacoes;
+  }
+
+  async marcarNotificacaoEnviada(id: string) {
+    const notificacao = await this.prisma.notificacaoCliente.findUnique({ where: { id } });
+    if (!notificacao) throw new NotFoundException('Aviso não encontrado');
+    if (notificacao.status === 'CANCELADA') {
+      throw new BadRequestException('Aviso cancelado: o pedido já foi pago');
+    }
+    return this.prisma.notificacaoCliente.update({
+      where: { id },
+      data: { status: 'ENVIADA', enviadaEm: new Date() },
+    });
   }
 }

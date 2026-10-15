@@ -1,10 +1,20 @@
-import { Controller, Get, Post, Param, Body, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { PapelUsuario } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { EstoqueService } from './estoque.service';
-import { EntradaEstoqueDto, AjusteEstoqueDto } from './dto/estoque.dto';
+import { EntradaEstoqueDto, AjusteEstoqueDto, AtualizarLoteDto } from './dto/estoque.dto';
 
 @Controller('estoque')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -26,6 +36,7 @@ export class EstoqueController {
           produtoId: String(item.produtoId ?? ''),
           quantidade: Number(item.quantidade),
           valorProduto: Number(item.valorProduto ?? item.custoTotal ?? 0),
+          numeroLote: item.numeroLote != null ? String(item.numeroLote) : undefined,
         }))
       : dto.produtoId
         ? [
@@ -45,6 +56,8 @@ export class EstoqueController {
       valorFrete: dto.valorFrete,
       valorComissao: dto.valorComissao,
       observacao: dto.observacao,
+      numeroLote: dto.numeroLote,
+      dataLote: dto.dataLote,
       itens,
       usuarioId: req.user.id,
     });
@@ -58,6 +71,38 @@ export class EstoqueController {
   @Get('saldos')
   saldosTodos() {
     return this.estoqueService.saldosTodos();
+  }
+
+  // Aba Lotes: todos os lotes com saldo, quanto já foi vendido e em quais pedidos
+  @Get('lotes')
+  listarLotes(
+    @Query('produtoId') produtoId?: string,
+    @Query('situacao') situacao?: 'DISPONIVEL' | 'ESGOTADO',
+  ) {
+    return this.estoqueService.listarLotes({ produtoId, situacao });
+  }
+
+  // O vendedor escolhe o lote ao montar o pedido (só número, data e saldo; sem custo)
+  @Get('lotes/disponiveis')
+  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  lotesDisponiveis(@Query('produtoId') produtoId?: string) {
+    return this.estoqueService.lotesDisponiveis(produtoId);
+  }
+
+  @Get('lotes/proximo-numero')
+  proximoNumeroLote(@Query('data') data?: string) {
+    return this.estoqueService.sugerirNumeroLote(data);
+  }
+
+  @Patch('lotes/:id')
+  atualizarLote(@Param('id') id: string, @Body() dto: AtualizarLoteDto) {
+    return this.estoqueService.atualizarLote(id, dto);
+  }
+
+  // Extrato do lote: entrada, vendas, devoluções e ajustes com saldo antes/depois
+  @Get('lotes/:id/historico')
+  historicoLote(@Param('id') id: string) {
+    return this.estoqueService.historicoLote(id);
   }
 
   @Get('lotes/:produtoId')

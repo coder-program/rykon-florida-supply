@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsArray, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsNumber, IsOptional, IsString, Matches, Min } from 'class-validator';
 
 function paraNumero(value: unknown) {
   if (value === '' || value === null || value === undefined) return undefined;
@@ -49,9 +49,35 @@ export class EntradaEstoqueDto {
       produtoId: item?.produtoId != null ? String(item.produtoId) : '',
       quantidade: paraNumero(item?.quantidade) ?? 0,
       valorProduto: paraNumero(item?.valorProduto ?? item?.custoTotal) ?? 0,
+      numeroLote: item?.numeroLote != null ? String(item.numeroLote) : undefined,
     }));
   })
-  itens?: Array<{ produtoId: string; quantidade: number; valorProduto: number }>;
+  itens?: Array<{
+    produtoId: string;
+    quantidade: number;
+    valorProduto: number;
+    numeroLote?: string;
+  }>;
+
+  // Lote da compra (ex.: 18/09 - lote 1). Vazio = próximo número do dia
+  @IsOptional()
+  @IsString()
+  numeroLote?: string;
+
+  // Data do lote no formato YYYY-MM-DD. Vazio = hoje
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Data do lote inválida' })
+  dataLote?: string;
+}
+
+export class AtualizarLoteDto {
+  @IsOptional()
+  @IsString()
+  numero?: string;
+
+  @IsOptional()
+  @IsString()
+  observacao?: string;
 }
 
 export class AjusteEstoqueDto {
@@ -67,4 +93,9 @@ export class AjusteEstoqueDto {
   @IsOptional()
   @IsString()
   observacao?: string;
+
+  // Lote que recebe (ajuste positivo) ou perde (negativo) as caixas
+  @IsOptional()
+  @IsString()
+  loteId?: string;
 }

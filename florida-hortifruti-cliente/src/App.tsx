@@ -11,6 +11,7 @@ import { CarrinhoPage } from './pages/CarrinhoPage'
 import { PedidosPage } from './pages/PedidosPage'
 import { PedidoDetalhePage } from './pages/PedidoDetalhePage'
 import { ContaPage } from './pages/ContaPage'
+import { AvisosPage } from './pages/AvisosPage'
 import { ROUTER_BASENAME } from './lib/session'
 import { PageTransition } from './components/PageTransition'
 
@@ -75,6 +76,16 @@ function AppRoutes() {
             <PrivateRoute>
               <Layout>
                 <ContaPage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/avisos"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <AvisosPage />
               </Layout>
             </PrivateRoute>
           }

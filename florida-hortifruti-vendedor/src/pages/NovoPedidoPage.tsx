@@ -13,6 +13,24 @@ interface Item {
   nome: string
   quantidade: number
   valorUnitario: number
+  loteId?: string
+  loteLabel?: string
+}
+
+interface LoteDisponivel {
+  id: string
+  produtoId: string
+  numero: string
+  dataEntrada: string
+  quantidadeDisponivel: number
+}
+
+function rotuloLote(l: LoteDisponivel) {
+  const data = new Date(l.dataEntrada).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+  })
+  return `${data} - lote ${l.numero}`
 }
 interface DadosPedido {
   clienteId: string
@@ -325,60 +343,96 @@ function EtapaCliente({
 }
 
 // ── Etapa 2: seleção de produtos ────────────────────────────────────────────
+// Cada linha é produto + lote. O vendedor escolhe o lote (nunca automático) e pode dividir
+// o mesmo produto entre lotes, ex.: 20 cx do lote 1 + 10 cx do lote 2.
 function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: Item[]) => void }) {
   const { data: produtos = [] } = useQuery({
     queryKey: ['produtos'],
     queryFn: () => api.get('/produtos').then((r) => garantirLista(r.data)),
   })
 
-  function getItem(id: string) {
-    return itens.find((i) => i.produtoId === id)
+  const { data: lotes = [] } = useQuery<LoteDisponivel[]>({
+    queryKey: ['lotes-disponiveis'],
+    queryFn: () => api.get('/estoque/lotes/disponiveis').then((r) => garantirLista(r.data)),
+  })
+
+  function lotesDoProduto(produtoId: string) {
+    return lotes.filter((l) => l.produtoId === produtoId)
   }
 
-  function adicionar(p: any) {
-    const estoque = Number(p.estoqueAtual ?? 0)
-    const existe = getItem(p.id)
-    if (estoque <= 0) return
-    if (existe && existe.quantidade >= estoque) return
-    if (existe) {
-      onChange(
-        itens.map((i) => (i.produtoId === p.id ? { ...i, quantidade: i.quantidade + 1 } : i)),
-      )
-    } else {
-      onChange([
-        ...itens,
-        { produtoId: p.id, nome: p.nome, quantidade: 1, valorUnitario: Number(p.precoSugerido) },
-      ])
+  function saldoLote(loteId?: string) {
+    return lotes.find((l) => l.id === loteId)?.quantidadeDisponivel ?? 0
+  }
+
+  function atualizar(index: number, patch: Partial<Item>) {
+    onChange(itens.map((i, idx) => (idx === index ? { ...i, ...patch } : i)))
+  }
+
+  function adicionarLinha(p: any) {
+    const usados = new Set(itens.filter((i) => i.produtoId === p.id).map((i) => i.loteId))
+    const livres = lotesDoProduto(p.id).filter((l) => !usados.has(l.id))
+    if (livres.length === 0) return
+    // Só preenche o lote sozinho quando não há escolha a fazer (um único lote livre)
+    const unico = livres.length === 1 ? livres[0] : undefined
+    const precoBase = itens.find((i) => i.produtoId === p.id)?.valorUnitario
+    onChange([
+      ...itens,
+      {
+        produtoId: p.id,
+        nome: p.nome,
+        quantidade: 1,
+        valorUnitario: precoBase ?? Number(p.precoSugerido),
+        loteId: unico?.id,
+        loteLabel: unico ? rotuloLote(unico) : undefined,
+      },
+    ])
+  }
+
+  function setLote(index: number, loteId: string) {
+    const lote = lotes.find((l) => l.id === loteId)
+    const item = itens[index]
+    atualizar(index, {
+      loteId: lote?.id,
+      loteLabel: lote ? rotuloLote(lote) : undefined,
+      quantidade: lote
+        ? Math.max(1, Math.min(item.quantidade, lote.quantidadeDisponivel))
+        : item.quantidade,
+    })
+  }
+
+  function mudarQuantidade(index: number, delta: number) {
+    const item = itens[index]
+    const nova = item.quantidade + delta
+    if (nova <= 0) {
+      onChange(itens.filter((_, idx) => idx !== index))
+      return
     }
+    if (delta > 0 && item.loteId && nova > saldoLote(item.loteId)) return
+    atualizar(index, { quantidade: nova })
   }
 
-  function remover(id: string) {
-    const item = getItem(id)
-    if (!item) return
-    if (item.quantidade <= 1) onChange(itens.filter((i) => i.produtoId !== id))
-    else
-      onChange(itens.map((i) => (i.produtoId === id ? { ...i, quantidade: i.quantidade - 1 } : i)))
-  }
-
-  function setPreco(id: string, v: string) {
-    onChange(itens.map((i) => (i.produtoId === id ? { ...i, valorUnitario: Number(v) || 0 } : i)))
-  }
+  const linhasSemLote = itens.some((i) => !i.loteId)
+  const acimaDoSaldo = itens.some((i) => i.loteId && i.quantidade > saldoLote(i.loteId))
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto px-4 pt-4 space-y-3">
         {produtos.map((p: any) => {
-          const item = getItem(p.id)
           const estoque = Number(p.estoqueAtual ?? 0)
-          const semEstoque = estoque <= 0
-          const noLimite = !!item && item.quantidade >= estoque
+          const opcoesLote = lotesDoProduto(p.id)
+          const semEstoque = estoque <= 0 || opcoesLote.length === 0
+          const linhas = itens
+            .map((item, index) => ({ item, index }))
+            .filter(({ item }) => item.produtoId === p.id)
+          const usados = new Set(linhas.map(({ item }) => item.loteId))
+          const temLoteLivre = opcoesLote.some((l) => !usados.has(l.id))
           return (
             <div
               key={p.id}
               className={`bg-white rounded-xl border px-4 py-3.5 transition ${
-                semEstoque
+                semEstoque && linhas.length === 0
                   ? 'border-gray-100 opacity-60'
-                  : item
+                  : linhas.length > 0
                     ? 'border-green-400'
                     : 'border-gray-100'
               }`}
@@ -386,64 +440,121 @@ function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: I
               <div className="flex items-center justify-between gap-3">
                 <button
                   type="button"
-                  onClick={() => adicionar(p)}
-                  disabled={semEstoque || noLimite}
-                  className="flex-1 min-w-0 cursor-pointer text-left disabled:cursor-not-allowed"
+                  onClick={() => linhas.length === 0 && adicionarLinha(p)}
+                  disabled={semEstoque || linhas.length > 0}
+                  className="flex-1 min-w-0 cursor-pointer text-left disabled:cursor-default"
                 >
                   <p className="font-semibold text-gray-900 text-sm">{p.nome}</p>
                   <p className="text-xs text-gray-400">
                     {p.codigoInterno} • {p.unidadeVenda}
-                    {semEstoque ? ' • sem estoque' : ` • ${estoque} cx`}
+                    {semEstoque ? ' • sem lote com saldo' : ` • ${estoque} cx`}
                   </p>
                 </button>
-                <div className="flex items-center gap-2 shrink-0">
-                  {item && (
-                    <button
-                      onClick={() => remover(p.id)}
-                      className="w-8 h-8 cursor-pointer bg-red-100 text-red-600 rounded-lg flex items-center justify-center"
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-                  )}
-                  {item && (
-                    <span className="w-7 text-center font-bold text-gray-900">
-                      {item.quantidade}
-                    </span>
-                  )}
+                {linhas.length === 0 && (
                   <button
-                    onClick={() => adicionar(p)}
-                    disabled={semEstoque || noLimite}
+                    onClick={() => adicionarLinha(p)}
+                    disabled={semEstoque}
                     className="w-8 h-8 cursor-pointer bg-green-100 text-green-700 rounded-lg flex items-center justify-center disabled:cursor-not-allowed disabled:opacity-40 disabled:bg-gray-100 disabled:text-gray-400"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
-                </div>
+                )}
               </div>
 
-              {item && (
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="text-xs text-gray-500">Preço unitário (R$):</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={item.valorUnitario}
-                    onChange={(e) => setPreco(p.id, e.target.value)}
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                  <span className="text-xs font-semibold text-green-700 min-w-18 text-right">
-                    = {formatBRL(item.quantidade * item.valorUnitario)}
-                  </span>
-                </div>
+              {linhas.map(({ item, index }) => {
+                const saldo = saldoLote(item.loteId)
+                const noLimite = !!item.loteId && item.quantidade >= saldo
+                return (
+                  <div key={index} className="mt-3 space-y-2 rounded-lg bg-gray-50 p-2.5">
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={item.loteId ?? ''}
+                        onChange={(e) => setLote(index, e.target.value)}
+                        className={`min-w-0 flex-1 border rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                          item.loteId ? 'border-gray-300' : 'border-amber-400'
+                        }`}
+                      >
+                        <option value="">Selecione o lote</option>
+                        {opcoesLote
+                          .filter((l) => l.id === item.loteId || !usados.has(l.id))
+                          .map((l) => (
+                            <option key={l.id} value={l.id}>
+                              {rotuloLote(l)} • {l.quantidadeDisponivel} cx
+                            </option>
+                          ))}
+                      </select>
+                      <button
+                        onClick={() => mudarQuantidade(index, -1)}
+                        className="w-8 h-8 shrink-0 cursor-pointer bg-red-100 text-red-600 rounded-lg flex items-center justify-center"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="w-7 text-center font-bold text-gray-900">
+                        {item.quantidade}
+                      </span>
+                      <button
+                        onClick={() => mudarQuantidade(index, 1)}
+                        disabled={noLimite}
+                        className="w-8 h-8 shrink-0 cursor-pointer bg-green-100 text-green-700 rounded-lg flex items-center justify-center disabled:cursor-not-allowed disabled:opacity-40 disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {item.loteId && item.quantidade > saldo && (
+                      <p className="text-xs text-red-600">
+                        Saldo insuficiente: o lote tem {saldo} cx. Selecione outro lote ou divida.
+                      </p>
+                    )}
+                    {noLimite && item.quantidade === saldo && temLoteLivre && (
+                      <p className="text-xs text-gray-500">
+                        Lote no limite. Para vender mais, use "Dividir em outro lote".
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">Preço (R$/cx):</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={item.valorUnitario}
+                        onChange={(e) =>
+                          atualizar(index, { valorUnitario: Number(e.target.value) || 0 })
+                        }
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-right bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                      <span className="text-xs font-semibold text-green-700 min-w-18 text-right">
+                        = {formatBRL(item.quantidade * item.valorUnitario)}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {linhas.length > 0 && temLoteLivre && (
+                <button
+                  type="button"
+                  onClick={() => adicionarLinha(p)}
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-green-700"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Dividir em outro lote
+                </button>
               )}
             </div>
           )
         })}
       </div>
 
+      {(linhasSemLote || acimaDoSaldo) && (
+        <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 text-xs text-amber-800">
+          {linhasSemLote
+            ? 'Selecione o lote de cada produto para continuar.'
+            : 'Há lote com saldo insuficiente. Ajuste a quantidade ou escolha outro lote.'}
+        </div>
+      )}
+
       {itens.length > 0 && (
         <div className="px-4 py-3 bg-green-50 border-t border-green-200">
           <p className="text-sm text-green-800">
-            <span className="font-semibold">{itens.length} produto(s)</span> • Subtotal:{' '}
+            <span className="font-semibold">{itens.length} item(ns)</span> • Subtotal:{' '}
             <span className="font-bold">
               {formatBRL(itens.reduce((s, i) => s + i.quantidade * i.valorUnitario, 0))}
             </span>
@@ -771,14 +882,18 @@ function EtapaConfirmar({ dados }: { dados: DadosPedido }) {
         <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
           <p className="text-xs font-semibold text-gray-500">PRODUTOS</p>
         </div>
-        {dados.itens.map((i) => (
-          <div key={i.produtoId} className="px-4 py-3 border-b border-gray-50 text-sm">
+        {dados.itens.map((i, idx) => (
+          <div
+            key={`${i.produtoId}-${i.loteId ?? idx}`}
+            className="px-4 py-3 border-b border-gray-50 text-sm"
+          >
             <div className="flex justify-between">
               <span className="text-gray-800 font-medium">{i.nome}</span>
               <span className="font-semibold">{formatBRL(i.quantidade * i.valorUnitario)}</span>
             </div>
             <p className="text-xs text-gray-400">
               {i.quantidade} cx × {formatBRL(i.valorUnitario)}
+              {i.loteLabel ? ` • ${i.loteLabel}` : ''}
             </p>
           </div>
         ))}
@@ -910,6 +1025,7 @@ export function NovoPedidoPage() {
           produtoId: i.produtoId,
           quantidade: i.quantidade,
           valorUnitario: i.valorUnitario,
+          loteId: i.loteId || undefined,
         })),
         valorFrete: dados.valorFrete,
         freteInclusoNoPreco: dados.freteInclusoNoPreco,
@@ -945,7 +1061,8 @@ export function NovoPedidoPage() {
 
   function podeAvancar() {
     if (etapa === 'cliente') return !!dados.clienteId
-    if (etapa === 'produtos') return dados.itens.length > 0
+    // Cada produto precisa do lote escolhido para a baixa sair do lote certo
+    if (etapa === 'produtos') return dados.itens.length > 0 && dados.itens.every((i) => i.loteId)
     return true
   }
 

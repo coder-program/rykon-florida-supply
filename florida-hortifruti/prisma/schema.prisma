@@ -23,31 +23,31 @@ enum PapelUsuario {
 }
 
 model Usuario {
-  id        String       @id @default(uuid())
-  nome      String
-  email     String       @unique
-  cpf       String?      @unique
-  dataNascimento DateTime?
-  telefone  String?
-  whatsapp  String?
-  enderecoPrincipalId String? @unique
-  enderecoPrincipal Endereco? @relation("EnderecoPrincipalUsuario", fields: [enderecoPrincipalId], references: [id], onDelete: SetNull)
-  senhaHash String
-  papel     PapelUsuario
-  ativo     Boolean      @default(true)
-  criadoEm  DateTime     @default(now())
+  id                  String       @id @default(uuid())
+  nome                String
+  email               String       @unique
+  cpf                 String?      @unique
+  dataNascimento      DateTime?
+  telefone            String?
+  whatsapp            String?
+  enderecoPrincipalId String?      @unique
+  enderecoPrincipal   Endereco?    @relation("EnderecoPrincipalUsuario", fields: [enderecoPrincipalId], references: [id], onDelete: SetNull)
+  senhaHash           String
+  papel               PapelUsuario
+  ativo               Boolean      @default(true)
+  criadoEm            DateTime     @default(now())
 
-  pedidosCriados          Pedido[]                     @relation("VendedorPedido")
-  pedidosEntrega          Pedido[]                     @relation("EntregadorPedido")
-  cliente                 Cliente?
-  ajustesEstoque          MovimentacaoEstoque[]
-  comprasEstoque          CompraEstoque[]
-  historicoPrecos         HistoricoPreco[]
-  precosCliente           PrecoCliente[]
-  logs                    LogAuditoria[]
-  solicitacoesEnviadas    SolicitacaoAlteracaoPedido[] @relation("SolicitanteAlteracao")
-  solicitacoesRespondidas SolicitacaoAlteracaoPedido[] @relation("ResponsavelAlteracao")
-  comprovantesEntrega     ComprovanteEntrega[]
+  pedidosCriados              Pedido[]                     @relation("VendedorPedido")
+  pedidosEntrega              Pedido[]                     @relation("EntregadorPedido")
+  cliente                     Cliente?
+  ajustesEstoque              MovimentacaoEstoque[]
+  comprasEstoque              CompraEstoque[]
+  historicoPrecos             HistoricoPreco[]
+  precosCliente               PrecoCliente[]
+  logs                        LogAuditoria[]
+  solicitacoesEnviadas        SolicitacaoAlteracaoPedido[] @relation("SolicitanteAlteracao")
+  solicitacoesRespondidas     SolicitacaoAlteracaoPedido[] @relation("ResponsavelAlteracao")
+  comprovantesEntrega         ComprovanteEntrega[]
   pagamentosPedidoRegistrados PagamentoPedido[]
 
   @@map("usuarios")
@@ -87,22 +87,22 @@ model Cidade {
 }
 
 model Endereco {
-  id              String               @id @default(uuid())
-  entidadeTipo    TipoEntidadeEndereco
-  entidadeId      String
-  tipo            TipoEndereco         @default(PRINCIPAL)
-  principal       Boolean              @default(true)
-  cep             String?
-  logradouro      String
-  numero          String?
-  complemento     String?
-  bairro          String?
-  cidadeId        String
-  cidade          Cidade               @relation(fields: [cidadeId], references: [id])
-  pontoReferencia String?
-  criadoEm        DateTime             @default(now())
-  atualizadoEm    DateTime             @updatedAt
-  usuariosComEnderecoPrincipal Usuario[] @relation("EnderecoPrincipalUsuario")
+  id                           String               @id @default(uuid())
+  entidadeTipo                 TipoEntidadeEndereco
+  entidadeId                   String
+  tipo                         TipoEndereco         @default(PRINCIPAL)
+  principal                    Boolean              @default(true)
+  cep                          String?
+  logradouro                   String
+  numero                       String?
+  complemento                  String?
+  bairro                       String?
+  cidadeId                     String
+  cidade                       Cidade               @relation(fields: [cidadeId], references: [id])
+  pontoReferencia              String?
+  criadoEm                     DateTime             @default(now())
+  atualizadoEm                 DateTime             @updatedAt
+  usuariosComEnderecoPrincipal Usuario[]            @relation("EnderecoPrincipalUsuario")
 
   @@index([entidadeTipo, entidadeId])
   @@map("enderecos")
@@ -119,25 +119,25 @@ enum StatusConviteCliente {
 }
 
 model Cliente {
-  id                  String                @id @default(uuid())
+  id                  String   @id @default(uuid())
   razaoSocialOuNome   String
   nomeFantasia        String?
-  cnpjCpf             String                @unique
+  cnpjCpf             String   @unique
   telefone            String?
   whatsapp            String?
   email               String?
   responsavelContato  String?
   condicaoPagamento   String?
   formaPagamentoUsual String?
-  necessitaNF         Boolean               @default(false)
+  necessitaNF         Boolean  @default(false)
   observacoes         String?
-  ativo               Boolean               @default(true)
-  criadoEm            DateTime              @default(now())
+  ativo               Boolean  @default(true)
+  criadoEm            DateTime @default(now())
 
-  usuarioId            String?               @unique
-  usuario              Usuario?              @relation(fields: [usuarioId], references: [id])
-  statusConvite        StatusConviteCliente  @default(NAO_CONVIDADO)
-  tokenConvite         String?               @unique
+  usuarioId            String?              @unique
+  usuario              Usuario?             @relation(fields: [usuarioId], references: [id])
+  statusConvite        StatusConviteCliente @default(NAO_CONVIDADO)
+  tokenConvite         String?              @unique
   tokenConviteExpiraEm DateTime?
 
   pedidos         Pedido[]
@@ -185,13 +185,13 @@ model Produto {
   ativo                      Boolean      @default(true)
   criadoEm                   DateTime     @default(now())
 
-  itensPedido          ItemPedido[]
-  itensPedidoLote      ItemPedidoLote[]
-  movimentacoes        MovimentacaoEstoque[]
-  itensCompra          ItemCompraEstoque[]
-  historicoPrecos      HistoricoPreco[]
-  precosCliente        PrecoCliente[]
-  lotesProduto         LoteProduto[]
+  itensPedido     ItemPedido[]
+  itensPedidoLote ItemPedidoLote[]
+  movimentacoes   MovimentacaoEstoque[]
+  itensCompra     ItemCompraEstoque[]
+  historicoPrecos HistoricoPreco[]
+  precosCliente   PrecoCliente[]
+  lotesProduto    LoteProduto[]
 
   @@map("produtos")
 }
@@ -330,14 +330,17 @@ model PagamentoPedido {
 }
 
 model ItemPedido {
-  id            String  @id @default(uuid())
+  id            String       @id @default(uuid())
   pedidoId      String
-  pedido        Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  pedido        Pedido       @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   produtoId     String
-  produto       Produto @relation(fields: [produtoId], references: [id])
-  quantidade    Decimal @db.Decimal(10, 2)
-  valorUnitario Decimal @db.Decimal(10, 2)
-  valorTotal    Decimal @db.Decimal(10, 2)
+  produto       Produto      @relation(fields: [produtoId], references: [id])
+  // Lote escolhido pelo vendedor; nulo = baixa automática do lote mais antigo
+  loteId        String?
+  lote          LoteProduto? @relation(fields: [loteId], references: [id])
+  quantidade    Decimal      @db.Decimal(10, 2)
+  valorUnitario Decimal      @db.Decimal(10, 2)
+  valorTotal    Decimal      @db.Decimal(10, 2)
 
   @@map("itens_pedido")
 }
@@ -400,22 +403,22 @@ enum TipoMovimentacao {
 }
 
 model MovimentacaoEstoque {
-  id            String                     @id @default(uuid())
+  id            String                    @id @default(uuid())
   produtoId     String
-  produto       Produto                    @relation(fields: [produtoId], references: [id])
+  produto       Produto                   @relation(fields: [produtoId], references: [id])
   tipo          TipoMovimentacao
-  quantidade    Decimal                    @db.Decimal(10, 2)
+  quantidade    Decimal                   @db.Decimal(10, 2)
   origem        String
   pedidoId      String?
-  pedido        Pedido?                    @relation(fields: [pedidoId], references: [id])
+  pedido        Pedido?                   @relation(fields: [pedidoId], references: [id])
   fornecedor    String?
-  custoTotal    Decimal?                   @db.Decimal(10, 2)
-  custoUnitario Decimal?                   @db.Decimal(10, 2)
+  custoTotal    Decimal?                  @db.Decimal(10, 2)
+  custoUnitario Decimal?                  @db.Decimal(10, 2)
   motivoAjuste  String?
   usuarioId     String
-  usuario       Usuario                    @relation(fields: [usuarioId], references: [id])
+  usuario       Usuario                   @relation(fields: [usuarioId], references: [id])
   observacao    String?
-  data          DateTime                   @default(now())
+  data          DateTime                  @default(now())
   itemCompra    ItemCompraEstoque?
   lotes         MovimentacaoEstoqueLote[]
 
@@ -423,35 +426,41 @@ model MovimentacaoEstoque {
 }
 
 model LoteProduto {
-  id                  String                 @id @default(uuid())
-  produtoId           String
-  produto             Produto                @relation(fields: [produtoId], references: [id])
-  numero              String
-  dataEntrada         DateTime               @default(now())
-  quantidadeInicial   Decimal                @db.Decimal(10, 2)
-  quantidadeDisponivel Decimal               @db.Decimal(10, 2)
-  valorUnitario       Decimal                @db.Decimal(10, 2)
-  observacao          String?
-  ativo               Boolean                @default(true)
-  criadoEm            DateTime               @default(now())
+  id                   String   @id @default(uuid())
+  produtoId            String
+  produto              Produto  @relation(fields: [produtoId], references: [id])
+  numero               String
+  dataEntrada          DateTime @default(now())
+  quantidadeInicial    Decimal  @db.Decimal(10, 2)
+  quantidadeDisponivel Decimal  @db.Decimal(10, 2)
+  valorUnitario        Decimal  @db.Decimal(10, 2)
+  observacao           String?
+  ativo                Boolean  @default(true)
+  criadoEm             DateTime @default(now())
 
-  itensPedido         ItemPedidoLote[]
-  movimentacoesLote   MovimentacaoEstoqueLote[]
+  itensPedido       ItemPedidoLote[]
+  itensSelecionados ItemPedido[]
+  movimentacoesLote MovimentacaoEstoqueLote[]
 
-  @@unique([produtoId, numero])
+  // Número do lote é único por produto e dia (ex.: 18/09 - lote 1), validado no EstoqueService
+  @@index([produtoId, numero])
   @@index([produtoId, ativo, dataEntrada])
   @@map("lotes_produto")
 }
 
 model MovimentacaoEstoqueLote {
-  id            String              @id @default(uuid())
-  loteId        String
-  lote          LoteProduto         @relation(fields: [loteId], references: [id])
+  id             String              @id @default(uuid())
+  loteId         String
+  lote           LoteProduto         @relation(fields: [loteId], references: [id])
   movimentacaoId String
-  movimentacao  MovimentacaoEstoque @relation(fields: [movimentacaoId], references: [id], onDelete: Cascade)
-  quantidade    Decimal             @db.Decimal(10, 2)
-  origem        String
-  data          DateTime            @default(now())
+  movimentacao   MovimentacaoEstoque @relation(fields: [movimentacaoId], references: [id], onDelete: Cascade)
+  // Sempre positiva; o sentido (entrada/saída do lote) vem de saldoAntes -> saldoDepois
+  quantidade     Decimal             @db.Decimal(10, 2)
+  // Saldo do lote antes e depois do movimento (ex.: Lote 01: 130 -> 100)
+  saldoAntes     Decimal?            @db.Decimal(10, 2)
+  saldoDepois    Decimal?            @db.Decimal(10, 2)
+  origem         String
+  data           DateTime            @default(now())
 
   @@index([loteId, data])
   @@index([movimentacaoId])
@@ -547,6 +556,7 @@ model NotificacaoCliente {
   mensagem     String
   agendadaPara DateTime?
   enviadaEm    DateTime?
+  lidaEm       DateTime?
   status       String    @default("PENDENTE")
   criadoEm     DateTime  @default(now())
 

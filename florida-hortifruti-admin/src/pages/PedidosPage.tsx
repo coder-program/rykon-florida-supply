@@ -21,6 +21,19 @@ import { Button } from '../components/ui/Button'
 import { Select } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
 import { NovoPedidoModal } from './NovoPedidoModal'
+import { RastreioLotesPedido } from './RastreioLotesPedido'
+
+type LoteDisponivel = {
+  id: string
+  produtoId: string
+  numero: string
+  dataEntrada: string
+  quantidadeDisponivel: number
+}
+
+function rotuloLote(l: { numero: string; dataEntrada: string }) {
+  return `${new Date(l.dataEntrada).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} - lote ${l.numero}`
+}
 
 const STATUS_ACOES: Record<string, { label: string; next: string }[]> = {
   AGUARDANDO_APROVACAO: [
@@ -91,10 +104,18 @@ export function PedidosPage() {
     observacoes: '',
     itens: [] as {
       produtoId: string
+      loteId: string
       nome: string
       quantidade: number
       valorUnitario: number
     }[],
+  })
+
+  // Lotes com saldo, para escolher (ou dividir) o lote de cada produto antes de aprovar
+  const { data: lotesDisponiveis = [] } = useQuery<LoteDisponivel[]>({
+    queryKey: ['lotes-disponiveis'],
+    queryFn: () => api.get('/estoque/lotes/disponiveis').then((r) => r.data),
+    enabled: editando,
   })
 
   const { data: pedidos = [], isLoading } = useQuery({
@@ -183,6 +204,7 @@ export function PedidosPage() {
       observacoes: p.observacoes ?? '',
       itens: (p.itens ?? []).map((i: any) => ({
         produtoId: i.produtoId,
+        loteId: i.loteId ?? '',
         nome: i.produto?.nome ?? '',
         quantidade: Math.max(1, Math.round(Number(i.quantidade) || 0)),
         valorUnitario: Number(i.valorUnitario),
@@ -191,15 +213,33 @@ export function PedidosPage() {
     setEditando(true)
   }
 
-  function alterarQtdItem(produtoId: string, delta: number) {
+  function alterarItem(index: number, patch: Partial<(typeof formEdit.itens)[number]>) {
     setFormEdit((f) => ({
       ...f,
-      itens: f.itens.map((item) =>
-        item.produtoId === produtoId
-          ? { ...item, quantidade: Math.max(1, item.quantidade + delta) }
-          : item,
-      ),
+      itens: f.itens.map((item, idx) => (idx === index ? { ...item, ...patch } : item)),
     }))
+  }
+
+  function alterarQtdItem(index: number, delta: number) {
+    const item = formEdit.itens[index]
+    alterarItem(index, { quantidade: Math.max(1, item.quantidade + delta) })
+  }
+
+  // Divide o produto em mais uma linha, para o usuário escolher outro lote
+  function dividirItem(index: number) {
+    const item = formEdit.itens[index]
+    setFormEdit((f) => ({
+      ...f,
+      itens: [
+        ...f.itens.slice(0, index + 1),
+        { ...item, loteId: '', quantidade: 1 },
+        ...f.itens.slice(index + 1),
+      ],
+    }))
+  }
+
+  function removerItem(index: number) {
+    setFormEdit((f) => ({ ...f, itens: f.itens.filter((_, idx) => idx !== index) }))
   }
 
   const pedidosFiltrados = pedidos.filter(
@@ -625,7 +665,14 @@ export function PedidosPage() {
                 <tbody className="divide-y divide-gray-100">
                   {pedidoSelecionado.itens?.map((i: any) => (
                     <tr key={i.id}>
-                      <td className="px-3 py-2">{i.produto?.nome}</td>
+                      <td className="px-3 py-2">
+                        {i.produto?.nome}
+                        {i.lote && (
+                          <p className="text-xs text-gray-500">
+                            {formatDate(i.lote.dataEntrada).slice(0, 5)} - lote {i.lote.numero}
+                          </p>
+                        )}
+                      </td>
                       <td className="px-3 py-2 text-right">{Number(i.quantidade).toFixed(0)} cx</td>
                       <td className="px-3 py-2 text-right">{formatBRL(i.valorUnitario)}</td>
                       <td className="px-3 py-2 text-right font-semibold">
@@ -675,6 +722,17 @@ export function PedidosPage() {
               </table>
             </div>
 
+            {pedidoSelecionado.status === 'AGUARDANDO_APROVACAO' &&
+              pedidoSelecionado.itens?.some((i: any) => !i.loteId) && (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Há produto sem lote. Use "Editar Pedido" e selecione o lote antes de aprovar.
+                </p>
+              )}
+
+            {!['AGUARDANDO_APROVACAO', 'REJEITADO'].includes(pedidoSelecionado.status) && (
+              <RastreioLotesPedido pedidoId={pedidoSelecionado.id} />
+            )}
+
             {/* Edição antes de aprovar */}
             {STATUS_EDITAVEL.includes(pedidoSelecionado.status) && !editando && (
               <div className="pt-2 border-t border-gray-100">
@@ -694,6 +752,7 @@ export function PedidosPage() {
                     descontoValor: Number(formEdit.descontoValor),
                     itens: formEdit.itens.map((i) => ({
                       produtoId: i.produtoId,
+                      loteId: i.loteId || null,
                       quantidade: i.quantidade,
                       valorUnitario: i.valorUnitario,
                     })),
@@ -706,34 +765,97 @@ export function PedidosPage() {
                   Depois da aprovação, mudanças de quantidade entram em Solicitações de Alteração.
                 </p>
                 <div className="space-y-2 rounded-lg border border-gray-200 p-3">
-                  <p className="text-xs font-medium text-gray-600">Quantidade (caixas)</p>
-                  {formEdit.itens.map((item) => (
-                    <div key={item.produtoId} className="flex items-center justify-between gap-3">
-                      <p className="min-w-0 truncate text-sm text-gray-800">{item.nome}</p>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => alterarQtdItem(item.produtoId, -1)}
-                          disabled={item.quantidade <= 1}
-                        >
-                          −
-                        </Button>
-                        <span className="w-8 text-center text-sm font-semibold">
-                          {item.quantidade}
-                        </span>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => alterarQtdItem(item.produtoId, 1)}
-                        >
-                          +
-                        </Button>
+                  <p className="text-xs font-medium text-gray-600">Lote e quantidade (caixas)</p>
+                  {formEdit.itens.map((item, index) => {
+                    const linhasProduto = formEdit.itens.filter(
+                      (i) => i.produtoId === item.produtoId,
+                    )
+                    const usados = new Set(
+                      linhasProduto.filter((i) => i !== item).map((i) => i.loteId),
+                    )
+                    const opcoes = lotesDisponiveis.filter(
+                      (l) => l.produtoId === item.produtoId && !usados.has(l.id),
+                    )
+                    // Lote já escolhido mas sem saldo hoje continua aparecendo
+                    const atualForaDaLista =
+                      item.loteId && !opcoes.some((l) => l.id === item.loteId)
+                    const saldo = lotesDisponiveis.find(
+                      (l) => l.id === item.loteId,
+                    )?.quantidadeDisponivel
+                    return (
+                      <div
+                        key={index}
+                        className="space-y-1.5 border-b border-gray-100 pb-2 last:border-0 last:pb-0"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="min-w-0 truncate text-sm text-gray-800">{item.nome}</p>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => alterarQtdItem(index, -1)}
+                              disabled={item.quantidade <= 1}
+                            >
+                              −
+                            </Button>
+                            <span className="w-8 text-center text-sm font-semibold">
+                              {item.quantidade}
+                            </span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => alterarQtdItem(index, 1)}
+                            >
+                              +
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={item.loteId}
+                            onChange={(e) => alterarItem(index, { loteId: e.target.value })}
+                            className={`min-w-0 flex-1 rounded-lg border px-2 py-1.5 text-sm ${item.loteId ? 'border-gray-300' : 'border-amber-400'}`}
+                          >
+                            <option value="">Selecione o lote</option>
+                            {atualForaDaLista && (
+                              <option value={item.loteId}>Lote atual (sem saldo)</option>
+                            )}
+                            {opcoes.map((l) => (
+                              <option key={l.id} value={l.id}>
+                                {rotuloLote(l)} • {l.quantidadeDisponivel} cx
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => dividirItem(index)}
+                          >
+                            Dividir lote
+                          </Button>
+                          {linhasProduto.length > 1 && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => removerItem(index)}
+                            >
+                              Remover
+                            </Button>
+                          )}
+                        </div>
+                        {item.loteId && saldo != null && item.quantidade > saldo && (
+                          <p className="text-xs text-red-600">
+                            Saldo insuficiente: o lote tem {saldo} cx. Selecione outro lote ou
+                            divida.
+                          </p>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
                 {editarPedido.isError && (
                   <p className="text-xs text-red-600">

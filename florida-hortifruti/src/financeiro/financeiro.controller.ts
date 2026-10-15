@@ -60,4 +60,14 @@ export class FinanceiroController {
   gerarNotificacoesVencimento() {
     return this.financeiroService.gerarNotificacoesVencimento();
   }
+
+  @Get('notificacoes')
+  listarNotificacoes(@Query('status') status?: string, @Query('clienteId') clienteId?: string) {
+    return this.financeiroService.listarNotificacoes({ status, clienteId });
+  }
+
+  @Post('notificacoes/:id/enviada')
+  marcarNotificacaoEnviada(@Param('id') id: string) {
+    return this.financeiroService.marcarNotificacaoEnviada(id);
+  }
 }

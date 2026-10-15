@@ -19,6 +19,7 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Select } from '../components/ui/Input'
+import { AvisosCobranca } from './AvisosCobranca'
 
 const SITUACAO_CONFIG: Record<string, { label: string; badge: string; row: string }> = {
   PAGO: { label: 'Pago', badge: 'bg-green-100 text-green-700', row: '' },
@@ -540,6 +541,8 @@ export function FinanceiroPage() {
             </div>
           )}
         </div>
+
+        <AvisosCobranca />
       </div>
     </div>
   )

@@ -134,7 +134,11 @@ export function SolicitacoesAlteracaoPage() {
                 <div className="mt-3 space-y-1 text-sm">
                   {(s.itens ?? []).map((item: any) => (
                     <p key={item.produtoId} className="text-gray-700">
-                      {item.nome}: {item.quantidadeOriginal} → {item.quantidadeSolicitada} cx
+                      {item.nome}
+                      {item.loteNumero
+                        ? ` (${item.loteData ? `${new Date(item.loteData).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} - ` : ''}lote ${item.loteNumero})`
+                        : ''}
+                      : {item.quantidadeOriginal} → {item.quantidadeSolicitada} cx
                     </p>
                   ))}
                 </div>

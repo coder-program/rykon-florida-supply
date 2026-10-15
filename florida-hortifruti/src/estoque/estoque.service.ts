@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Prisma, TipoMovimentacao } from '@prisma/client';
 
@@ -61,6 +61,41 @@ export class EstoqueService {
     });
   }
 
+  // Dia do lote no fuso de Brasília (YYYY-MM-DD) e o intervalo [início, fim) desse dia
+  private diaLote(data?: string) {
+    const dia =
+      data && /^\d{4}-\d{2}-\d{2}$/.test(data)
+        ? data
+        : new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    const inicio = new Date(`${dia}T00:00:00-03:00`);
+    const fim = new Date(inicio.getTime() + 86400000);
+    // Meio-dia evita que a data "pule" de dia ao ser exibida em outro fuso
+    const dataEntrada = data ? new Date(`${dia}T12:00:00-03:00`) : new Date();
+    return { inicio, fim, dataEntrada };
+  }
+
+  // Próximo número sequencial do dia: 18/09 - lote 1, lote 2...
+  private async proximoNumeroLote(
+    tx: Prisma.TransactionClient | PrismaService,
+    inicio: Date,
+    fim: Date,
+  ) {
+    const lotes = await tx.loteProduto.findMany({
+      where: { dataEntrada: { gte: inicio, lt: fim } },
+      select: { numero: true },
+    });
+    const maior = lotes.reduce((acc, lote) => {
+      const n = Number(lote.numero);
+      return Number.isInteger(n) && n > acc ? n : acc;
+    }, 0);
+    return String(maior + 1);
+  }
+
+  async sugerirNumeroLote(data?: string) {
+    const { inicio, fim } = this.diaLote(data);
+    return { numero: await this.proximoNumeroLote(this.prisma, inicio, fim) };
+  }
+
   async registrarEntrada(params: {
     fornecedor: string;
     usuarioId: string;
@@ -68,6 +103,8 @@ export class EstoqueService {
     valorFrete?: number;
     valorComissao?: number;
     observacao?: string;
+    numeroLote?: string;
+    dataLote?: string;
   }) {
     const itens = (params.itens ?? []).filter((item) => item.produtoId && item.quantidade > 0);
     if (itens.length === 0) {
@@ -83,8 +120,37 @@ export class EstoqueService {
     const valorFrete = Number(params.valorFrete ?? 0);
     const valorComissao = Number(params.valorComissao ?? 0);
     const rateados = this.calcularRateio(itens, valorFrete, valorComissao);
+    const { inicio, fim, dataEntrada } = this.diaLote(params.dataLote);
 
     return this.prisma.$transaction(async (tx) => {
+      const numeroPadrao =
+        params.numeroLote?.trim() || (await this.proximoNumeroLote(tx, inicio, fim));
+
+      const vistos = new Set<string>();
+      for (const item of itens) {
+        const numero = item.numeroLote?.trim() || numeroPadrao;
+        const chave = `${item.produtoId}|${numero}`;
+        if (vistos.has(chave)) {
+          throw new BadRequestException(
+            `O mesmo produto aparece duas vezes no lote ${numero}; junte as quantidades em uma linha`,
+          );
+        }
+        vistos.add(chave);
+        const repetido = await tx.loteProduto.findFirst({
+          where: {
+            produtoId: item.produtoId,
+            numero,
+            dataEntrada: { gte: inicio, lt: fim },
+          },
+          include: { produto: { select: { nome: true } } },
+        });
+        if (repetido) {
+          throw new BadRequestException(
+            `Já existe o lote ${numero} de ${repetido.produto.nome} nesse dia`,
+          );
+        }
+      }
+
       const compra = await tx.compraEstoque.create({
         data: {
           fornecedor: params.fornecedor,
@@ -110,14 +176,13 @@ export class EstoqueService {
           },
         });
 
-        const numeroLote =
-          itens[index]?.numeroLote?.trim() ||
-          `L-${item.produtoId.slice(0, 8)}-${Date.now()}-${index + 1}`;
+        const numeroLote = itens[index]?.numeroLote?.trim() || numeroPadrao;
 
         const lote = await tx.loteProduto.create({
           data: {
             produtoId: item.produtoId,
             numero: numeroLote,
+            dataEntrada,
             quantidadeInicial: item.quantidade,
             quantidadeDisponivel: item.quantidade,
             valorUnitario: item.custoUnitarioFinal,
@@ -130,6 +195,8 @@ export class EstoqueService {
             loteId: lote.id,
             movimentacaoId: movimentacao.id,
             quantidade: item.quantidade,
+            saldoAntes: 0,
+            saldoDepois: item.quantidade,
             origem: `Compra - ${params.fornecedor}`,
           },
         });
@@ -164,7 +231,11 @@ export class EstoqueService {
     });
   }
 
-  async validarDisponibilidade(itens: { produtoId: string; quantidade: number }[]) {
+  async validarDisponibilidade(
+    itens: { produtoId: string; quantidade: number; loteId?: string | null }[],
+  ) {
+    await this.validarLotesEscolhidos(itens);
+
     const porProduto = new Map<string, number>();
     for (const item of itens) {
       porProduto.set(
@@ -204,6 +275,48 @@ export class EstoqueService {
     }
   }
 
+  // Lote escolhido pelo vendedor precisa ser do produto e ter saldo para a quantidade pedida
+  private async validarLotesEscolhidos(
+    itens: { produtoId: string; quantidade: number; loteId?: string | null }[],
+  ) {
+    const porLote = new Map<string, { produtoId: string; quantidade: number }>();
+    for (const item of itens) {
+      if (!item.loteId) continue;
+      const atual = porLote.get(item.loteId);
+      if (atual && atual.produtoId !== item.produtoId) {
+        throw new BadRequestException('O mesmo lote foi escolhido para produtos diferentes');
+      }
+      porLote.set(item.loteId, {
+        produtoId: item.produtoId,
+        quantidade: (atual?.quantidade ?? 0) + Number(item.quantidade || 0),
+      });
+    }
+    if (porLote.size === 0) return;
+
+    const lotes = await this.prisma.loteProduto.findMany({
+      where: { id: { in: [...porLote.keys()] } },
+      include: { produto: { select: { nome: true } } },
+    });
+    const faltando: string[] = [];
+    for (const [loteId, pedido] of porLote) {
+      const lote = lotes.find((l) => l.id === loteId);
+      if (!lote || !lote.ativo || lote.produtoId !== pedido.produtoId) {
+        throw new BadRequestException('Lote escolhido não pertence ao produto ou foi encerrado');
+      }
+      const disponivel = Number(lote.quantidadeDisponivel ?? 0);
+      if (disponivel < pedido.quantidade) {
+        faltando.push(
+          `${lote.produto.nome} lote ${lote.numero}: disponível ${disponivel} cx, pedido ${pedido.quantidade} cx`,
+        );
+      }
+    }
+    if (faltando.length > 0) {
+      throw new BadRequestException(
+        `Saldo insuficiente no lote. ${faltando.join('; ')}. Selecione outro lote ou divida a quantidade entre lotes.`,
+      );
+    }
+  }
+
   async listarLotesProduto(produtoId: string) {
     return this.prisma.loteProduto.findMany({
       where: { produtoId, ativo: true },
@@ -211,108 +324,426 @@ export class EstoqueService {
     });
   }
 
-  async consumirLotesEmTx(
+  // Aba Lotes do admin: todos os lotes com quanto já saiu e em quais pedidos
+  async listarLotes(filtros: { produtoId?: string; situacao?: 'DISPONIVEL' | 'ESGOTADO' }) {
+    const where: Prisma.LoteProdutoWhereInput = {};
+    if (filtros.produtoId) where.produtoId = filtros.produtoId;
+    if (filtros.situacao === 'DISPONIVEL') where.quantidadeDisponivel = { gt: 0 };
+    if (filtros.situacao === 'ESGOTADO') where.quantidadeDisponivel = { lte: 0 };
+
+    const lotes = await this.prisma.loteProduto.findMany({
+      where,
+      include: {
+        produto: { select: { id: true, nome: true, codigoInterno: true, unidadeVenda: true } },
+        itensPedido: {
+          select: {
+            quantidade: true,
+            pedido: {
+              select: {
+                id: true,
+                numero: true,
+                data: true,
+                cliente: { select: { razaoSocialOuNome: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ dataEntrada: 'desc' }, { criadoEm: 'desc' }],
+      take: 500,
+    });
+
+    return lotes.map((lote) => {
+      const inicial = Number(lote.quantidadeInicial);
+      const disponivel = Number(lote.quantidadeDisponivel);
+      return {
+        id: lote.id,
+        numero: lote.numero,
+        dataEntrada: lote.dataEntrada,
+        produto: lote.produto,
+        quantidadeInicial: inicial,
+        quantidadeDisponivel: disponivel,
+        quantidadeVendida: Number((inicial - disponivel).toFixed(2)),
+        valorUnitario: Number(lote.valorUnitario),
+        observacao: lote.observacao,
+        vendas: lote.itensPedido.map((item) => ({
+          pedidoId: item.pedido.id,
+          numeroPedido: item.pedido.numero,
+          data: item.pedido.data,
+          cliente: item.pedido.cliente?.razaoSocialOuNome ?? null,
+          quantidade: Number(item.quantidade),
+        })),
+      };
+    });
+  }
+
+  // Para o vendedor escolher o lote no pedido: só lotes com saldo, sem mostrar custo
+  async lotesDisponiveis(produtoId?: string) {
+    const lotes = await this.prisma.loteProduto.findMany({
+      where: {
+        ativo: true,
+        quantidadeDisponivel: { gt: 0 },
+        ...(produtoId ? { produtoId } : {}),
+      },
+      select: {
+        id: true,
+        produtoId: true,
+        numero: true,
+        dataEntrada: true,
+        quantidadeDisponivel: true,
+      },
+      orderBy: [{ dataEntrada: 'asc' }, { criadoEm: 'asc' }],
+    });
+    return lotes.map((lote) => ({
+      ...lote,
+      quantidadeDisponivel: Number(lote.quantidadeDisponivel),
+    }));
+  }
+
+  async atualizarLote(id: string, dados: { numero?: string; observacao?: string }) {
+    const lote = await this.prisma.loteProduto.findUnique({ where: { id } });
+    if (!lote) throw new NotFoundException('Lote não encontrado');
+
+    const numero = dados.numero?.trim();
+    if (numero && numero !== lote.numero) {
+      const dia = lote.dataEntrada.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+      const { inicio, fim } = this.diaLote(dia);
+      const repetido = await this.prisma.loteProduto.findFirst({
+        where: {
+          id: { not: id },
+          produtoId: lote.produtoId,
+          numero,
+          dataEntrada: { gte: inicio, lt: fim },
+        },
+      });
+      if (repetido)
+        throw new BadRequestException(`Já existe o lote ${numero} desse produto nesse dia`);
+    }
+
+    return this.prisma.loteProduto.update({
+      where: { id },
+      data: {
+        ...(numero ? { numero } : {}),
+        ...(dados.observacao !== undefined ? { observacao: dados.observacao || null } : {}),
+      },
+    });
+  }
+
+  private rotuloLote(lote: { numero: string; dataEntrada: Date }) {
+    const data = lote.dataEntrada.toLocaleDateString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+    });
+    return `${data} - lote ${lote.numero}`;
+  }
+
+  // Baixa do lote escolhido pelo usuário. Nunca troca de lote sozinho:
+  // sem saldo suficiente, a operação é recusada para que outro lote seja escolhido.
+  async baixarLoteEmTx(
     tx: Prisma.TransactionClient,
     params: {
+      loteId: string;
       produtoId: string;
       quantidade: number;
-      pedidoId: string;
-      origem: string;
-      usuarioId: string;
       movimentacaoId: string;
+      origem: string;
+      // Venda: registra também em ItemPedidoLote (qual lote saiu em qual pedido)
+      pedidoId?: string;
       valorUnitario?: number;
     },
   ) {
-    const quantidadeRestante = Number(params.quantidade || 0);
-    if (quantidadeRestante <= 0) return [];
+    const quantidade = Number(params.quantidade || 0);
+    if (quantidade <= 0) return null;
 
-    const lotes = await tx.loteProduto.findMany({
-      where: { produtoId: params.produtoId, ativo: true, quantidadeDisponivel: { gt: 0 } },
-      orderBy: [{ dataEntrada: 'asc' }, { criadoEm: 'asc' }],
+    const lote = await tx.loteProduto.findUnique({
+      where: { id: params.loteId },
+      include: { produto: { select: { nome: true } } },
     });
-
-    let restante = quantidadeRestante;
-    const usados: {
-      loteId: string;
-      quantidade: number;
-      saldoAntes: number;
-      saldoDepois: number;
-    }[] = [];
-
-    for (const lote of lotes) {
-      if (restante <= 0) break;
-      const disponivel = Number(lote.quantidadeDisponivel ?? 0);
-      const consumido = Math.min(restante, disponivel);
-      if (consumido <= 0) continue;
-
-      restante -= consumido;
-      const novaDisponibilidade = Number((disponivel - consumido).toFixed(2));
-
-      await tx.loteProduto.update({
-        where: { id: lote.id },
-        data: { quantidadeDisponivel: novaDisponibilidade },
-      });
-
-      await tx.movimentacaoEstoqueLote.create({
-        data: {
-          loteId: lote.id,
-          movimentacaoId: params.movimentacaoId,
-          quantidade: consumido,
-          origem: params.origem,
-        },
-      });
-
-      // Registra o consumo por lote associado ao pedido, para rastreabilidade (qual lote saiu em qual venda)
-      const valorUnitario = Number(params.valorUnitario ?? 0);
-      await tx.itemPedidoLote.create({
-        data: {
-          pedidoId: params.pedidoId,
-          produtoId: params.produtoId,
-          loteId: lote.id,
-          quantidade: consumido,
-          valorUnitario,
-          valorTotal: Number((consumido * valorUnitario).toFixed(2)),
-        },
-      });
-
-      usados.push({
-        loteId: lote.id,
-        quantidade: consumido,
-        saldoAntes: disponivel,
-        saldoDepois: novaDisponibilidade,
-      });
+    if (!lote || lote.produtoId !== params.produtoId) {
+      throw new BadRequestException('Lote escolhido não pertence ao produto');
     }
 
-    if (restante > 0) {
+    const saldoAntes = Number(lote.quantidadeDisponivel ?? 0);
+    if (!lote.ativo || saldoAntes < quantidade) {
       throw new BadRequestException(
-        `Sem estoque suficiente em lotes para o produto solicitado (faltam ${restante} unidades)`,
+        `Saldo insuficiente no ${this.rotuloLote(lote)} de ${lote.produto.nome}: disponível ${saldoAntes} cx, pedido ${quantidade} cx. Selecione outro lote.`,
       );
     }
+    const saldoDepois = Number((saldoAntes - quantidade).toFixed(2));
 
-    return usados;
-  }
-
-  // Consulta de rastreabilidade: para um pedido, quais lotes foram usados em cada produto
-  async lotesUtilizadosNoPedido(pedidoId: string) {
-    const itens = await this.prisma.itemPedidoLote.findMany({
-      where: { pedidoId },
-      include: {
-        produto: { select: { nome: true, codigoInterno: true } },
-        lote: { select: { numero: true, dataEntrada: true } },
+    await tx.loteProduto.update({
+      where: { id: lote.id },
+      data: { quantidadeDisponivel: saldoDepois },
+    });
+    await tx.movimentacaoEstoqueLote.create({
+      data: {
+        loteId: lote.id,
+        movimentacaoId: params.movimentacaoId,
+        quantidade,
+        saldoAntes,
+        saldoDepois,
+        origem: params.origem,
       },
-      orderBy: [{ produtoId: 'asc' }, { lote: { dataEntrada: 'asc' } }],
     });
 
-    return itens.map((item) => ({
-      produtoId: item.produtoId,
-      produtoNome: item.produto.nome,
-      codigoInterno: item.produto.codigoInterno,
-      loteId: item.loteId,
-      loteNumero: item.lote.numero,
-      quantidade: Number(item.quantidade),
-      valorUnitario: Number(item.valorUnitario),
-      valorTotal: Number(item.valorTotal),
-    }));
+    if (params.pedidoId) {
+      const valorUnitario = Number(params.valorUnitario ?? 0);
+      const existente = await tx.itemPedidoLote.findFirst({
+        where: { pedidoId: params.pedidoId, loteId: lote.id },
+      });
+      if (existente) {
+        const novaQtd = Number(existente.quantidade) + quantidade;
+        await tx.itemPedidoLote.update({
+          where: { id: existente.id },
+          data: {
+            quantidade: novaQtd,
+            valorUnitario,
+            valorTotal: Number((novaQtd * valorUnitario).toFixed(2)),
+          },
+        });
+      } else {
+        await tx.itemPedidoLote.create({
+          data: {
+            pedidoId: params.pedidoId,
+            produtoId: params.produtoId,
+            loteId: lote.id,
+            quantidade,
+            valorUnitario,
+            valorTotal: Number((quantidade * valorUnitario).toFixed(2)),
+          },
+        });
+      }
+    }
+
+    return { loteId: lote.id, quantidade, saldoAntes, saldoDepois };
+  }
+
+  // Volta caixas para um lote (cancelamento, devolução, redução de pedido, ajuste positivo)
+  async devolverAoLoteEmTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      loteId: string;
+      quantidade: number;
+      movimentacaoId: string;
+      origem: string;
+      pedidoId?: string;
+    },
+  ) {
+    const quantidade = Number(params.quantidade || 0);
+    if (quantidade <= 0) return null;
+
+    const lote = await tx.loteProduto.findUnique({ where: { id: params.loteId } });
+    if (!lote) throw new NotFoundException('Lote não encontrado');
+
+    const saldoAntes = Number(lote.quantidadeDisponivel ?? 0);
+    const saldoDepois = Number((saldoAntes + quantidade).toFixed(2));
+
+    await tx.loteProduto.update({
+      where: { id: lote.id },
+      data: { quantidadeDisponivel: saldoDepois },
+    });
+    await tx.movimentacaoEstoqueLote.create({
+      data: {
+        loteId: lote.id,
+        movimentacaoId: params.movimentacaoId,
+        quantidade,
+        saldoAntes,
+        saldoDepois,
+        origem: params.origem,
+      },
+    });
+
+    // Mantém em ItemPedidoLote só o que ficou de fato com o cliente
+    if (params.pedidoId) {
+      const usado = await tx.itemPedidoLote.findFirst({
+        where: { pedidoId: params.pedidoId, loteId: lote.id },
+      });
+      if (usado) {
+        const resta = Number((Number(usado.quantidade) - quantidade).toFixed(2));
+        if (resta <= 0) {
+          await tx.itemPedidoLote.delete({ where: { id: usado.id } });
+        } else {
+          await tx.itemPedidoLote.update({
+            where: { id: usado.id },
+            data: {
+              quantidade: resta,
+              valorTotal: Number((resta * Number(usado.valorUnitario)).toFixed(2)),
+            },
+          });
+        }
+      }
+    }
+
+    return { loteId: lote.id, quantidade, saldoAntes, saldoDepois };
+  }
+
+  // Devolve ao(s) lote(s) de onde as caixas do pedido saíram: primeiro o lote indicado,
+  // depois os demais lotes usados para o mesmo produto (pedidos antigos com baixa automática)
+  async devolverDoPedidoEmTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      pedidoId: string;
+      produtoId: string;
+      quantidade: number;
+      movimentacaoId: string;
+      origem: string;
+      loteIdPreferido?: string | null;
+    },
+  ) {
+    let restante = Number(params.quantidade || 0);
+    const usados = await tx.itemPedidoLote.findMany({
+      where: { pedidoId: params.pedidoId, produtoId: params.produtoId },
+      orderBy: { id: 'asc' },
+    });
+    usados.sort(
+      (a, b) =>
+        Number(b.loteId === params.loteIdPreferido) - Number(a.loteId === params.loteIdPreferido),
+    );
+
+    for (const usado of usados) {
+      if (restante <= 0) break;
+      const qtd = Math.min(restante, Number(usado.quantidade));
+      if (qtd <= 0) continue;
+      await this.devolverAoLoteEmTx(tx, {
+        loteId: usado.loteId,
+        quantidade: qtd,
+        movimentacaoId: params.movimentacaoId,
+        origem: params.origem,
+        pedidoId: params.pedidoId,
+      });
+      restante = Number((restante - qtd).toFixed(2));
+    }
+    // Sobra sem lote de origem conhecido (pedido anterior ao controle por lote): só o saldo do produto volta
+    return restante;
+  }
+
+  // Rastreabilidade de um pedido: cada movimento de lote (saída, devolução) com saldo antes/depois,
+  // e o resumo do que ficou com o cliente por lote
+  async lotesUtilizadosNoPedido(pedidoId: string) {
+    const [movimentos, resumo] = await Promise.all([
+      this.prisma.movimentacaoEstoqueLote.findMany({
+        where: { movimentacao: { pedidoId } },
+        include: {
+          lote: {
+            select: {
+              id: true,
+              numero: true,
+              dataEntrada: true,
+              produto: { select: { id: true, nome: true } },
+            },
+          },
+        },
+        orderBy: [{ data: 'asc' }, { id: 'asc' }],
+      }),
+      this.prisma.itemPedidoLote.findMany({
+        where: { pedidoId },
+        include: {
+          produto: { select: { nome: true, codigoInterno: true } },
+          lote: { select: { numero: true, dataEntrada: true } },
+        },
+        orderBy: [{ produtoId: 'asc' }, { lote: { dataEntrada: 'asc' } }],
+      }),
+    ]);
+
+    return {
+      resumo: resumo.map((item) => ({
+        produtoId: item.produtoId,
+        produtoNome: item.produto.nome,
+        codigoInterno: item.produto.codigoInterno,
+        loteId: item.loteId,
+        loteNumero: item.lote.numero,
+        loteData: item.lote.dataEntrada,
+        quantidade: Number(item.quantidade),
+        valorUnitario: Number(item.valorUnitario),
+        valorTotal: Number(item.valorTotal),
+      })),
+      movimentos: movimentos.map((m) => this.formatarMovimentoLote(m)),
+    };
+  }
+
+  private formatarMovimentoLote(m: {
+    id: string;
+    data: Date;
+    origem: string;
+    quantidade: Prisma.Decimal;
+    saldoAntes: Prisma.Decimal | null;
+    saldoDepois: Prisma.Decimal | null;
+    lote?: {
+      id: string;
+      numero: string;
+      dataEntrada: Date;
+      produto: { id: string; nome: string };
+    };
+  }) {
+    const antes = m.saldoAntes != null ? Number(m.saldoAntes) : null;
+    const depois = m.saldoDepois != null ? Number(m.saldoDepois) : null;
+    return {
+      id: m.id,
+      data: m.data,
+      origem: m.origem,
+      quantidade: Number(m.quantidade),
+      tipo: antes != null && depois != null && depois > antes ? 'ENTRADA' : 'SAIDA',
+      saldoAntes: antes,
+      saldoDepois: depois,
+      ...(m.lote
+        ? {
+            loteId: m.lote.id,
+            loteNumero: m.lote.numero,
+            loteData: m.lote.dataEntrada,
+            produtoId: m.lote.produto.id,
+            produtoNome: m.lote.produto.nome,
+          }
+        : {}),
+    };
+  }
+
+  // Extrato de um lote: entrada, cada venda (com pedido e cliente), devoluções e ajustes
+  async historicoLote(loteId: string) {
+    const lote = await this.prisma.loteProduto.findUnique({
+      where: { id: loteId },
+      include: { produto: { select: { id: true, nome: true } } },
+    });
+    if (!lote) throw new NotFoundException('Lote não encontrado');
+
+    const movimentos = await this.prisma.movimentacaoEstoqueLote.findMany({
+      where: { loteId },
+      include: {
+        movimentacao: {
+          select: {
+            motivoAjuste: true,
+            usuario: { select: { nome: true } },
+            pedido: {
+              select: {
+                id: true,
+                numero: true,
+                cliente: { select: { razaoSocialOuNome: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ data: 'asc' }, { id: 'asc' }],
+    });
+
+    return {
+      lote: {
+        id: lote.id,
+        numero: lote.numero,
+        dataEntrada: lote.dataEntrada,
+        produto: lote.produto,
+        quantidadeInicial: Number(lote.quantidadeInicial),
+        quantidadeDisponivel: Number(lote.quantidadeDisponivel),
+      },
+      movimentos: movimentos.map((m) => ({
+        ...this.formatarMovimentoLote(m),
+        pedidoId: m.movimentacao.pedido?.id ?? null,
+        numeroPedido: m.movimentacao.pedido?.numero ?? null,
+        cliente: m.movimentacao.pedido?.cliente?.razaoSocialOuNome ?? null,
+        motivoAjuste: m.movimentacao.motivoAjuste,
+        usuario: m.movimentacao.usuario?.nome ?? null,
+      })),
+    };
   }
 
   async registrarSaida(params: {
@@ -334,23 +765,55 @@ export class EstoqueService {
     });
   }
 
+  // Ajuste manual sempre num lote escolhido, para o saldo do lote acompanhar o do produto
   async registrarAjuste(params: {
     produtoId: string;
     quantidade: number;
     motivo: string;
     usuarioId: string;
     observacao?: string;
+    loteId?: string;
   }) {
-    return this.prisma.movimentacaoEstoque.create({
-      data: {
-        produtoId: params.produtoId,
-        tipo: TipoMovimentacao.AJUSTE,
-        quantidade: params.quantidade,
-        origem: 'Ajuste manual',
-        motivoAjuste: params.motivo,
-        usuarioId: params.usuarioId,
-        observacao: params.observacao,
-      },
+    const quantidade = Number(params.quantidade);
+    const loteId = params.loteId;
+    if (!quantidade) throw new BadRequestException('Informe uma quantidade diferente de zero');
+    if (!loteId) throw new BadRequestException('Selecione o lote do ajuste');
+
+    return this.prisma.$transaction(async (tx) => {
+      const movimentacao = await tx.movimentacaoEstoque.create({
+        data: {
+          produtoId: params.produtoId,
+          tipo: TipoMovimentacao.AJUSTE,
+          quantidade,
+          origem: 'Ajuste manual',
+          motivoAjuste: params.motivo,
+          usuarioId: params.usuarioId,
+          observacao: params.observacao,
+        },
+      });
+
+      const origem = `Ajuste manual - ${params.motivo}`;
+      if (quantidade > 0) {
+        const lote = await tx.loteProduto.findUnique({ where: { id: loteId } });
+        if (!lote || lote.produtoId !== params.produtoId) {
+          throw new BadRequestException('Lote escolhido não pertence ao produto');
+        }
+        await this.devolverAoLoteEmTx(tx, {
+          loteId,
+          quantidade,
+          movimentacaoId: movimentacao.id,
+          origem,
+        });
+      } else {
+        await this.baixarLoteEmTx(tx, {
+          loteId,
+          produtoId: params.produtoId,
+          quantidade: Math.abs(quantidade),
+          movimentacaoId: movimentacao.id,
+          origem,
+        });
+      }
+      return movimentacao;
     });
   }
 

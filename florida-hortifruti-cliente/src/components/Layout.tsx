@@ -1,12 +1,22 @@
 import type { ReactNode } from 'react'
-import { NavLink } from 'react-router-dom'
-import { Package, ShoppingCart, ClipboardList, User } from 'lucide-react'
+import { Link, NavLink } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { Package, ShoppingCart, ClipboardList, User, Bell } from 'lucide-react'
+import { api } from '../lib/api'
 import { totalItens, lerCarrinho } from '../lib/cart'
 import { useEffect, useState } from 'react'
 import logo from '../assets/logo.png'
 
 export function Layout({ children }: { children: ReactNode }) {
   const [qtd, setQtd] = useState(() => totalItens(lerCarrinho()))
+
+  // Avisos de cobrança (compra a prazo e vencimentos) ainda não lidos
+  const { data: avisos = [] } = useQuery<{ lidaEm: string | null }[]>({
+    queryKey: ['portal-avisos'],
+    queryFn: () => api.get('/portal-cliente/notificacoes').then((r) => r.data),
+    refetchInterval: 5 * 60_000,
+  })
+  const naoLidos = avisos.filter((a) => !a.lidaEm).length
 
   useEffect(() => {
     const sync = () => setQtd(totalItens(lerCarrinho()))
@@ -49,6 +59,18 @@ export function Layout({ children }: { children: ReactNode }) {
             Hortifruti
           </span>
         </span>
+        <Link
+          to="/avisos"
+          className="relative ml-auto rounded-lg p-2 text-white/90 hover:bg-white/10"
+          aria-label={naoLidos ? `${naoLidos} avisos novos` : 'Avisos'}
+        >
+          <Bell className="h-5 w-5" />
+          {naoLidos > 0 && (
+            <span className="absolute right-0.5 top-0.5 min-w-4 rounded-full bg-ember px-1 text-center text-[10px] font-semibold text-white">
+              {naoLidos}
+            </span>
+          )}
+        </Link>
       </header>
       <div className="flex-1 pb-20">{children}</div>
       <nav className="fixed bottom-0 left-0 right-0 mx-auto flex max-w-lg border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)]">

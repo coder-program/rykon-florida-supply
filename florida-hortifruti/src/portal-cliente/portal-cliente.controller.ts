@@ -38,6 +38,17 @@ export class PortalClienteController {
     return this.portal.atualizarPedido(id, req.user.id, dto);
   }
 
+  // Avisos de cobrança (compra a prazo, 3 dias antes e no dia do vencimento)
+  @Get('notificacoes')
+  notificacoes(@Request() req: any) {
+    return this.portal.notificacoes(req.user.id);
+  }
+
+  @Post('notificacoes/lidas')
+  marcarNotificacoesLidas(@Request() req: any) {
+    return this.portal.marcarNotificacoesLidas(req.user.id);
+  }
+
   @Get('conta')
   conta(@Request() req: any) {
     return this.portal.conta(req.user.id);
