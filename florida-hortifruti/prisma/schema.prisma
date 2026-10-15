@@ -566,3 +566,25 @@ model LogAuditoria {
 
   @@map("logs_auditoria")
 }
+
+// Meta diária de lucro: valor base com histórico (cada valor vale a partir de uma data)
+model MetaValor {
+  id           String   @id @default(uuid())
+  valor        Decimal  @db.Decimal(10, 2)
+  vigenteDesde DateTime @db.Date
+  criadoPorId  String?
+  criadoEm     DateTime @default(now())
+
+  @@index([vigenteDesde])
+  @@map("metas_valor")
+}
+
+// Dias sem meta (feriados, dias sem operação). Domingos já são ignorados automaticamente.
+model MetaDiaSemMeta {
+  id       String   @id @default(uuid())
+  data     DateTime @unique @db.Date
+  motivo   String?
+  criadoEm DateTime @default(now())
+
+  @@map("metas_dias_sem_meta")
+}

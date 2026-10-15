@@ -13,6 +13,7 @@ import {
   Banknote,
   ClipboardList,
   RotateCcw,
+  Target,
   X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/useAuth'
@@ -22,6 +23,7 @@ import logo from '../../assets/logo.png'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/metas', icon: Target, label: 'Metas' },
   { to: '/pedidos', icon: ShoppingCart, label: 'Pedidos' },
   { to: '/devolucoes', icon: RotateCcw, label: 'Devoluções' },
   { to: '/solicitacoes', icon: ClipboardList, label: 'Solicitações de Alteração' },

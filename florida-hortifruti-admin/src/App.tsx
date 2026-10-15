@@ -16,6 +16,7 @@ import { EtiquetaPage } from './pages/EtiquetaPage'
 import { FinanceiroPage } from './pages/FinanceiroPage'
 import { SolicitacoesAlteracaoPage } from './pages/SolicitacoesAlteracaoPage'
 import { DevolucoesPage } from './pages/DevolucoesPage'
+import { MetasPage } from './pages/MetasPage'
 import { ROUTER_BASENAME } from './lib/session'
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } })
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route element={<AppLayout />}>
               <Route path="/" element={<DashboardPage />} />
+              <Route path="/metas" element={<MetasPage />} />
               <Route path="/pedidos" element={<PedidosPage />} />
               <Route path="/clientes" element={<ClientesPage />} />
               <Route path="/produtos" element={<ProdutosPage />} />

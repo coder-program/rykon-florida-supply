@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, LogOut, RefreshCw, RotateCcw } from 'lucide-react'
+import { Plus, LogOut, RefreshCw, RotateCcw, Target } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../contexts/useAuth'
 import { formatBRL, formatDate, statusPedidoVisivel } from '../lib/utils'
@@ -44,6 +44,19 @@ export function HomePage() {
   })
 
   const devolucoesPendentes = (devolucoes as any[]).filter((d) => d.status === 'PENDENTE').length
+
+  // Meta do dia da empresa: o vendedor vê só o progresso (sem valores)
+  const { data: meta } = useQuery<{
+    temMeta: boolean
+    percentual: number
+    atingida: boolean
+    temAcumulado: boolean
+  }>({
+    queryKey: ['meta-hoje'],
+    queryFn: () => api.get('/metas/hoje').then((r) => r.data),
+    refetchInterval: 5 * 60_000,
+    retry: false,
+  })
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-lg mx-auto">
@@ -100,6 +113,33 @@ export function HomePage() {
           </div>
         </button>
       </div>
+
+      {/* Meta do dia */}
+      {meta?.temMeta && (
+        <div className="px-4 mt-3">
+          <div className="rounded-2xl bg-white px-5 py-4 shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between gap-3">
+              <p className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <Target className="w-4 h-4 text-ember" /> Meta do dia
+              </p>
+              <span
+                className={`text-sm font-bold ${meta.atingida ? 'text-green-700' : 'text-gray-900'}`}
+              >
+                {meta.atingida ? 'Batida! 🎉' : `${meta.percentual}%`}
+              </span>
+            </div>
+            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-gray-100">
+              <div
+                className={`h-full rounded-full transition-[width] duration-700 ${meta.atingida ? 'bg-green-600' : 'bg-linear-to-r from-cyan-500 to-ember'}`}
+                style={{ width: `${Math.min(100, meta.percentual)}%` }}
+              />
+            </div>
+            {!meta.atingida && meta.temAcumulado && (
+              <p className="mt-2 text-xs text-gray-500">Inclui o que faltou no dia anterior.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="px-4 mt-3">
         <button

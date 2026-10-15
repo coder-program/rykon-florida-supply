@@ -15,6 +15,7 @@ import { EnderecosModule } from './enderecos/enderecos.module';
 import { MotoristaModule } from './motorista/motorista.module';
 import { PortalClienteModule } from './portal-cliente/portal-cliente.module';
 import { DevolucoesModule } from './devolucoes/devolucoes.module';
+import { MetasModule } from './metas/metas.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { DevolucoesModule } from './devolucoes/devolucoes.module';
     MotoristaModule,
     PortalClienteModule,
     DevolucoesModule,
+    MetasModule,
   ],
 })
 export class AppModule {}
