@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, ListTree } from 'lucide-react'
+import { Plus, Pencil, ListTree, Receipt } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatBRL, formatDate, formatDateTime } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -9,6 +9,7 @@ import { Modal } from '../components/ui/Modal'
 import { Input, MoneyInput, Select } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
 import { TableScroll } from '../components/ui/TableScroll'
+import { EditarEntradaModal } from '../components/EditarEntradaModal'
 
 type Lote = {
   id: string
@@ -20,6 +21,7 @@ type Lote = {
   quantidadeVendida: number
   valorUnitario: number
   observacao: string | null
+  compraId: string | null
   vendas: {
     pedidoId: string
     numeroPedido: number
@@ -59,6 +61,7 @@ export function LotesPage() {
   const [formEdicao, setFormEdicao] = useState({ numero: '', observacao: '' })
   const [erroEdicao, setErroEdicao] = useState('')
   const [vendasDe, setVendasDe] = useState<Lote | null>(null)
+  const [compraEditando, setCompraEditando] = useState<string | null>(null)
 
   const { data: lotes = [], isLoading } = useQuery<Lote[]>({
     queryKey: ['lotes', produtoId, situacao],
@@ -247,6 +250,16 @@ export function LotesPage() {
                         <ListTree className="w-3.5 h-3.5" /> Histórico ({lote.vendas.length} venda
                         {lote.vendas.length === 1 ? '' : 's'})
                       </Button>
+                      {lote.compraId && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setCompraEditando(lote.compraId)}
+                          title="Editar entrada: frete, comissão e valor (recalcula o custo da caixa)"
+                        >
+                          <Receipt className="w-3.5 h-3.5" /> Frete/comissão
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -453,6 +466,7 @@ export function LotesPage() {
           )}
         </div>
       </Modal>
+      <EditarEntradaModal compraId={compraEditando} onClose={() => setCompraEditando(null)} />
     </div>
   )
 }

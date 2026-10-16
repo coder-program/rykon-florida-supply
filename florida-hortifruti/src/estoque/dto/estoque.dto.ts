@@ -70,6 +70,42 @@ export class EntradaEstoqueDto {
   dataLote?: string;
 }
 
+// Editar uma entrada já registrada: frete e comissão costumam ser pagos depois,
+// às vezes com o lote já vendido. Quantidade não muda aqui (para isso existe o ajuste).
+export class AtualizarCompraDto {
+  @IsOptional()
+  @IsString()
+  fornecedor?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  valorFrete?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  valorComissao?: number;
+
+  @IsOptional()
+  @IsString()
+  observacao?: string;
+
+  // Valor do produto por caixa de cada item da compra
+  @IsOptional()
+  @IsArray()
+  @Transform(({ value }) => {
+    if (!Array.isArray(value)) return [];
+    return value.map((item) => ({
+      id: item?.id != null ? String(item.id) : '',
+      valorProduto: paraNumero(item?.valorProduto),
+    }));
+  })
+  itens?: Array<{ id: string; valorProduto?: number }>;
+}
+
 export class AtualizarLoteDto {
   @IsOptional()
   @IsString()

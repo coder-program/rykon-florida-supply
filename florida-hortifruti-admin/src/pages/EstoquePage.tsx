@@ -8,6 +8,7 @@ import {
   FileSpreadsheet,
   FileText,
   Trash2,
+  Pencil,
 } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -19,6 +20,8 @@ import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Input, MoneyInput, Select } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
+import { EditarEntradaModal } from '../components/EditarEntradaModal'
+import { previewRateio } from '../lib/rateio'
 
 const MOTIVOS_AJUSTE = [
   'Correção de cadastro',
@@ -33,14 +36,6 @@ type ItemForm = { produtoId: string; quantidade: string; valorProduto: number }
 
 const ITEM_VAZIO: ItemForm = { produtoId: '', quantidade: '', valorProduto: 0 }
 
-function toCents(value: number) {
-  return Math.round(Number(value || 0) * 100)
-}
-
-function fromCents(cents: number) {
-  return Number((cents / 100).toFixed(2))
-}
-
 function valorLinhaCompra(item: { valorProdutoInformado?: number; quantidade?: number }) {
   return Number(item.valorProdutoInformado ?? 0)
 }
@@ -50,49 +45,10 @@ function unitarioCompra(item: { valorProdutoInformado?: number; quantidade?: num
   return qtd > 0 ? valorLinhaCompra(item) / qtd : 0
 }
 
-function previewRateio(itens: ItemForm[], valorFrete: number, valorComissao: number) {
-  const validos = itens.filter((item) => item.produtoId && Number(item.quantidade) > 0)
-  if (validos.length === 0) return []
-
-  const freteCents = toCents(valorFrete)
-  const comissaoCents = toCents(valorComissao)
-  const valoresCents = validos.map((item) =>
-    toCents(Number(item.quantidade || 0) * Number(item.valorProduto || 0)),
-  )
-  const totalCents = valoresCents.reduce((acc, value) => acc + value, 0)
-  let usadoFrete = 0
-  let usadoComissao = 0
-
-  return validos.map((item, index) => {
-    const ultimo = index === validos.length - 1
-    const peso = totalCents > 0 ? valoresCents[index] / totalCents : 1 / validos.length
-    const rateioFreteCents = ultimo ? freteCents - usadoFrete : Math.round(freteCents * peso)
-    const rateioComissaoCents = ultimo
-      ? comissaoCents - usadoComissao
-      : Math.round(comissaoCents * peso)
-    usadoFrete += rateioFreteCents
-    usadoComissao += rateioComissaoCents
-    const valorProduto = fromCents(valoresCents[index])
-    const rateioFrete = fromCents(rateioFreteCents)
-    const rateioComissao = fromCents(rateioComissaoCents)
-    const custoTotal = Number((valorProduto + rateioFrete + rateioComissao).toFixed(2))
-    const quantidade = Number(item.quantidade)
-    return {
-      produtoId: item.produtoId,
-      quantidade,
-      valorUnitario: Number(item.valorProduto || 0),
-      valorProduto,
-      rateioFrete,
-      rateioComissao,
-      custoTotal,
-      custoCaixa: quantidade > 0 ? Number((custoTotal / quantidade).toFixed(4)) : 0,
-    }
-  })
-}
-
 export function EstoquePage() {
   const qc = useQueryClient()
   const [modalEntrada, setModalEntrada] = useState(false)
+  const [compraEditando, setCompraEditando] = useState<string | null>(null)
   const [modalAjuste, setModalAjuste] = useState(false)
   const [produtoHistorico, setProdutoHistorico] = useState<any>(null)
   const [formEntrada, setFormEntrada] = useState({
@@ -645,7 +601,19 @@ export function EstoquePage() {
                       {qtd.toFixed(0)} cx
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500">{m.usuario?.nome}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-gray-500">{m.usuario?.nome}</p>
+                    {compra && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCompraEditando(compra.id)}
+                        title="Lançar frete/comissão pagos depois e recalcular o custo da caixa"
+                      >
+                        <Pencil className="w-3.5 h-3.5" /> Editar entrada
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {compra ? (
@@ -708,6 +676,8 @@ export function EstoquePage() {
           )}
         </div>
       </Modal>
+
+      <EditarEntradaModal compraId={compraEditando} onClose={() => setCompraEditando(null)} />
     </div>
   )
 }

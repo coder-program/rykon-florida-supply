@@ -231,6 +231,230 @@ export class EstoqueService {
     });
   }
 
+  private async carregarCompra(tx: Prisma.TransactionClient | PrismaService, id: string) {
+    const compra = await tx.compraEstoque.findUnique({
+      where: { id },
+      include: {
+        usuario: { select: { nome: true } },
+        itens: {
+          orderBy: { id: 'asc' },
+          include: {
+            produto: { select: { id: true, nome: true, codigoInterno: true } },
+            movimentacao: {
+              select: {
+                lotes: {
+                  take: 1,
+                  orderBy: { data: 'asc' },
+                  select: {
+                    lote: {
+                      select: {
+                        id: true,
+                        numero: true,
+                        dataEntrada: true,
+                        quantidadeInicial: true,
+                        quantidadeDisponivel: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!compra) throw new NotFoundException('Entrada de estoque não encontrada');
+    return compra;
+  }
+
+  // Entrada de estoque com seus itens e o lote gerado por cada item
+  async buscarCompra(id: string) {
+    const compra = await this.carregarCompra(this.prisma, id);
+    return {
+      id: compra.id,
+      fornecedor: compra.fornecedor,
+      valorFrete: Number(compra.valorFrete),
+      valorComissao: Number(compra.valorComissao),
+      observacao: compra.observacao,
+      data: compra.data,
+      usuario: compra.usuario?.nome ?? null,
+      itens: compra.itens.map((item) => {
+        const quantidade = Number(item.quantidade);
+        const valorProduto = Number(item.valorProdutoInformado);
+        const lote = item.movimentacao?.lotes[0]?.lote;
+        return {
+          id: item.id,
+          produto: item.produto,
+          quantidade,
+          valorUnitario: quantidade > 0 ? Number((valorProduto / quantidade).toFixed(4)) : 0,
+          valorProduto,
+          rateioFrete: Number(item.rateioFrete),
+          rateioComissao: Number(item.rateioComissao),
+          custoUnitarioFinal: Number(item.custoUnitarioFinal),
+          lote: lote
+            ? {
+                id: lote.id,
+                numero: lote.numero,
+                dataEntrada: lote.dataEntrada,
+                quantidadeVendida: Number(
+                  (Number(lote.quantidadeInicial) - Number(lote.quantidadeDisponivel)).toFixed(2),
+                ),
+              }
+            : null,
+        };
+      }),
+    };
+  }
+
+  // Frete e comissão costumam ser pagos depois da compra (às vezes com o lote já vendido).
+  // Refaz o rateio e atualiza o custo da caixa no item, na movimentação de entrada, no lote
+  // e no produto (se esta for a entrada mais recente dele). O lucro das vendas já registradas
+  // é calculado na consulta, então acompanha o novo custo.
+  async atualizarCompra(
+    id: string,
+    dados: {
+      fornecedor?: string;
+      valorFrete?: number;
+      valorComissao?: number;
+      observacao?: string;
+      itens?: Array<{ id: string; valorProduto?: number }>;
+    },
+    usuarioId: string,
+  ) {
+    const compra = await this.carregarCompra(this.prisma, id);
+    if (compra.itens.length === 0) {
+      throw new BadRequestException('Esta entrada não tem itens para recalcular');
+    }
+
+    const fornecedor = dados.fornecedor?.trim() || compra.fornecedor;
+    const valorFrete =
+      dados.valorFrete !== undefined ? Number(dados.valorFrete) : Number(compra.valorFrete);
+    const valorComissao =
+      dados.valorComissao !== undefined
+        ? Number(dados.valorComissao)
+        : Number(compra.valorComissao);
+    const observacao =
+      dados.observacao !== undefined ? dados.observacao.trim() || null : compra.observacao;
+
+    const editados = new Map((dados.itens ?? []).map((item) => [item.id, item.valorProduto]));
+    for (const itemId of editados.keys()) {
+      if (!compra.itens.some((item) => item.id === itemId)) {
+        throw new BadRequestException('Item não pertence a esta entrada');
+      }
+    }
+
+    const entrada: ItemEntrada[] = compra.itens.map((item) => {
+      const quantidade = Number(item.quantidade);
+      const editado = editados.get(item.id);
+      return {
+        produtoId: item.produtoId,
+        quantidade,
+        valorProduto:
+          editado !== undefined && editado !== null
+            ? Number(editado)
+            : quantidade > 0
+              ? Number(item.valorProdutoInformado) / quantidade
+              : 0,
+      };
+    });
+    if (entrada.some((item) => !(item.valorProduto >= 0))) {
+      throw new BadRequestException('Valor do produto inválido');
+    }
+    const rateados = this.calcularRateio(entrada, valorFrete, valorComissao);
+
+    const antes = {
+      fornecedor: compra.fornecedor,
+      valorFrete: Number(compra.valorFrete),
+      valorComissao: Number(compra.valorComissao),
+      itens: compra.itens.map((item) => ({
+        produto: item.produto.nome,
+        valorProduto: Number(item.valorProdutoInformado),
+        custoUnitarioFinal: Number(item.custoUnitarioFinal),
+      })),
+    };
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.compraEstoque.update({
+        where: { id },
+        data: { fornecedor, valorFrete, valorComissao, observacao },
+      });
+
+      for (const [index, item] of compra.itens.entries()) {
+        const novo = rateados[index];
+        await tx.itemCompraEstoque.update({
+          where: { id: item.id },
+          data: {
+            valorProdutoInformado: novo.valorProdutoInformado,
+            rateioFrete: novo.rateioFrete,
+            rateioComissao: novo.rateioComissao,
+            custoUnitarioFinal: novo.custoUnitarioFinal,
+          },
+        });
+
+        if (!item.movimentacaoId) continue;
+        await tx.movimentacaoEstoque.update({
+          where: { id: item.movimentacaoId },
+          data: {
+            fornecedor,
+            origem: `Compra - ${fornecedor}`,
+            custoTotal: novo.custoTotalItem,
+            custoUnitario: novo.custoUnitarioFinal,
+            observacao,
+          },
+        });
+
+        const lote = item.movimentacao?.lotes[0]?.lote;
+        if (lote) {
+          await tx.loteProduto.update({
+            where: { id: lote.id },
+            data: { valorUnitario: novo.custoUnitarioFinal },
+          });
+        }
+
+        // Custo do produto = custo da entrada mais recente (mesma regra do "Custo caixa")
+        const ultimaEntrada = await tx.movimentacaoEstoque.findFirst({
+          where: {
+            produtoId: item.produtoId,
+            tipo: TipoMovimentacao.ENTRADA,
+            custoUnitario: { not: null },
+          },
+          orderBy: { data: 'desc' },
+          select: { id: true },
+        });
+        if (ultimaEntrada?.id === item.movimentacaoId) {
+          await tx.produto.update({
+            where: { id: item.produtoId },
+            data: { custo: novo.custoUnitarioFinal },
+          });
+        }
+      }
+
+      await tx.logAuditoria.create({
+        data: {
+          usuarioId,
+          acao: 'EDITAR_ENTRADA_ESTOQUE',
+          entidade: 'CompraEstoque',
+          entidadeId: id,
+          detalhes: {
+            antes,
+            depois: {
+              fornecedor,
+              valorFrete,
+              valorComissao,
+              itens: compra.itens.map((item, index) => ({
+                produto: item.produto.nome,
+                valorProduto: rateados[index].valorProdutoInformado,
+                custoUnitarioFinal: rateados[index].custoUnitarioFinal,
+              })),
+            },
+          } as unknown as Prisma.InputJsonValue,
+        },
+      });
+    });
+
+    return this.buscarCompra(id);
+  }
+
   async validarDisponibilidade(
     itens: { produtoId: string; quantidade: number; loteId?: string | null }[],
   ) {
@@ -348,6 +572,12 @@ export class EstoqueService {
             },
           },
         },
+        // Primeiro movimento do lote = a entrada; leva à compra para editar frete/comissão
+        movimentacoesLote: {
+          take: 1,
+          orderBy: { data: 'asc' },
+          select: { movimentacao: { select: { itemCompra: { select: { compraId: true } } } } },
+        },
       },
       orderBy: [{ dataEntrada: 'desc' }, { criadoEm: 'desc' }],
       take: 500,
@@ -366,6 +596,7 @@ export class EstoqueService {
         quantidadeVendida: Number((inicial - disponivel).toFixed(2)),
         valorUnitario: Number(lote.valorUnitario),
         observacao: lote.observacao,
+        compraId: lote.movimentacoesLote[0]?.movimentacao.itemCompra?.compraId ?? null,
         vendas: lote.itensPedido.map((item) => ({
           pedidoId: item.pedido.id,
           numeroPedido: item.pedido.numero,
