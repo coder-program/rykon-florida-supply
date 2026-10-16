@@ -69,6 +69,15 @@ function Trimmed() {
   return Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
 }
 
+// E-mail é opcional: campo vazio vira null (o @IsOptional só ignora null/undefined, não "").
+function EmailOpcional() {
+  return Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+  });
+}
+
 export class CreateEnderecoClienteDto {
   @IsString()
   cep: string;
@@ -99,8 +108,9 @@ export class CreateEnderecoClienteDto {
 }
 
 export class AtivarAcessoDto {
+  @EmailOpcional()
   @IsOptional()
-  @IsEmail()
+  @IsEmail({}, { message: 'E-mail inválido' })
   email?: string;
 }
 
@@ -129,8 +139,9 @@ export class CreateClienteDto {
   @IsString()
   whatsapp?: string;
 
+  @EmailOpcional()
   @IsOptional()
-  @IsEmail()
+  @IsEmail({}, { message: 'E-mail inválido' })
   email?: string;
 
   @ValidateNested()
@@ -186,8 +197,9 @@ export class UpdateClienteDto {
   @IsString()
   whatsapp?: string;
 
+  @EmailOpcional()
   @IsOptional()
-  @IsEmail()
+  @IsEmail({}, { message: 'E-mail inválido' })
   email?: string;
 
   @ValidateNested()
