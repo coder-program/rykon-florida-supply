@@ -15,6 +15,7 @@ const PAPEL_COLOR: Record<string, string> = {
   ADMINISTRADOR: 'bg-purple-100 text-purple-700',
   ADMINISTRATIVO: 'bg-blue-100 text-blue-700',
   VENDEDOR: 'bg-green-100 text-green-700',
+  SUPERVISOR: 'bg-emerald-100 text-emerald-800',
   MOTORISTA: 'bg-orange-100 text-orange-700',
   CLIENTE: 'bg-teal-100 text-teal-700',
 }
@@ -151,7 +152,7 @@ function formatarEndereco(endereco: Endereco | null | undefined) {
 }
 
 function exigePerfilCompleto(papel: string) {
-  return papel === 'VENDEDOR' || papel === 'MOTORISTA'
+  return papel === 'VENDEDOR' || papel === 'SUPERVISOR' || papel === 'MOTORISTA'
 }
 
 function validarUsuarioForm(form: any): FormErros {
@@ -632,6 +633,7 @@ export function UsuariosPage() {
               onChange={(e) => set('papel', e.target.value)}
             >
               <option value="VENDEDOR">Vendedor</option>
+              <option value="SUPERVISOR">Supervisor (vendedor + compras)</option>
               <option value="MOTORISTA">Motorista</option>
               <option value="ADMINISTRATIVO">Administrativo/Financeiro</option>
               <option value="ADMINISTRADOR">Administrador</option>

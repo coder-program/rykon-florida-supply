@@ -755,7 +755,9 @@ export class PedidosService {
     }
     if (dto.vendedorId) {
       const vendedor = await this.prisma.usuario.findUnique({ where: { id: dto.vendedorId } });
-      if (!vendedor || vendedor.papel !== PapelUsuario.VENDEDOR || !vendedor.ativo) {
+      const vende =
+        vendedor?.papel === PapelUsuario.VENDEDOR || vendedor?.papel === PapelUsuario.SUPERVISOR;
+      if (!vendedor || !vende || !vendedor.ativo) {
         throw new BadRequestException('Vendedor inválido ou inativo');
       }
     }

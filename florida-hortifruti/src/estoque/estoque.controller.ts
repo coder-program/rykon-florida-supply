@@ -23,7 +23,8 @@ import {
 
 @Controller('estoque')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR) // regra 4 do escopo
+// Supervisor (comprador) registra a entrada dos lotes
+@Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR) // regra 4 do escopo
 export class EstoqueController {
   constructor(private estoqueService: EstoqueService) {}
 
@@ -73,7 +74,7 @@ export class EstoqueController {
     return this.estoqueService.buscarCompra(id);
   }
 
-  // Frete/comissão lançados depois: recalcula o custo da caixa de cada lote da compra
+  // Frete/comissÃ£o lanÃ§ados depois: recalcula o custo da caixa de cada lote da compra
   @Patch('compras/:id')
   atualizarCompra(@Param('id') id: string, @Body() dto: AtualizarCompraDto, @Request() req: any) {
     return this.estoqueService.atualizarCompra(id, dto, req.user.id);
@@ -89,7 +90,7 @@ export class EstoqueController {
     return this.estoqueService.saldosTodos();
   }
 
-  // Aba Lotes: todos os lotes com saldo, quanto já foi vendido e em quais pedidos
+  // Aba Lotes: todos os lotes com saldo, quanto jÃ¡ foi vendido e em quais pedidos
   @Get('lotes')
   listarLotes(
     @Query('produtoId') produtoId?: string,
@@ -98,9 +99,14 @@ export class EstoqueController {
     return this.estoqueService.listarLotes({ produtoId, situacao });
   }
 
-  // O vendedor escolhe o lote ao montar o pedido (só número, data e saldo; sem custo)
+  // O vendedor escolhe o lote ao montar o pedido (sÃ³ nÃºmero, data e saldo; sem custo)
   @Get('lotes/disponiveis')
-  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  @Roles(
+    PapelUsuario.VENDEDOR,
+    PapelUsuario.SUPERVISOR,
+    PapelUsuario.ADMINISTRATIVO,
+    PapelUsuario.ADMINISTRADOR,
+  )
   lotesDisponiveis(@Query('produtoId') produtoId?: string) {
     return this.estoqueService.lotesDisponiveis(produtoId);
   }
@@ -115,7 +121,7 @@ export class EstoqueController {
     return this.estoqueService.atualizarLote(id, dto);
   }
 
-  // Extrato do lote: entrada, vendas, devoluções e ajustes com saldo antes/depois
+  // Extrato do lote: entrada, vendas, devoluÃ§Ãµes e ajustes com saldo antes/depois
   @Get('lotes/:id/historico')
   historicoLote(@Param('id') id: string) {
     return this.estoqueService.historicoLote(id);
@@ -126,7 +132,7 @@ export class EstoqueController {
     return this.estoqueService.listarLotesProduto(produtoId);
   }
 
-  // Rastreabilidade: quais lotes (e quantidades) foram usados em um pedido específico
+  // Rastreabilidade: quais lotes (e quantidades) foram usados em um pedido especÃ­fico
   @Get('pedido/:pedidoId/lotes')
   lotesUtilizadosNoPedido(@Param('pedidoId') pedidoId: string) {
     return this.estoqueService.lotesUtilizadosNoPedido(pedidoId);

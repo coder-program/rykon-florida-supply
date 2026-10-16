@@ -22,31 +22,31 @@ export class DevolucoesController {
   constructor(private service: DevolucoesService) {}
 
   @Post()
-  @Roles(PapelUsuario.VENDEDOR)
+  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR)
   criar(@Body() dto: CriarDevolucaoDto, @Request() req: any) {
     return this.service.criar(dto, req.user.id, req.user.papel);
   }
 
   @Get('minhas')
-  @Roles(PapelUsuario.VENDEDOR)
+  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR)
   listarMinhas(@Request() req: any) {
     return this.service.listarMinhas(req.user.id);
   }
 
   @Get('etiqueta/:token')
-  @Roles(PapelUsuario.VENDEDOR)
+  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR)
   buscarPedidoPorEtiqueta(@Param('token') token: string, @Request() req: any) {
     return this.service.buscarPedidoPorEtiqueta(token, req.user.id, req.user.papel);
   }
 
   @Get()
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
   listarTodas() {
     return this.service.listarTodas();
   }
 
   @Patch(':id/status')
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
   atualizarStatus(
     @Param('id') id: string,
     @Request() req: any,
@@ -56,7 +56,7 @@ export class DevolucoesController {
   }
 
   @Get('resumo')
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
   resumo(@Query() query: Record<string, string | undefined>) {
     return this.service.resumo({ dataInicio: query?.dataInicio, dataFim: query?.dataFim });
   }

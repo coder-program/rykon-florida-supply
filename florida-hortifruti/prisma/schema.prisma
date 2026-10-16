@@ -16,6 +16,8 @@ datasource db {
 
 enum PapelUsuario {
   VENDEDOR
+  // Vendedor que também faz as compras (entrada de lote) e acompanha dashboard e metas
+  SUPERVISOR
   ADMINISTRATIVO
   ADMINISTRADOR
   MOTORISTA

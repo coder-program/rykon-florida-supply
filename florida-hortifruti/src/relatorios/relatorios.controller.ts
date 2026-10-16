@@ -12,7 +12,9 @@ import { RelatoriosService } from './relatorios.service';
 export class RelatoriosController {
   constructor(private relatoriosService: RelatoriosService) {}
 
+  // Supervisor acompanha o dashboard da rua; demais relatórios ficam com o escritório
   @Get('dashboard')
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
   dashboard(@Query() query: Record<string, string | undefined>) {
     return this.relatoriosService.dashboard(query ?? {});
   }
@@ -28,11 +30,13 @@ export class RelatoriosController {
   }
 
   @Get('relatorios/vendas/por-produto')
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
   vendasPorProduto(@Query() query: Record<string, string | undefined>) {
     return this.relatoriosService.vendasPorProduto(query ?? {});
   }
 
   @Get('relatorios/lucro-diario')
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
   lucroDiario(@Query() query: Record<string, string | undefined>) {
     return this.relatoriosService.lucroDiario(query ?? {});
   }

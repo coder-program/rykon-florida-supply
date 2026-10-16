@@ -17,13 +17,13 @@ export class SolicitacoesAlteracaoController {
   }
 
   @Post(':id/aprovar')
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
   aprovar(@Param('id') id: string, @Request() req: any) {
     return this.pedidosService.aprovarSolicitacao(id, req.user.id);
   }
 
   @Post(':id/negar')
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
   negar(@Param('id') id: string, @Body() dto: NegarSolicitacaoDto, @Request() req: any) {
     return this.pedidosService.negarSolicitacao(id, req.user.id, dto.resposta);
   }

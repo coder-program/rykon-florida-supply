@@ -19,12 +19,20 @@ import { FinanceiroPage } from './pages/FinanceiroPage'
 import { SolicitacoesAlteracaoPage } from './pages/SolicitacoesAlteracaoPage'
 import { DevolucoesPage } from './pages/DevolucoesPage'
 import { ROUTER_BASENAME } from './lib/session'
+import { ROTAS_SUPERVISOR } from './lib/permissoes'
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } })
 
 function UsuariosAccessRoute({ children }: { children: ReactNode }) {
   const { isFinanceiro } = useAuth()
   if (!isFinanceiro) return <Navigate to="/" replace />
+  return <>{children}</>
+}
+
+// Supervisor só abre as telas liberadas para ele; o resto volta para o dashboard
+function SupervisorRoute({ path, children }: { path: string; children: ReactNode }) {
+  const { isSupervisor } = useAuth()
+  if (isSupervisor && !ROTAS_SUPERVISOR.includes(path)) return <Navigate to="/" replace />
   return <>{children}</>
 }
 
@@ -39,12 +47,40 @@ export default function App() {
               <Route path="/" element={<DashboardPage />} />
               <Route path="/metas" element={<MetasPage />} />
               <Route path="/pedidos" element={<PedidosPage />} />
-              <Route path="/clientes" element={<ClientesPage />} />
-              <Route path="/produtos" element={<ProdutosPage />} />
+              <Route
+                path="/clientes"
+                element={
+                  <SupervisorRoute path="/clientes">
+                    <ClientesPage />
+                  </SupervisorRoute>
+                }
+              />
+              <Route
+                path="/produtos"
+                element={
+                  <SupervisorRoute path="/produtos">
+                    <ProdutosPage />
+                  </SupervisorRoute>
+                }
+              />
               <Route path="/estoque" element={<EstoquePage />} />
               <Route path="/lotes" element={<LotesPage />} />
-              <Route path="/relatorios" element={<RelatoriosPage />} />
-              <Route path="/financeiro" element={<FinanceiroPage />} />
+              <Route
+                path="/relatorios"
+                element={
+                  <SupervisorRoute path="/relatorios">
+                    <RelatoriosPage />
+                  </SupervisorRoute>
+                }
+              />
+              <Route
+                path="/financeiro"
+                element={
+                  <SupervisorRoute path="/financeiro">
+                    <FinanceiroPage />
+                  </SupervisorRoute>
+                }
+              />
               <Route path="/solicitacoes" element={<SolicitacoesAlteracaoPage />} />
               <Route path="/devolucoes" element={<DevolucoesPage />} />
               <Route

@@ -26,11 +26,16 @@ import {
   AtualizarItensPedidoDto,
 } from './dto/pedido.dto';
 
-const EQUIPE = [PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR] as const;
+const EQUIPE = [
+  PapelUsuario.ADMINISTRATIVO,
+  PapelUsuario.ADMINISTRADOR,
+  PapelUsuario.SUPERVISOR,
+] as const;
 const EQUIPE_VENDEDOR = [
   PapelUsuario.ADMINISTRATIVO,
   PapelUsuario.ADMINISTRADOR,
   PapelUsuario.VENDEDOR,
+  PapelUsuario.SUPERVISOR,
 ] as const;
 
 @Controller('pedidos')

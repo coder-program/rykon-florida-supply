@@ -38,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         isAdmin: usuario?.papel === 'ADMINISTRADOR',
         isFinanceiro: ['ADMINISTRATIVO', 'ADMINISTRADOR'].includes(usuario?.papel ?? ''),
+        isSupervisor: usuario?.papel === 'SUPERVISOR',
       }}
     >
       {children}

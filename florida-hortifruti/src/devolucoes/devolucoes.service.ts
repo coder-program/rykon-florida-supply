@@ -137,7 +137,7 @@ export class DevolucoesService {
   }
 
   async criar(dto: CriarDevolucaoDto, usuarioId: string, papel: PapelUsuario) {
-    if (papel !== PapelUsuario.VENDEDOR) {
+    if (papel !== PapelUsuario.VENDEDOR && papel !== PapelUsuario.SUPERVISOR) {
       throw new ForbiddenException('Somente vendedor pode registrar devolução');
     }
 
@@ -220,7 +220,7 @@ export class DevolucoesService {
   }
 
   async buscarPedidoPorEtiqueta(tokenRaw: string, usuarioId: string, papel: PapelUsuario) {
-    if (papel !== PapelUsuario.VENDEDOR) {
+    if (papel !== PapelUsuario.VENDEDOR && papel !== PapelUsuario.SUPERVISOR) {
       throw new ForbiddenException('Somente vendedor pode consultar etiqueta para devolução');
     }
 

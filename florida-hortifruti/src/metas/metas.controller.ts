@@ -23,19 +23,24 @@ export class MetasController {
 
   // Vendedor também acompanha, mas só vê o percentual (ver MetasService.hoje)
   @Get('hoje')
-  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.VENDEDOR)
+  @Roles(
+    PapelUsuario.ADMINISTRADOR,
+    PapelUsuario.ADMINISTRATIVO,
+    PapelUsuario.SUPERVISOR,
+    PapelUsuario.VENDEDOR,
+  )
   hoje(@Request() req: any) {
     return this.service.hoje(req.user.papel);
   }
 
   @Get('mes')
-  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO)
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.SUPERVISOR)
   mes(@Query('mes') mes?: string) {
     return this.service.mes(mes);
   }
 
   @Get('valores')
-  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO)
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.SUPERVISOR)
   valores() {
     return this.service.valores();
   }
@@ -53,7 +58,7 @@ export class MetasController {
   }
 
   @Get('dias-sem-meta')
-  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO)
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.SUPERVISOR)
   diasSemMeta(@Query('mes') mes?: string) {
     return this.service.diasSemMeta(mes);
   }

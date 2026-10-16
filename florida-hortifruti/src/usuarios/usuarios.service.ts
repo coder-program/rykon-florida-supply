@@ -93,7 +93,12 @@ export class UsuariosService {
       cidadeId?: string | null;
     } | null,
   ) {
-    if (papel !== PapelUsuario.VENDEDOR && papel !== PapelUsuario.MOTORISTA) return;
+    if (
+      papel !== PapelUsuario.VENDEDOR &&
+      papel !== PapelUsuario.SUPERVISOR &&
+      papel !== PapelUsuario.MOTORISTA
+    )
+      return;
 
     if (!usuario.cpf?.trim()) {
       throw new BadRequestException('Vendedor e motorista precisam ter CPF cadastrado');
@@ -162,6 +167,14 @@ export class UsuariosService {
     }
 
     return this.findOne(usuario.id);
+  }
+
+  motoristas() {
+    return this.prisma.usuario.findMany({
+      where: { papel: PapelUsuario.MOTORISTA, ativo: true },
+      select: { id: true, nome: true, papel: true, ativo: true },
+      orderBy: { nome: 'asc' },
+    });
   }
 
   async findAll() {

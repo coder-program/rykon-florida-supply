@@ -21,7 +21,12 @@ import { UpsertPrecoClienteDto } from '../produtos/dto/produto.dto';
 
 @Controller('clientes')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(PapelUsuario.VENDEDOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+@Roles(
+  PapelUsuario.VENDEDOR,
+  PapelUsuario.SUPERVISOR,
+  PapelUsuario.ADMINISTRATIVO,
+  PapelUsuario.ADMINISTRADOR,
+)
 export class ClientesController {
   constructor(
     private clientesService: ClientesService,

@@ -32,7 +32,11 @@ export function HomePage() {
     refetch,
   } = useQuery({
     queryKey: ['meus-pedidos'],
-    queryFn: () => api.get('/pedidos').then((r) => garantirLista(r.data)),
+    // Supervisor também entra aqui: só os pedidos dele (para o vendedor a API já filtra)
+    queryFn: () =>
+      api
+        .get('/pedidos', { params: { vendedorId: usuario?.id } })
+        .then((r) => garantirLista(r.data)),
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,

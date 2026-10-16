@@ -11,7 +11,7 @@ export class EtiquetasController {
 
   @Post('etiquetas/pedido/:pedidoId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
   garantirParaPedido(@Param('pedidoId') pedidoId: string) {
     return this.etiquetasService.garantirParaPedido(pedidoId);
   }

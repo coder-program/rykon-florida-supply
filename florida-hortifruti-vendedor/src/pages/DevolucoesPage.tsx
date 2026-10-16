@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { AlertCircle, ArrowLeft, Camera, CheckCircle2, XCircle } from 'lucide-react'
 import { BrowserQRCodeReader } from '@zxing/browser'
 import { api, resolveAssetUrl } from '../lib/api'
+import { useAuth } from '../contexts/useAuth'
 
 function toDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -28,6 +29,7 @@ const STATUS_COLOR: Record<string, string> = {
 }
 
 export function DevolucoesPage() {
+  const { usuario } = useAuth()
   const qc = useQueryClient()
   const scannerRef = useRef<BrowserQRCodeReader | null>(null)
   const scannerControlsRef = useRef<{ stop: () => void } | null>(null)
@@ -45,7 +47,10 @@ export function DevolucoesPage() {
 
   const { data: pedidos = [] } = useQuery({
     queryKey: ['pedidos-para-devolucao'],
-    queryFn: () => api.get('/pedidos').then((r) => (Array.isArray(r.data) ? r.data : [])),
+    queryFn: () =>
+      api
+        .get('/pedidos', { params: { vendedorId: usuario?.id } })
+        .then((r) => (Array.isArray(r.data) ? r.data : [])),
   })
 
   const { data: devolucoes = [], isLoading } = useQuery({

@@ -24,7 +24,12 @@ import {
 
 @Controller('produtos')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(PapelUsuario.VENDEDOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+@Roles(
+  PapelUsuario.VENDEDOR,
+  PapelUsuario.SUPERVISOR,
+  PapelUsuario.ADMINISTRATIVO,
+  PapelUsuario.ADMINISTRADOR,
+)
 export class ProdutosController {
   constructor(private produtosService: ProdutosService) {}
 
@@ -71,7 +76,12 @@ export class ProdutosController {
 
 @Controller('categorias')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(PapelUsuario.VENDEDOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+@Roles(
+  PapelUsuario.VENDEDOR,
+  PapelUsuario.SUPERVISOR,
+  PapelUsuario.ADMINISTRATIVO,
+  PapelUsuario.ADMINISTRADOR,
+)
 export class CategoriasController {
   constructor(private produtosService: ProdutosService) {}
 

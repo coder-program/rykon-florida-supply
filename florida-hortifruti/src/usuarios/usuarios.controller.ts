@@ -18,6 +18,13 @@ export class UsuariosController {
     return this.usuariosService.create(dto);
   }
 
+  // Tela de pedidos (atribuir entregador): só id/nome, sem CPF e endereço
+  @Get('motoristas')
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.SUPERVISOR)
+  motoristas() {
+    return this.usuariosService.motoristas();
+  }
+
   @Get()
   findAll() {
     return this.usuariosService.findAll();

@@ -127,8 +127,8 @@ export function PedidosPage() {
   })
 
   const { data: usuarios = [] } = useQuery({
-    queryKey: ['usuarios'],
-    queryFn: () => api.get('/usuarios').then((r) => r.data),
+    queryKey: ['usuarios-motoristas'],
+    queryFn: () => api.get('/usuarios/motoristas').then((r) => r.data),
   })
   const motoristas = (usuarios as any[]).filter((u) => u.papel === 'MOTORISTA' && u.ativo)
 
