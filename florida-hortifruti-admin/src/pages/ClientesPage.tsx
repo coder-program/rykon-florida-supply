@@ -306,6 +306,7 @@ export function ClientesPage() {
     const principal = getPrincipalEndereco(c)
     setForm({
       ...c,
+      cnpjCpf: c.cnpjCpf ?? '',
       endereco: {
         cep: principal?.cep ?? '',
         logradouro: principal?.logradouro ?? '',

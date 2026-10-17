@@ -332,7 +332,7 @@ function EtapaCliente({
             <p className="font-semibold text-gray-900 text-sm">{c.razaoSocialOuNome}</p>
             {c.nomeFantasia && <p className="text-xs text-gray-400">{c.nomeFantasia}</p>}
             <p className="text-xs text-gray-500 mt-0.5">
-              {c.cnpjCpf?.startsWith('SEM-DOC-') ? 'CPF/CNPJ não informado' : c.cnpjCpf}
+              {!c.cnpjCpf || c.cnpjCpf.startsWith('SEM-DOC-') ? 'CPF/CNPJ não informado' : c.cnpjCpf}
               {c.cidade ? ` • ${c.cidade}` : ''}
             </p>
           </button>

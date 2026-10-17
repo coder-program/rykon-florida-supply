@@ -235,7 +235,7 @@ export class PortalClienteService {
       id: cliente.id,
       razaoSocialOuNome: cliente.razaoSocialOuNome,
       nomeFantasia: cliente.nomeFantasia,
-      cnpjCpf: cliente.cnpjCpf,
+      cnpjCpf: cliente.cnpjCpf.startsWith('SEM-DOC-') ? null : cliente.cnpjCpf,
       telefone: cliente.telefone,
       whatsapp: cliente.whatsapp,
       email: cliente.email,

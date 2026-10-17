@@ -37,6 +37,20 @@ export class ClientesService {
     return String(target ?? '').includes('cnpjCpf');
   }
 
+  // cnpjCpf é @unique: cliente sem documento recebe um placeholder único
+  // (senão o segundo cliente sem CPF/CNPJ colide com o primeiro).
+  private gerarPlaceholderDoc() {
+    return `SEM-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  // O placeholder é detalhe interno: para a tela, cliente sem documento tem cnpjCpf null.
+  private semPlaceholderDoc<T extends { cnpjCpf: string }>(cliente: T) {
+    return {
+      ...cliente,
+      cnpjCpf: cliente.cnpjCpf.startsWith('SEM-DOC-') ? null : cliente.cnpjCpf,
+    };
+  }
+
   async create(dto: CreateClienteDto) {
     const { endereco, ...dadosCliente } = dto as any;
 
@@ -45,9 +59,7 @@ export class ClientesService {
       cliente = await this.prisma.cliente.create({
         data: {
           ...dadosCliente,
-          cnpjCpf:
-            dadosCliente.cnpjCpf ??
-            `SEM-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          cnpjCpf: dadosCliente.cnpjCpf || this.gerarPlaceholderDoc(),
         },
       });
     } catch (error) {
@@ -72,7 +84,7 @@ export class ClientesService {
 
     return Promise.all(
       clientes.map(async (cliente) => ({
-        ...cliente,
+        ...this.semPlaceholderDoc(cliente),
         enderecos: await this.enderecosService.findByEntidade(
           TipoEntidadeEndereco.CLIENTE,
           cliente.id,
@@ -96,7 +108,7 @@ export class ClientesService {
 
     return Promise.all(
       clientes.map(async (cliente) => ({
-        ...cliente,
+        ...this.semPlaceholderDoc(cliente),
         enderecos: await this.enderecosService.findByEntidade(
           TipoEntidadeEndereco.CLIENTE,
           cliente.id,
@@ -110,13 +122,18 @@ export class ClientesService {
     if (!cliente) throw new NotFoundException('Cliente não encontrado');
 
     const enderecos = await this.enderecosService.findByEntidade(TipoEntidadeEndereco.CLIENTE, id);
-    return { ...cliente, enderecos };
+    return { ...this.semPlaceholderDoc(cliente), enderecos };
   }
 
   async update(id: string, dto: UpdateClienteDto) {
-    await this.findOne(id);
+    const atual = await this.findOne(id);
 
     const { endereco, ...dadosCliente } = dto as any;
+    if (dadosCliente.cnpjCpf !== undefined && !dadosCliente.cnpjCpf) {
+      // Documento apagado (ou continua vazio): mantém/gera placeholder único.
+      if (atual.cnpjCpf === null) delete dadosCliente.cnpjCpf;
+      else dadosCliente.cnpjCpf = this.gerarPlaceholderDoc();
+    }
     let clienteAtualizado;
     try {
       clienteAtualizado = await this.prisma.cliente.update({
