@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { ArrowRight, CalendarDays, ClipboardList, Package2, Wallet } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatBRL, formatDate, STATUS_COLOR, STATUS_LABEL } from '../lib/utils'
+import { AtivarNotificacoes } from '../components/AtivarNotificacoes'
 
 export function PedidosPage() {
   const { data: pedidos = [], isLoading } = useQuery({
@@ -62,6 +63,8 @@ export function PedidosPage() {
           </div>
         </div>
       </section>
+
+      <AtivarNotificacoes />
 
       {listaPedidos.length > 0 && (
         <section className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">

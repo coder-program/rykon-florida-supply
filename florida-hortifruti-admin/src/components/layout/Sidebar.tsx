@@ -20,7 +20,7 @@ import {
 import { useAuth } from '../../contexts/useAuth'
 import { cn } from '../../lib/utils'
 import { api } from '../../lib/api'
-import { ROTAS_SUPERVISOR } from '../../lib/permissoes'
+import { rotasPermitidas } from '../../lib/permissoes'
 import logo from '../../assets/logo.png'
 
 const navItems = [
@@ -41,7 +41,8 @@ const navItems = [
 const PEDIDOS_VISTOS_STORAGE_KEY = 'admin-menu-pedidos-vistos-em'
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { logout, usuario, isFinanceiro, isSupervisor } = useAuth()
+  const { logout, usuario, isFinanceiro, isVisaoGeral } = useAuth()
+  const permitidas = rotasPermitidas(usuario?.papel)
   const location = useLocation()
 
   const [pedidosVistosEm, setPedidosVistosEm] = useState<number>(() => {
@@ -56,6 +57,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       return Array.isArray(res.data) ? res.data : []
     },
     refetchInterval: 15000,
+    // Visão geral não acessa pedidos
+    enabled: !isVisaoGeral,
   })
 
   const pedidosNovos = useMemo(() => {
@@ -128,8 +131,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {navItems
             .filter((item) =>
-              isSupervisor
-                ? ROTAS_SUPERVISOR.includes(item.to)
+              permitidas
+                ? permitidas.includes(item.to)
                 : item.to === '/usuarios'
                   ? isFinanceiro
                   : true,

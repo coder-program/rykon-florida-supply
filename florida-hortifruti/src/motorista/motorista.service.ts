@@ -10,6 +10,7 @@ import { EnderecosService } from '../enderecos/enderecos.service';
 import { StorageService } from '../common/storage.service';
 import { ConfirmarEntregaMotoristaDto } from '../pedidos/dto/pedido.dto';
 import { registrarHistoricoStatus } from '../pedidos/historico-status.util';
+import { NotificacoesService } from '../notificacoes/notificacoes.service';
 
 const STATUS_LISTA: StatusPedido[] = [
   StatusPedido.APROVADO,
@@ -24,6 +25,7 @@ export class MotoristaService {
     private prisma: PrismaService,
     private enderecos: EnderecosService,
     private storage: StorageService,
+    private notificacoes: NotificacoesService,
   ) {}
 
   // Aceita tanto o token puro quanto a URL completa lida da câmera (ex.: .../p/<token>)
@@ -131,6 +133,8 @@ export class MotoristaService {
       data: { status: StatusPedido.EM_ENTREGA },
     });
     await registrarHistoricoStatus(this.prisma, id, StatusPedido.EM_ENTREGA);
+    // Avisa o cliente (portal + push) sem segurar a resposta do motorista
+    void this.notificacoes.pedidoACaminho(id);
     return this.detalhe(id, motoristaId);
   }
 

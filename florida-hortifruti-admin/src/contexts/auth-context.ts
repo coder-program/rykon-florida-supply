@@ -14,6 +14,8 @@ export interface AuthCtx {
   isFinanceiro: boolean
   // Vendedor que faz as compras: só as telas de ROTAS_SUPERVISOR
   isSupervisor: boolean
+  // TV do salão: só Dashboard e Metas (ROTAS_VISAO_GERAL), atualizando sozinha
+  isVisaoGeral: boolean
 }
 
 export const AuthContext = createContext<AuthCtx>(null!)

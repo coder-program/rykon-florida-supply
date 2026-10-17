@@ -31,8 +31,11 @@ export class AuthService {
     }
 
     const payload = { sub: usuario.id, email: usuario.email, papel: usuario.papel };
+    // TV do salão (Visão geral) fica logada direto, como motorista e cliente
     const longaSessao =
-      usuario.papel === PapelUsuario.MOTORISTA || usuario.papel === PapelUsuario.CLIENTE;
+      usuario.papel === PapelUsuario.MOTORISTA ||
+      usuario.papel === PapelUsuario.CLIENTE ||
+      usuario.papel === PapelUsuario.VISAO_GERAL;
 
     return {
       access_token: this.jwtService.sign(payload, longaSessao ? { expiresIn: '30d' } : undefined),

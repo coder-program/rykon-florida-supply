@@ -266,7 +266,9 @@ function KpiCard({
 }
 
 export function DashboardPage() {
-  const { usuario } = useAuth()
+  const { usuario, isVisaoGeral } = useAuth()
+  // TV do salão (Visão geral) fica ligada o dia todo: atualiza sozinha a cada minuto
+  const refetchInterval = isVisaoGeral ? 60_000 : undefined
   const [periodo, setPeriodo] = useState<Periodo>('hoje')
   const [customInicio, setCustomInicio] = useState(hojeIso)
   const [customFim, setCustomFim] = useState(hojeIso)
@@ -276,16 +278,19 @@ export function DashboardPage() {
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['dashboard', datas.dataInicio, datas.dataFim],
     queryFn: () => api.get('/dashboard', { params: datas }).then((r) => r.data),
+    refetchInterval,
   })
 
   const { data: devolucoesResumoGeral } = useQuery<DevolucoesResumo>({
     queryKey: ['devolucoes-resumo-geral'],
     queryFn: () => api.get('/devolucoes/resumo').then((r) => r.data),
+    refetchInterval,
   })
 
   const { data: vendasProduto = [] } = useQuery<VendaProduto[]>({
     queryKey: ['vendas-produto', datas.dataInicio, datas.dataFim],
     queryFn: () => api.get('/relatorios/vendas/por-produto', { params: datas }).then((r) => r.data),
+    refetchInterval,
   })
 
   const {
@@ -295,6 +300,7 @@ export function DashboardPage() {
   } = useQuery<LucroDiarioResponse>({
     queryKey: ['lucro-diario-dashboard', datas.dataInicio, datas.dataFim],
     queryFn: () => api.get('/relatorios/lucro-diario', { params: datas }).then((r) => r.data),
+    refetchInterval,
   })
 
   const datasAnterior = getPeriodoAnterior(datas)
@@ -307,6 +313,7 @@ export function DashboardPage() {
       ],
       queryFn: () =>
         api.get('/relatorios/lucro-diario', { params: datasAnterior }).then((r) => r.data),
+      refetchInterval,
     })
 
   const estoque: EstoqueItem[] = [...(data?.estoque ?? [])].sort((a, b) => {

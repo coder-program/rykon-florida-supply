@@ -10,7 +10,7 @@ import logo from '../assets/logo.png'
 export function Layout({ children }: { children: ReactNode }) {
   const [qtd, setQtd] = useState(() => totalItens(lerCarrinho()))
 
-  // Avisos de cobrança (compra a prazo e vencimentos) ainda não lidos
+  // Avisos ainda não lidos (cobrança e pedido a caminho)
   const { data: avisos = [] } = useQuery<{ lidaEm: string | null }[]>({
     queryKey: ['portal-avisos'],
     queryFn: () => api.get('/portal-cliente/notificacoes').then((r) => r.data),

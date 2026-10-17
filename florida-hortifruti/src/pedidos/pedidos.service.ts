@@ -28,6 +28,7 @@ import {
 import { StorageService } from '../common/storage.service';
 import { registrarHistoricoStatus } from './historico-status.util';
 import { montarAvisoCobranca } from '../financeiro/avisos-cobranca.util';
+import { NotificacoesService } from '../notificacoes/notificacoes.service';
 
 @Injectable()
 export class PedidosService {
@@ -36,6 +37,7 @@ export class PedidosService {
     private estoqueService: EstoqueService,
     private etiquetasService: EtiquetasService,
     private storage: StorageService,
+    private notificacoes: NotificacoesService,
   ) {}
 
   private readonly statusAposAprovacao: StatusPedido[] = [
@@ -794,7 +796,7 @@ export class PedidosService {
     const devolverEstoque =
       novoStatus === StatusPedido.CANCELADO && this.statusPodeEntregar.includes(pedidoAtual.status);
 
-    return this.prisma.$transaction(async (tx) => {
+    const pedidoAtualizado = await this.prisma.$transaction(async (tx) => {
       const pedido = await tx.pedido.update({ where: { id }, data: { status: novoStatus } });
       await tx.logAuditoria.create({
         data: {
@@ -821,6 +823,12 @@ export class PedidosService {
 
       return pedido;
     });
+
+    // Saiu para entrega pelo painel: avisa o cliente (portal + push)
+    if (novoStatus === StatusPedido.EM_ENTREGA && pedidoAtual.status !== StatusPedido.EM_ENTREGA) {
+      void this.notificacoes.pedidoACaminho(id);
+    }
+    return pedidoAtualizado;
   }
 
   // Regra 6 do escopo: cancelamento não apaga o pedido, só muda o status

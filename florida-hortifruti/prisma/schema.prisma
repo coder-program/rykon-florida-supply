@@ -18,6 +18,8 @@ enum PapelUsuario {
   VENDEDOR
   // Vendedor que também faz as compras (entrada de lote) e acompanha dashboard e metas
   SUPERVISOR
+  // TV do salão: só leitura do dashboard e das metas
+  VISAO_GERAL
   ADMINISTRATIVO
   ADMINISTRADOR
   MOTORISTA
@@ -42,6 +44,7 @@ model Usuario {
   pedidosCriados              Pedido[]                     @relation("VendedorPedido")
   pedidosEntrega              Pedido[]                     @relation("EntregadorPedido")
   cliente                     Cliente?
+  pushInscricoes              PushInscricao[]
   ajustesEstoque              MovimentacaoEstoque[]
   comprasEstoque              CompraEstoque[]
   historicoPrecos             HistoricoPreco[]
@@ -564,6 +567,20 @@ model NotificacaoCliente {
 
   @@index([clienteId, status, agendadaPara])
   @@map("notificacoes_cliente")
+}
+
+// Inscrição de push do navegador/celular (Web Push) — usada no aviso "pedido a caminho"
+model PushInscricao {
+  id        String   @id @default(uuid())
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  criadoEm  DateTime @default(now())
+
+  @@index([usuarioId])
+  @@map("push_inscricoes")
 }
 
 model LogAuditoria {

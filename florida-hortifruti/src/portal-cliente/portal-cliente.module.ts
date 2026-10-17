@@ -5,10 +5,11 @@ import { PedidosModule } from '../pedidos/pedidos.module';
 import { ProdutosModule } from '../produtos/produtos.module';
 import { EnderecosModule } from '../enderecos/enderecos.module';
 import { ClientesModule } from '../clientes/clientes.module';
+import { NotificacoesModule } from '../notificacoes/notificacoes.module';
 import { PrismaService } from '../prisma.service';
 
 @Module({
-  imports: [PedidosModule, ProdutosModule, EnderecosModule, ClientesModule],
+  imports: [PedidosModule, ProdutosModule, EnderecosModule, ClientesModule, NotificacoesModule],
   controllers: [PortalClienteController],
   providers: [PortalClienteService, PrismaService],
 })

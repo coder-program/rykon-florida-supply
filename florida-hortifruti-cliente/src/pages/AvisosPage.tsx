@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { Bell, ArrowRight } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatDate } from '../lib/utils'
+import { AtivarNotificacoes } from '../components/AtivarNotificacoes'
 
 type Aviso = {
   id: string
@@ -19,6 +20,7 @@ const COR_TIPO: Record<string, string> = {
   COMPRA_A_PRAZO: 'border-l-emerald-500',
   VENCE_EM_3_DIAS: 'border-l-amber-500',
   VENCIMENTO_HOJE: 'border-l-red-500',
+  PEDIDO_A_CAMINHO: 'border-l-cyan-500',
 }
 
 export function AvisosPage() {
@@ -51,6 +53,8 @@ export function AvisosPage() {
         <Bell className="h-5 w-5 text-gray-700" />
         <h1 className="text-lg font-semibold text-gray-900">Avisos</h1>
       </div>
+
+      <AtivarNotificacoes />
 
       {avisos.length === 0 && (
         <p className="rounded-2xl bg-white px-4 py-8 text-center text-sm text-gray-500">

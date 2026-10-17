@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma.service';
 import { StatusPedido, StatusPagamento, FormaPagamento } from '@prisma/client';
 import { hojeBrasilia, montarAvisoCobranca, TipoAvisoCobranca } from './avisos-cobranca.util';
+import { TIPO_PEDIDO_A_CAMINHO } from '../notificacoes/notificacoes.service';
 
 @Injectable()
 export class FinanceiroService {
@@ -366,6 +367,8 @@ export class FinanceiroService {
   async listarNotificacoes(filtros: { status?: string; clienteId?: string }) {
     const notificacoes = await this.prisma.notificacaoCliente.findMany({
       where: {
+        // "Pedido a caminho" já sai automático (portal + push); aqui só cobrança
+        tipo: { not: TIPO_PEDIDO_A_CAMINHO },
         ...(filtros.status ? { status: filtros.status } : {}),
         ...(filtros.clienteId ? { clienteId: filtros.clienteId } : {}),
       },

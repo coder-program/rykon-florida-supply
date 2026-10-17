@@ -6,9 +6,10 @@ import { PrismaService } from '../prisma.service';
 import { EstoqueModule } from '../estoque/estoque.module';
 import { EtiquetasModule } from '../etiquetas/etiquetas.module';
 import { StorageService } from '../common/storage.service';
+import { NotificacoesModule } from '../notificacoes/notificacoes.module';
 
 @Module({
-  imports: [EstoqueModule, EtiquetasModule],
+  imports: [EstoqueModule, EtiquetasModule, NotificacoesModule],
   controllers: [PedidosController, SolicitacoesAlteracaoController],
   providers: [PedidosService, PrismaService, StorageService],
   exports: [PedidosService],

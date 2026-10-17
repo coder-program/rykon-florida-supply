@@ -56,7 +56,12 @@ export class DevolucoesController {
   }
 
   @Get('resumo')
-  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
+  @Roles(
+    PapelUsuario.ADMINISTRATIVO,
+    PapelUsuario.ADMINISTRADOR,
+    PapelUsuario.SUPERVISOR,
+    PapelUsuario.VISAO_GERAL,
+  )
   resumo(@Query() query: Record<string, string | undefined>) {
     return this.service.resumo({ dataInicio: query?.dataInicio, dataFim: query?.dataFim });
   }

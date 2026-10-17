@@ -24,6 +24,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // Recebe o Web Push "pedido a caminho" (public/push-sw.js)
+        importScripts: ['push-sw.js'],
       },
     }),
   ],

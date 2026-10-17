@@ -9,3 +9,13 @@ export const ROTAS_SUPERVISOR = [
   '/estoque',
   '/lotes',
 ]
+
+// Visão geral = TV do salão: só Dashboard e Metas, sem nenhuma ação de cadastro
+export const ROTAS_VISAO_GERAL = ['/', '/metas']
+
+// Telas liberadas para o papel; null = sem restrição de tela (admin/administrativo)
+export function rotasPermitidas(papel: string | undefined): string[] | null {
+  if (papel === 'SUPERVISOR') return ROTAS_SUPERVISOR
+  if (papel === 'VISAO_GERAL') return ROTAS_VISAO_GERAL
+  return null
+}

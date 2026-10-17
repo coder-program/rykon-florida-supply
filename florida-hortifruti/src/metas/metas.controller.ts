@@ -27,6 +27,7 @@ export class MetasController {
     PapelUsuario.ADMINISTRADOR,
     PapelUsuario.ADMINISTRATIVO,
     PapelUsuario.SUPERVISOR,
+    PapelUsuario.VISAO_GERAL,
     PapelUsuario.VENDEDOR,
   )
   hoje(@Request() req: any) {
@@ -34,13 +35,23 @@ export class MetasController {
   }
 
   @Get('mes')
-  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.SUPERVISOR)
+  @Roles(
+    PapelUsuario.ADMINISTRADOR,
+    PapelUsuario.ADMINISTRATIVO,
+    PapelUsuario.SUPERVISOR,
+    PapelUsuario.VISAO_GERAL,
+  )
   mes(@Query('mes') mes?: string) {
     return this.service.mes(mes);
   }
 
   @Get('valores')
-  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.SUPERVISOR)
+  @Roles(
+    PapelUsuario.ADMINISTRADOR,
+    PapelUsuario.ADMINISTRATIVO,
+    PapelUsuario.SUPERVISOR,
+    PapelUsuario.VISAO_GERAL,
+  )
   valores() {
     return this.service.valores();
   }
@@ -58,7 +69,12 @@ export class MetasController {
   }
 
   @Get('dias-sem-meta')
-  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.SUPERVISOR)
+  @Roles(
+    PapelUsuario.ADMINISTRADOR,
+    PapelUsuario.ADMINISTRATIVO,
+    PapelUsuario.SUPERVISOR,
+    PapelUsuario.VISAO_GERAL,
+  )
   diasSemMeta(@Query('mes') mes?: string) {
     return this.service.diasSemMeta(mes);
   }
