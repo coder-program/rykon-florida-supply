@@ -4,6 +4,7 @@ import {
   Post,
   Patch,
   Put,
+  Delete,
   Param,
   Body,
   Query,
@@ -147,5 +148,12 @@ export class PedidosController {
   @Roles(...EQUIPE)
   cancelar(@Param('id') id: string, @Request() req: any) {
     return this.pedidosService.cancelar(id, req.user.id);
+  }
+
+  // Exclusão definitiva, só de pedido cancelado
+  @Delete(':id')
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO)
+  excluir(@Param('id') id: string, @Request() req: any) {
+    return this.pedidosService.excluir(id, req.user.id);
   }
 }

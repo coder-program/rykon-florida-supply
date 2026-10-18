@@ -1,7 +1,16 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronDown, Printer, Pencil, Plus, FileSpreadsheet, FileText } from 'lucide-react'
+import {
+  Search,
+  ChevronDown,
+  Printer,
+  Pencil,
+  Plus,
+  FileSpreadsheet,
+  FileText,
+  Trash2,
+} from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import ExcelJS from 'exceljs'
@@ -22,6 +31,7 @@ import { Select } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
 import { NovoPedidoModal } from './NovoPedidoModal'
 import { RastreioLotesPedido } from './RastreioLotesPedido'
+import { useAuth } from '../contexts/useAuth'
 
 type LoteDisponivel = {
   id: string
@@ -38,20 +48,20 @@ function rotuloLote(l: { numero: string; dataEntrada: string }) {
 const STATUS_ACOES: Record<string, { label: string; next: string }[]> = {
   AGUARDANDO_APROVACAO: [
     { label: 'Aprovar', next: 'aprovar' },
-    { label: 'Rejeitar', next: 'rejeitar' },
-    { label: 'Cancelar', next: 'cancelar' },
+    { label: 'Rejeitar pedido', next: 'rejeitar' },
+    { label: 'Cancelar pedido', next: 'cancelar' },
   ],
   APROVADO: [
     { label: 'Pedido em Andamento', next: 'separacao' },
-    { label: 'Cancelar', next: 'cancelar' },
+    { label: 'Cancelar pedido', next: 'cancelar' },
   ],
   EM_SEPARACAO: [
     { label: 'Pronto para entrega', next: 'pronto-para-entrega' },
-    { label: 'Cancelar', next: 'cancelar' },
+    { label: 'Cancelar pedido', next: 'cancelar' },
   ],
   PRONTO_PARA_ENTREGA: [
     { label: 'Saiu para entrega', next: 'em-entrega' },
-    { label: 'Cancelar', next: 'cancelar' },
+    { label: 'Cancelar pedido', next: 'cancelar' },
   ],
 }
 
@@ -88,9 +98,14 @@ function totalCaixasPedido(pedido: { itens?: { quantidade?: number }[] } | null)
 export function PedidosPage() {
   const qc = useQueryClient()
   const navigate = useNavigate()
+  const { usuario } = useAuth()
+  const podeExcluirPedido =
+    usuario?.papel === 'ADMINISTRADOR' || usuario?.papel === 'ADMINISTRATIVO'
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
   const [pedidoSelecionado, setPedidoSelecionado] = useState<any>(null)
+  const [confirmarAcao, setConfirmarAcao] = useState<'cancelar' | 'rejeitar' | null>(null)
+  const [motivoRejeicao, setMotivoRejeicao] = useState('')
   const [carregandoPedidoDetalhe, setCarregandoPedidoDetalhe] = useState(false)
   const [novoPedido, setNovoPedido] = useState(false)
   const [entregadorId, setEntregadorId] = useState('')
@@ -169,6 +184,15 @@ export function PedidosPage() {
         setEntregadorId(res.data.entregadorId ?? res.data.entregador?.id ?? entregadorId)
         return
       }
+      setPedidoSelecionado(null)
+    },
+  })
+
+  // Exclusão definitiva: a API só aceita pedido CANCELADO
+  const excluirPedido = useMutation({
+    mutationFn: (id: string) => api.delete(`/pedidos/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pedidos'] })
       setPedidoSelecionado(null)
     },
   })
@@ -1048,14 +1072,10 @@ export function PedidosPage() {
                     variant={next === 'cancelar' || next === 'rejeitar' ? 'danger' : 'primary'}
                     className="w-full sm:w-auto"
                     onClick={async () => {
-                      if (next === 'rejeitar') {
-                        const motivo = window.prompt('Motivo da rejeição')
-                        if (!motivo?.trim()) return
-                        mudarStatus.mutate({
-                          id: pedidoSelecionado.id,
-                          acao: next,
-                          body: { motivo: motivo.trim() },
-                        })
+                      // Cancelar/rejeitar não têm volta: pede confirmação antes
+                      if (next === 'cancelar' || next === 'rejeitar') {
+                        setMotivoRejeicao('')
+                        setConfirmarAcao(next)
                         return
                       }
                       if (next === 'em-entrega') {
@@ -1109,7 +1129,99 @@ export function PedidosPage() {
                 )}
               </div>
             )}
+            {pedidoSelecionado.status === 'CANCELADO' && podeExcluirPedido && (
+              <div className="space-y-2 border-t border-gray-100 pt-2">
+                {excluirPedido.isError && (
+                  <p className="text-xs text-red-600">
+                    {(excluirPedido.error as any)?.response?.data?.message ??
+                      'Não foi possível excluir o pedido.'}
+                  </p>
+                )}
+                <Button
+                  variant="danger"
+                  className="w-full sm:w-auto"
+                  disabled={excluirPedido.isPending}
+                  onClick={() => {
+                    const numero = String(pedidoSelecionado.numero).padStart(6, '0')
+                    if (
+                      !window.confirm(
+                        `Excluir definitivamente o pedido #${numero}? Essa ação não pode ser desfeita.`,
+                      )
+                    )
+                      return
+                    excluirPedido.mutate(pedidoSelecionado.id)
+                  }}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {excluirPedido.isPending ? 'Excluindo...' : 'Excluir pedido'}
+                </Button>
+              </div>
+            )}
           </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!confirmarAcao && !!pedidoSelecionado}
+        onClose={() => setConfirmarAcao(null)}
+        title={confirmarAcao === 'rejeitar' ? 'Rejeitar pedido?' : 'Cancelar pedido?'}
+        size="sm"
+      >
+        {pedidoSelecionado && (
+          <form
+            className="space-y-4 p-4 sm:p-5"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (confirmarAcao === 'rejeitar') {
+                if (!motivoRejeicao.trim()) return
+                mudarStatus.mutate({
+                  id: pedidoSelecionado.id,
+                  acao: 'rejeitar',
+                  body: { motivo: motivoRejeicao.trim() },
+                })
+              } else {
+                mudarStatus.mutate({ id: pedidoSelecionado.id, acao: 'cancelar' })
+              }
+              setConfirmarAcao(null)
+            }}
+          >
+            <p className="text-sm text-gray-700">
+              Tem certeza que deseja{' '}
+              <strong>{confirmarAcao === 'rejeitar' ? 'rejeitar' : 'cancelar'}</strong> o pedido{' '}
+              <strong>#{String(pedidoSelecionado.numero).padStart(6, '0')}</strong> de{' '}
+              {pedidoSelecionado.cliente?.razaoSocialOuNome ?? 'cliente'}?
+            </p>
+            {confirmarAcao === 'cancelar' && (
+              <p className="text-xs text-gray-500">
+                O pedido fica como Cancelado e as caixas que já saíram do estoque voltam para o
+                lote.
+              </p>
+            )}
+            {confirmarAcao === 'rejeitar' && (
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-gray-600">Motivo da rejeição</span>
+                <textarea
+                  autoFocus
+                  value={motivoRejeicao}
+                  onChange={(e) => setMotivoRejeicao(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-400 focus:outline-none"
+                />
+              </label>
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" onClick={() => setConfirmarAcao(null)}>
+                Voltar, não {confirmarAcao === 'rejeitar' ? 'rejeitar' : 'cancelar'}
+              </Button>
+              <Button
+                type="submit"
+                variant="danger"
+                disabled={confirmarAcao === 'rejeitar' && !motivoRejeicao.trim()}
+              >
+                Sim, {confirmarAcao === 'rejeitar' ? 'rejeitar' : 'cancelar'} pedido
+              </Button>
+            </div>
+          </form>
         )}
       </Modal>
     </div>

@@ -836,6 +836,55 @@ export class PedidosService {
     return this.atualizarStatus(id, StatusPedido.CANCELADO, usuarioId);
   }
 
+  // Exclusão definitiva: só pedido CANCELADO (o estoque já voltou ao lote no cancelamento).
+  async excluir(id: string, usuarioId: string) {
+    const pedido = await this.prisma.pedido.findUnique({
+      where: { id },
+      include: {
+        cliente: { select: { razaoSocialOuNome: true } },
+        _count: { select: { pagamentos: true } },
+      },
+    });
+    if (!pedido) throw new NotFoundException('Pedido não encontrado');
+    if (pedido.status !== StatusPedido.CANCELADO) {
+      throw new BadRequestException('Só é possível excluir pedidos cancelados.');
+    }
+    if (pedido._count.pagamentos > 0) {
+      throw new BadRequestException(
+        'Este pedido tem pagamentos registrados. Remova os pagamentos antes de excluir.',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Histórico de estoque fica (saída + devolução), só perde o vínculo com o pedido
+      await tx.movimentacaoEstoque.updateMany({
+        where: { pedidoId: id },
+        data: { pedidoId: null },
+      });
+      await tx.notificacaoCliente.deleteMany({ where: { pedidoId: id } });
+      await tx.solicitacaoAlteracaoPedido.deleteMany({ where: { pedidoId: id } });
+      await tx.etiqueta.deleteMany({ where: { pedidoId: id } });
+      await tx.comprovanteEntrega.deleteMany({ where: { pedidoId: id } });
+      // Itens, itens por lote, pagamentos e histórico de status saem em cascata
+      await tx.pedido.delete({ where: { id } });
+      await tx.logAuditoria.create({
+        data: {
+          usuarioId,
+          acao: 'EXCLUIR_PEDIDO',
+          entidade: 'Pedido',
+          entidadeId: id,
+          detalhes: {
+            numero: pedido.numero,
+            cliente: pedido.cliente?.razaoSocialOuNome ?? null,
+            totalFinal: Number(pedido.totalFinal),
+          },
+        },
+      });
+    });
+
+    return { ok: true };
+  }
+
   async solicitarAlteracao(
     pedidoId: string,
     dto: CriarSolicitacaoAlteracaoDto,
