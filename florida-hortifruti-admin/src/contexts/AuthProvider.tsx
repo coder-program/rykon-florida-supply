@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { api } from '../lib/api'
 import { TOKEN_KEY, USUARIO_KEY } from '../lib/session'
@@ -28,6 +28,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USUARIO_KEY)
     setUsuario(null)
+  }, [])
+
+  // Login/logout em outra aba troca o token compartilhado no localStorage; recarrega esta aba
+  // para não mostrar um perfil e mandar o token de outro (ex.: admin na tela, supervisor na API)
+  useEffect(() => {
+    function aoMudarSessao(e: StorageEvent) {
+      // USUARIO_KEY muda junto com o token em todo login/logout; ouvir só ela evita recarregar 2x
+      if (e.key === USUARIO_KEY || e.key === null) {
+        window.location.reload()
+      }
+    }
+    window.addEventListener('storage', aoMudarSessao)
+    return () => window.removeEventListener('storage', aoMudarSessao)
   }, [])
 
   return (
