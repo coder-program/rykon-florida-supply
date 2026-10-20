@@ -4,6 +4,7 @@ export const ROTAS_SUPERVISOR = [
   '/',
   '/metas',
   '/pedidos',
+  '/clientes',
   '/solicitacoes',
   '/devolucoes',
   '/estoque',

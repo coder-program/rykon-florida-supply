@@ -16,6 +16,7 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import ExcelJS from 'exceljs'
 import { api } from '../lib/api'
+import { useAuth } from '../contexts/useAuth'
 import { PageHeader } from '../components/ui/PageHeader'
 import { TableScroll } from '../components/ui/TableScroll'
 import { Button } from '../components/ui/Button'
@@ -211,6 +212,7 @@ type Cliente = {
 
 export function ClientesPage() {
   const qc = useQueryClient()
+  const { isSupervisor } = useAuth()
   const [busca, setBusca] = useState('')
   const [modal, setModal] = useState(false)
   const [modalDetalhes, setModalDetalhes] = useState(false)
@@ -1054,6 +1056,9 @@ export function ClientesPage() {
                 <p className="text-gray-600">
                   Já entra com {detalhesCliente.email ?? 'o e-mail cadastrado'}.
                 </p>
+              ) : isSupervisor ? (
+                // Liberar acesso ao app continua com o administrativo/admin (API recusa o supervisor)
+                <p className="text-gray-600">O administrativo libera o acesso ao app.</p>
               ) : (
                 <div className="space-y-3">
                   <Input

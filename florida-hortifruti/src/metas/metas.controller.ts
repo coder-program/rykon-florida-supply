@@ -57,13 +57,13 @@ export class MetasController {
   }
 
   @Post('valores')
-  @Roles(PapelUsuario.ADMINISTRADOR)
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
   definirValor(@Body() dto: DefinirValorMetaDto, @Request() req: any) {
     return this.service.definirValor(dto, req.user.id);
   }
 
   @Delete('valores/:id')
-  @Roles(PapelUsuario.ADMINISTRADOR)
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
   removerValor(@Param('id') id: string) {
     return this.service.removerValor(id);
   }
@@ -80,13 +80,13 @@ export class MetasController {
   }
 
   @Post('dias-sem-meta')
-  @Roles(PapelUsuario.ADMINISTRADOR)
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
   marcarDiaSemMeta(@Body() dto: MarcarDiaSemMetaDto) {
     return this.service.marcarDiaSemMeta(dto);
   }
 
   @Delete('dias-sem-meta/:data')
-  @Roles(PapelUsuario.ADMINISTRADOR)
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
   desmarcarDiaSemMeta(@Param('data') data: string) {
     return this.service.desmarcarDiaSemMeta(data);
   }

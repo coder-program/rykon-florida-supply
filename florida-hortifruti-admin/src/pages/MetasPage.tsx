@@ -65,7 +65,9 @@ const MOTIVO_SEM_META: Record<string, string> = {
 
 export function MetasPage() {
   const qc = useQueryClient()
-  const { isAdmin } = useAuth()
+  const { isAdmin, isSupervisor } = useAuth()
+  // Supervisor também lança o valor da meta diária e os dias sem meta
+  const podeEditarMeta = isAdmin || isSupervisor
 
   const { data: hoje, isLoading: carregandoHoje } = useQuery<HojeResponse>({
     queryKey: ['metas-hoje'],
@@ -199,7 +201,7 @@ export function MetasPage() {
               ) : (
                 <p className="mt-3 max-w-md text-sm text-white/80">
                   {hoje?.motivoSemMeta === 'SEM_VALOR'
-                    ? isAdmin
+                    ? podeEditarMeta
                       ? 'Nenhuma meta definida ainda. Defina o valor diário abaixo.'
                       : 'Nenhuma meta definida ainda.'
                     : `Hoje não tem meta (${MOTIVO_SEM_META[hoje?.motivoSemMeta ?? ''] ?? 'sem meta'}${hoje?.motivo ? ` — ${hoje.motivo}` : ''}).`}
@@ -255,7 +257,7 @@ export function MetasPage() {
               <CardTitle>Valor da meta diária</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {isAdmin ? (
+              {podeEditarMeta ? (
                 <form onSubmit={submitValor} className="space-y-3">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <MoneyInput
@@ -287,7 +289,9 @@ export function MetasPage() {
                   </Button>
                 </form>
               ) : (
-                <p className="text-sm text-gray-500">Somente o administrador altera a meta.</p>
+                <p className="text-sm text-gray-500">
+                  Somente o administrador ou o supervisor altera a meta.
+                </p>
               )}
 
               <div>
@@ -320,7 +324,7 @@ export function MetasPage() {
                             </span>
                           )}
                         </span>
-                        {isAdmin && (
+                        {podeEditarMeta && (
                           <button
                             type="button"
                             onClick={() => {
@@ -355,7 +359,7 @@ export function MetasPage() {
                 Domingos já não têm meta. Marque aqui feriados ou dias sem operação: eles não geram
                 meta nem “faltou”.
               </p>
-              {isAdmin && (
+              {podeEditarMeta && (
                 <form
                   onSubmit={(e) => {
                     e.preventDefault()
@@ -401,7 +405,7 @@ export function MetasPage() {
                         <span className="font-medium text-gray-900">{dataCurta(d.data)}</span>
                         {d.motivo && <span className="text-gray-500"> — {d.motivo}</span>}
                       </span>
-                      {isAdmin && (
+                      {podeEditarMeta && (
                         <button
                           type="button"
                           onClick={() => desmarcarDia.mutate(d.data)}

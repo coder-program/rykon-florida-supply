@@ -22,12 +22,33 @@ function garantirLista<T>(valor: unknown): T[] {
   return []
 }
 
+type LoteDisponivel = {
+  id: string
+  produtoId: string
+  numero: string
+  dataEntrada: string
+  quantidadeDisponivel: number
+}
+
+// Cada linha é produto + lote. O lote é escolhido por quem faz o pedido (nunca automático) e o
+// mesmo produto pode ser dividido entre lotes, ex.: 20 cx do lote 1 + 10 cx do lote 2.
+// O preço é digitado por pedido e não altera a tabela de preços do cliente.
+type ItemNovoPedido = {
+  produtoId: string
+  nome: string
+  loteId: string
+  quantidade: number
+  valorUnitario: number
+}
+
+function rotuloLote(l: { numero: string; dataEntrada: string }) {
+  return `${new Date(l.dataEntrada).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} - lote ${l.numero}`
+}
+
 export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const qc = useQueryClient()
   const [clienteId, setClienteId] = useState('')
-  const [itens, setItens] = useState<
-    { produtoId: string; nome: string; quantidade: number; valorUnitario: number }[]
-  >([])
+  const [itens, setItens] = useState<ItemNovoPedido[]>([])
   const [valorFrete, setValorFrete] = useState('')
   const [descontoValor, setDescontoValor] = useState('')
   const [formaPagamento, setFormaPagamento] = useState('PIX')
@@ -56,12 +77,19 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
     enabled: open,
   })
 
+  const { data: lotes = [] } = useQuery<LoteDisponivel[]>({
+    queryKey: ['lotes-disponiveis'],
+    queryFn: () => api.get('/estoque/lotes/disponiveis').then((r) => garantirLista(r.data)),
+    enabled: open,
+  })
+
   const criar = useMutation({
     mutationFn: () =>
       api.post('/pedidos', {
         clienteId,
         itens: itens.map((i) => ({
           produtoId: i.produtoId,
+          loteId: i.loteId,
           quantidade: i.quantidade,
           valorUnitario: i.valorUnitario,
         })),
@@ -97,29 +125,62 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
     setObservacoes('')
   }
 
-  function add(p: any) {
-    const estoque = Number(p.estoqueAtual ?? 0)
-    const existe = itens.find((i) => i.produtoId === p.id)
-    if (estoque <= 0) return
-    if (existe && existe.quantidade >= estoque) return
-    if (existe)
-      setItens(
-        itens.map((i) => (i.produtoId === p.id ? { ...i, quantidade: i.quantidade + 1 } : i)),
-      )
-    else
-      setItens([
-        ...itens,
-        { produtoId: p.id, nome: p.nome, quantidade: 1, valorUnitario: Number(p.precoSugerido) },
-      ])
+  function lotesDoProduto(produtoId: string) {
+    return lotes.filter((l) => l.produtoId === produtoId)
   }
 
-  function dec(id: string) {
-    const item = itens.find((i) => i.produtoId === id)
-    if (!item) return
-    if (item.quantidade <= 1) setItens(itens.filter((i) => i.produtoId !== id))
-    else
-      setItens(itens.map((i) => (i.produtoId === id ? { ...i, quantidade: i.quantidade - 1 } : i)))
+  function saldoLote(loteId: string) {
+    return lotes.find((l) => l.id === loteId)?.quantidadeDisponivel ?? 0
   }
+
+  function atualizar(index: number, patch: Partial<ItemNovoPedido>) {
+    setItens(itens.map((i, idx) => (idx === index ? { ...i, ...patch } : i)))
+  }
+
+  function adicionarLinha(p: any) {
+    const usados = new Set(itens.filter((i) => i.produtoId === p.id).map((i) => i.loteId))
+    const livres = lotesDoProduto(p.id).filter((l) => !usados.has(l.id))
+    if (livres.length === 0) return
+    // Só preenche o lote sozinho quando não há escolha a fazer (um único lote livre)
+    const unico = livres.length === 1 ? livres[0] : undefined
+    const precoBase = itens.find((i) => i.produtoId === p.id)?.valorUnitario
+    setItens([
+      ...itens,
+      {
+        produtoId: p.id,
+        nome: p.nome,
+        loteId: unico?.id ?? '',
+        quantidade: 1,
+        valorUnitario: precoBase ?? Number(p.precoSugerido),
+      },
+    ])
+  }
+
+  function setLote(index: number, loteId: string) {
+    const lote = lotes.find((l) => l.id === loteId)
+    const item = itens[index]
+    atualizar(index, {
+      loteId,
+      quantidade: lote
+        ? Math.max(1, Math.min(item.quantidade, lote.quantidadeDisponivel))
+        : item.quantidade,
+    })
+  }
+
+  function mudarQuantidade(index: number, delta: number) {
+    const item = itens[index]
+    const nova = item.quantidade + delta
+    if (nova <= 0) {
+      setItens(itens.filter((_, idx) => idx !== index))
+      return
+    }
+    if (delta > 0 && item.loteId && nova > saldoLote(item.loteId)) return
+    atualizar(index, { quantidade: nova })
+  }
+
+  const linhasSemLote = itens.some((i) => !i.loteId)
+  const acimaDoSaldo = itens.some((i) => i.loteId && i.quantidade > saldoLote(i.loteId))
+  const precoInvalido = itens.some((i) => !(i.valorUnitario > 0))
 
   const subtotal = itens.reduce((s, i) => s + i.quantidade * i.valorUnitario, 0)
   const total = subtotal + (Number(valorFrete) || 0) - (Number(descontoValor) || 0)
@@ -132,6 +193,21 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
     }
     if (itens.length === 0) {
       abrirFeedback('Itens obrigatórios', 'Adicione pelo menos um produto ao pedido.')
+      return
+    }
+    if (linhasSemLote) {
+      abrirFeedback('Lote obrigatório', 'Selecione o lote de cada produto.')
+      return
+    }
+    if (acimaDoSaldo) {
+      abrirFeedback(
+        'Saldo insuficiente',
+        'Há lote com saldo insuficiente. Ajuste a quantidade ou divida em outro lote.',
+      )
+      return
+    }
+    if (precoInvalido) {
+      abrirFeedback('Preço obrigatório', 'Informe o preço de venda de cada produto.')
       return
     }
     criar.mutate()
@@ -171,49 +247,128 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
 
         <div>
           <p className="text-xs font-medium text-gray-700 mb-2">Produtos</p>
-          <div className="max-h-48 overflow-y-auto space-y-2 border border-gray-100 rounded-lg p-2">
+          <div className="max-h-80 overflow-y-auto space-y-2 border border-gray-100 rounded-lg p-2">
             {produtos.map((p: any) => {
-              const item = itens.find((i) => i.produtoId === p.id)
               const estoque = Number(p.estoqueAtual ?? 0)
-              const semEstoque = estoque <= 0
-              const noLimite = !!item && item.quantidade >= estoque
+              const opcoesLote = lotesDoProduto(p.id)
+              const semEstoque = estoque <= 0 || opcoesLote.length === 0
+              const linhas = itens
+                .map((item, index) => ({ item, index }))
+                .filter(({ item }) => item.produtoId === p.id)
+              const usados = new Set(linhas.map(({ item }) => item.loteId))
+              const temLoteLivre = opcoesLote.some((l) => !usados.has(l.id))
               return (
                 <div
                   key={p.id}
-                  className={`flex items-center justify-between gap-2 text-sm ${semEstoque ? 'opacity-50' : ''}`}
+                  className={`rounded-lg text-sm ${linhas.length > 0 ? 'border border-green-300 p-2' : ''} ${semEstoque && linhas.length === 0 ? 'opacity-50' : ''}`}
                 >
-                  <span className="flex-1 truncate">
-                    {p.nome}
-                    <span className="block text-[11px] text-gray-400">
-                      {semEstoque ? 'Sem estoque' : `${estoque} cx`}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex-1 truncate">
+                      {p.nome}
+                      <span className="block text-[11px] text-gray-400">
+                        {semEstoque ? 'Sem lote com saldo' : `${estoque} cx`}
+                      </span>
                     </span>
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {item && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => dec(p.id)}
-                          className="w-6 h-6 cursor-pointer bg-red-100 text-red-600 rounded flex items-center justify-center"
-                        >
-                          <Minus className="w-3 h-3" />
-                        </button>
-                        <span className="w-6 text-center font-semibold">{item.quantidade}</span>
-                      </>
+                    {linhas.length === 0 && (
+                      <button
+                        type="button"
+                        onClick={() => adicionarLinha(p)}
+                        disabled={semEstoque}
+                        className="w-6 h-6 cursor-pointer bg-green-100 text-green-700 rounded flex items-center justify-center disabled:cursor-not-allowed disabled:opacity-40 disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
                     )}
+                  </div>
+
+                  {linhas.map(({ item, index }) => {
+                    const saldo = saldoLote(item.loteId)
+                    const noLimite = !!item.loteId && item.quantidade >= saldo
+                    return (
+                      <div key={index} className="mt-2 space-y-1.5 rounded-lg bg-gray-50 p-2">
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={item.loteId}
+                            onChange={(e) => setLote(index, e.target.value)}
+                            className={`min-w-0 flex-1 rounded-lg border bg-white px-2 py-1.5 text-sm ${item.loteId ? 'border-gray-300' : 'border-amber-400'}`}
+                          >
+                            <option value="">Selecione o lote</option>
+                            {opcoesLote
+                              .filter((l) => l.id === item.loteId || !usados.has(l.id))
+                              .map((l) => (
+                                <option key={l.id} value={l.id}>
+                                  {rotuloLote(l)} • {l.quantidadeDisponivel} cx
+                                </option>
+                              ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => mudarQuantidade(index, -1)}
+                            className="w-6 h-6 shrink-0 cursor-pointer bg-red-100 text-red-600 rounded flex items-center justify-center"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-6 text-center font-semibold">{item.quantidade}</span>
+                          <button
+                            type="button"
+                            onClick={() => mudarQuantidade(index, 1)}
+                            disabled={noLimite}
+                            className="w-6 h-6 shrink-0 cursor-pointer bg-green-100 text-green-700 rounded flex items-center justify-center disabled:cursor-not-allowed disabled:opacity-40 disabled:bg-gray-100 disabled:text-gray-400"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                        {item.loteId && item.quantidade > saldo && (
+                          <p className="text-xs text-red-600">
+                            Saldo insuficiente: o lote tem {saldo} cx. Selecione outro lote ou
+                            divida.
+                          </p>
+                        )}
+                        {noLimite && item.quantidade === saldo && temLoteLivre && (
+                          <p className="text-xs text-gray-500">
+                            Lote no limite. Para vender mais, use "Dividir em outro lote".
+                          </p>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">Preço (R$/cx):</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={item.valorUnitario}
+                            onChange={(e) =>
+                              atualizar(index, { valorUnitario: Number(e.target.value) || 0 })
+                            }
+                            className={`w-24 rounded-lg border bg-white px-2 py-1 text-right text-sm ${item.valorUnitario > 0 ? 'border-gray-300' : 'border-amber-400'}`}
+                          />
+                          <span className="ml-auto text-xs font-semibold text-green-700">
+                            = {formatBRL(item.quantidade * item.valorUnitario)}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  {linhas.length > 0 && temLoteLivre && (
                     <button
                       type="button"
-                      onClick={() => add(p)}
-                      disabled={semEstoque || noLimite}
-                      className="w-6 h-6 cursor-pointer bg-green-100 text-green-700 rounded flex items-center justify-center disabled:cursor-not-allowed disabled:opacity-40 disabled:bg-gray-100 disabled:text-gray-400"
+                      onClick={() => adicionarLinha(p)}
+                      className="mt-1.5 inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-green-700"
                     >
-                      <Plus className="w-3 h-3" />
+                      <Plus className="w-3.5 h-3.5" /> Dividir em outro lote
                     </button>
-                  </div>
+                  )}
                 </div>
               )
             })}
           </div>
+          {(linhasSemLote || acimaDoSaldo) && (
+            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {linhasSemLote
+                ? 'Selecione o lote de cada produto para continuar.'
+                : 'Há lote com saldo insuficiente. Ajuste a quantidade ou escolha outro lote.'}
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
