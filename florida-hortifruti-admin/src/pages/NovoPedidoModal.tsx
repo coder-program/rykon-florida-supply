@@ -7,9 +7,9 @@ import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { ClienteFormModal } from '../components/ClienteFormModal'
+import { BuscaCliente } from '../components/BuscaCliente'
 
 const LIMITE_OBSERVACOES_PEDIDO = 255
-const NOVO_CLIENTE = '__novo_cliente'
 
 function garantirLista<T>(valor: unknown): T[] {
   if (Array.isArray(valor)) return valor as T[]
@@ -108,6 +108,9 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pedidos'] })
+      // As caixas saem do lote no lançamento: saldo atualizado para o próximo pedido
+      qc.invalidateQueries({ queryKey: ['lotes-disponiveis'] })
+      qc.invalidateQueries({ queryKey: ['produtos'] })
       reset()
       onClose()
     },
@@ -238,24 +241,13 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
         }}
         className="space-y-4"
       >
-        <Select
-          label="Cliente *"
-          value={clienteId}
-          onChange={(e) => {
-            // Opção especial: abre o cadastro e, ao salvar, já seleciona o cliente novo
-            if (e.target.value === NOVO_CLIENTE) setCadastrandoCliente(true)
-            else setClienteId(e.target.value)
-          }}
-          required
-        >
-          <option value="">Selecione o cliente</option>
-          <option value={NOVO_CLIENTE}>+ Cadastrar cliente</option>
-          {clientes.map((c: any) => (
-            <option key={c.id} value={c.id}>
-              {c.razaoSocialOuNome}
-            </option>
-          ))}
-        </Select>
+        <BuscaCliente
+          clientes={clientes as any[]}
+          clienteId={clienteId}
+          onChange={setClienteId}
+          // Ao salvar o cadastro, o cliente novo já fica selecionado
+          onCadastrar={() => setCadastrandoCliente(true)}
+        />
 
         <div>
           <Input
