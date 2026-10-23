@@ -1,8 +1,14 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PapelUsuario, StatusConviteCliente } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { AppAcesso, mensagemAppErrado, papelPodeEntrar } from './apps-acesso';
 
 @Injectable()
 export class AuthService {
@@ -11,7 +17,7 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async login(email: string, senha: string) {
+  async login(email: string, senha: string, app?: AppAcesso) {
     const usuario = await this.prisma.usuario.findUnique({
       where: { email },
       include: { cliente: { select: { id: true, ativo: true } } },
@@ -28,6 +34,11 @@ export class AuthService {
     const senhaConfere = await bcrypt.compare(senha, usuario.senhaHash);
     if (!senhaConfere) {
       throw new UnauthorizedException('Credenciais inválidas');
+    }
+
+    // Conferido só depois da senha, para não revelar o perfil de quem errou a senha
+    if (app && !papelPodeEntrar(app, usuario.papel)) {
+      throw new ForbiddenException(mensagemAppErrado(usuario.papel));
     }
 
     const payload = { sub: usuario.id, email: usuario.email, papel: usuario.papel };

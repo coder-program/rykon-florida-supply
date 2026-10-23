@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
+import { mensagemErroLogin } from '../lib/session'
 import { useAuth } from '../contexts/useAuth'
 import logo from '../assets/logo.png'
 
@@ -20,11 +21,7 @@ export function LoginPage() {
     try {
       await login(email, senha)
     } catch (err: any) {
-      setError(
-        err?.message === 'Este acesso não é de motorista'
-          ? 'Este login não é do app de entregas.'
-          : 'E-mail ou senha inválidos.',
-      )
+      setError(mensagemErroLogin(err))
     } finally {
       setLoading(false)
     }
@@ -37,9 +34,14 @@ export function LoginPage() {
           <img src={logo} alt="Florida Supply" className="h-full w-auto" />
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-white">Florida Supply</h1>
-        <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-ember">Entregas do motorista</p>
+        <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-ember">
+          Entregas do motorista
+        </p>
       </div>
-      <form onSubmit={handleSubmit} className="brand-pop bg-cream-50 w-full max-w-sm rounded-3xl p-6 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.7)] space-y-4">
+      <form
+        onSubmit={handleSubmit}
+        className="brand-pop bg-cream-50 w-full max-w-sm rounded-3xl p-6 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.7)] space-y-4"
+      >
         <input
           type="email"
           value={email}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Input } from '../components/ui/Input'
+import { mensagemErroLogin } from '../lib/session'
 import { useAuth } from '../contexts/useAuth'
 import logo from '../assets/logo.png'
 
@@ -20,8 +21,8 @@ export function LoginPage() {
     setError('')
     try {
       await login(email, senha)
-    } catch {
-      setError('E-mail ou senha inválidos.')
+    } catch (err: any) {
+      setError(mensagemErroLogin(err))
     } finally {
       setLoading(false)
     }

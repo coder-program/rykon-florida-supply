@@ -1,19 +1,29 @@
 import { useCallback, useState } from 'react'
 import type { ReactNode } from 'react'
 import { api } from '../lib/api'
-import { TOKEN_KEY, USUARIO_KEY } from '../lib/session'
+import {
+  APP,
+  MENSAGEM_APP_ERRADO,
+  PAPEIS_DO_APP,
+  TOKEN_KEY,
+  USUARIO_KEY,
+  usuarioSalvo,
+} from '../lib/session'
 import { AuthContext } from './auth-context'
 
-interface Usuario { id: string; nome: string; email: string; papel: string }
+interface Usuario {
+  id: string
+  nome: string
+  email: string
+  papel: string
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [usuario, setUsuario] = useState<Usuario | null>(() => {
-    const raw = localStorage.getItem(USUARIO_KEY)
-    return raw ? JSON.parse(raw) : null
-  })
+  const [usuario, setUsuario] = useState<Usuario | null>(() => usuarioSalvo<Usuario>())
 
   const login = useCallback(async (email: string, senha: string) => {
-    const { data } = await api.post('/auth/login', { email, senha })
+    const { data } = await api.post('/auth/login', { email, senha, app: APP })
+    if (!PAPEIS_DO_APP.includes(data.usuario?.papel)) throw new Error(MENSAGEM_APP_ERRADO)
     localStorage.setItem(TOKEN_KEY, data.access_token)
     localStorage.setItem(USUARIO_KEY, JSON.stringify(data.usuario))
     setUsuario(data.usuario)

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
+import { mensagemErroLogin } from '../lib/session'
 import { useAuth } from '../contexts/useAuth'
 import logo from '../assets/logo.png'
 
@@ -24,8 +25,8 @@ export function LoginPage() {
     setError('')
     try {
       await login(email, senha)
-    } catch {
-      setError('E-mail ou senha inválidos.')
+    } catch (err: any) {
+      setError(mensagemErroLogin(err))
     } finally {
       setLoading(false)
     }
@@ -38,7 +39,9 @@ export function LoginPage() {
           <img src={logo} alt="Florida Supply" className="h-full w-auto" />
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-white">Florida Supply</h1>
-        <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-ember">Pedidos para vendedores</p>
+        <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-ember">
+          Pedidos para vendedores
+        </p>
       </div>
 
       <div className="brand-pop bg-cream-50 w-full max-w-sm rounded-3xl p-6 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.7)]">
