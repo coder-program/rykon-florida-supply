@@ -16,6 +16,8 @@ import {
   RotateCcw,
   Target,
   Truck,
+  Route,
+  ExternalLink,
   X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/useAuth'
@@ -23,6 +25,9 @@ import { cn } from '../../lib/utils'
 import { api } from '../../lib/api'
 import { rotasPermitidas } from '../../lib/permissoes'
 import logo from '../../assets/logo.png'
+
+// App do motorista (mesmo domínio, em /motorista); o supervisor usa para as entregas dele
+const URL_APP_ENTREGAS = import.meta.env.VITE_MOTORISTA_URL ?? '/motorista/'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -43,7 +48,7 @@ const navItems = [
 const PEDIDOS_VISTOS_STORAGE_KEY = 'admin-menu-pedidos-vistos-em'
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { logout, usuario, isFinanceiro, isVisaoGeral } = useAuth()
+  const { logout, usuario, isFinanceiro, isVisaoGeral, isSupervisor } = useAuth()
   const permitidas = rotasPermitidas(usuario?.papel)
   const location = useLocation()
 
@@ -168,6 +173,20 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                 </span>
               </NavLink>
             ))}
+          {isSupervisor && (
+            <a
+              href={URL_APP_ENTREGAS}
+              target="_blank"
+              rel="noreferrer"
+              className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-green-100/80 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              <Route className="h-4 w-4" />
+              <span className="flex items-center gap-2">
+                Entregas
+                <ExternalLink className="h-3 w-3" />
+              </span>
+            </a>
+          )}
         </nav>
 
         <div className="border-t border-white/10 px-4 py-4">

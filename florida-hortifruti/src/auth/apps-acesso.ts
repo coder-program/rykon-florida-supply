@@ -10,7 +10,8 @@ export const PAPEIS_POR_APP = {
     PapelUsuario.VISAO_GERAL,
   ],
   vendedor: [PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR],
-  motorista: [PapelUsuario.MOTORISTA],
+  // Supervisor às vezes faz entregas
+  motorista: [PapelUsuario.MOTORISTA, PapelUsuario.SUPERVISOR],
   cliente: [PapelUsuario.CLIENTE],
 } satisfies Record<string, PapelUsuario[]>;
 

@@ -169,9 +169,10 @@ export class UsuariosService {
     return this.findOne(usuario.id);
   }
 
+  // Quem pode ser entregador de um pedido: motoristas e supervisores (às vezes fazem entregas)
   motoristas() {
     return this.prisma.usuario.findMany({
-      where: { papel: PapelUsuario.MOTORISTA, ativo: true },
+      where: { papel: { in: [PapelUsuario.MOTORISTA, PapelUsuario.SUPERVISOR] }, ativo: true },
       select: { id: true, nome: true, papel: true, ativo: true },
       orderBy: { nome: 'asc' },
     });

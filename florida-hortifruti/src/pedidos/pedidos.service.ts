@@ -757,9 +757,13 @@ export class PedidosService {
     }
 
     if (dto.entregadorId) {
-      const motorista = await this.prisma.usuario.findUnique({ where: { id: dto.entregadorId } });
-      if (!motorista || motorista.papel !== PapelUsuario.MOTORISTA || !motorista.ativo) {
-        throw new BadRequestException('Entregador precisa ser um motorista ativo');
+      const entregador = await this.prisma.usuario.findUnique({ where: { id: dto.entregadorId } });
+      // Supervisor também faz entregas
+      const entrega =
+        entregador?.papel === PapelUsuario.MOTORISTA ||
+        entregador?.papel === PapelUsuario.SUPERVISOR;
+      if (!entregador || !entrega || !entregador.ativo) {
+        throw new BadRequestException('Entregador precisa ser um motorista ou supervisor ativo');
       }
     }
     if (dto.vendedorId) {

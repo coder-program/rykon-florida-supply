@@ -159,7 +159,10 @@ export function PedidosPage() {
     queryKey: ['usuarios-motoristas'],
     queryFn: () => api.get('/usuarios/motoristas').then((r) => r.data),
   })
-  const motoristas = (usuarios as any[]).filter((u) => u.papel === 'MOTORISTA' && u.ativo)
+  // Entregadores: motoristas e supervisores (às vezes fazem entregas)
+  const motoristas = (usuarios as any[]).filter(
+    (u) => (u.papel === 'MOTORISTA' || u.papel === 'SUPERVISOR') && u.ativo,
+  )
 
   async function abrirPedido(p: any) {
     setPedidoSelecionado(p)
@@ -1115,6 +1118,7 @@ export function PedidosPage() {
                     {motoristas.map((m: any) => (
                       <option key={m.id} value={m.id}>
                         {m.nome}
+                        {m.papel === 'SUPERVISOR' ? ' (supervisor)' : ''}
                       </option>
                     ))}
                   </Select>

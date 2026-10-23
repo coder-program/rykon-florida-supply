@@ -19,7 +19,8 @@ import { ConfirmarEntregaMotoristaDto, ScanEtiquetaDto } from '../pedidos/dto/pe
 
 @Controller('motorista/entregas')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(PapelUsuario.MOTORISTA)
+// Supervisor às vezes faz entregas: vê só as atribuídas a ele, como o motorista
+@Roles(PapelUsuario.MOTORISTA, PapelUsuario.SUPERVISOR)
 export class MotoristaController {
   constructor(private motoristaService: MotoristaService) {}
 
