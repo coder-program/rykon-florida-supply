@@ -1,8 +1,10 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  OnApplicationBootstrap,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { EstoqueService } from '../estoque/estoque.service';
@@ -31,8 +33,17 @@ import { registrarHistoricoStatus } from './historico-status.util';
 import { montarAvisoCobranca } from '../financeiro/avisos-cobranca.util';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
 
+type ItemComLote = {
+  produtoId: string;
+  loteId?: string | null;
+  quantidade: number;
+  valorUnitario: number;
+};
+
 @Injectable()
-export class PedidosService {
+export class PedidosService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(PedidosService.name);
+
   constructor(
     private prisma: PrismaService,
     private estoqueService: EstoqueService,
@@ -89,37 +100,51 @@ export class PedidosService {
     const origem = opts.origem ?? OrigemPedido.VENDEDOR;
     const clienteId = opts.clienteId ?? dto.clienteId;
 
-    const pedido = await this.prisma.pedido.create({
-      data: {
-        clienteId,
-        vendedorId: origem === OrigemPedido.VENDEDOR ? vendedorId : vendedorId,
-        origem,
-        data: dataEfetiva(dto.data, 'Data do pedido'),
-        status: StatusPedido.AGUARDANDO_APROVACAO,
-        subtotal,
-        valorFrete: frete,
-        freteInclusoNoPreco: dto.freteInclusoNoPreco ?? false,
-        descontoValor: desconto,
-        descontoPercentual: dto.descontoPercentual,
-        totalFinal,
-        formaPagamento: dto.formaPagamento,
-        dataVencimento: dto.dataVencimento ? new Date(dto.dataVencimento) : undefined,
-        condicaoNegociada: dto.condicaoNegociada,
-        necessitaNF: dto.necessitaNF ?? false,
-        observacoes: dto.observacoes,
-        itens: {
-          create: itensCalculados.map((i) => ({
-            produtoId: i.produtoId,
-            loteId: i.loteId || null,
-            quantidade: i.quantidade,
-            valorUnitario: i.valorUnitario,
-            valorTotal: i.valorTotal,
-          })),
+    const pedido = await this.prisma.$transaction(async (tx) => {
+      const criado = await tx.pedido.create({
+        data: {
+          clienteId,
+          vendedorId: origem === OrigemPedido.VENDEDOR ? vendedorId : vendedorId,
+          origem,
+          data: dataEfetiva(dto.data, 'Data do pedido'),
+          status: StatusPedido.AGUARDANDO_APROVACAO,
+          subtotal,
+          valorFrete: frete,
+          freteInclusoNoPreco: dto.freteInclusoNoPreco ?? false,
+          descontoValor: desconto,
+          descontoPercentual: dto.descontoPercentual,
+          totalFinal,
+          formaPagamento: dto.formaPagamento,
+          dataVencimento: dto.dataVencimento ? new Date(dto.dataVencimento) : undefined,
+          condicaoNegociada: dto.condicaoNegociada,
+          necessitaNF: dto.necessitaNF ?? false,
+          observacoes: dto.observacoes,
+          itens: {
+            create: itensCalculados.map((i) => ({
+              produtoId: i.produtoId,
+              loteId: i.loteId || null,
+              quantidade: i.quantidade,
+              valorUnitario: i.valorUnitario,
+              valorTotal: i.valorTotal,
+            })),
+          },
         },
-      },
-      include: { itens: true },
+        include: { itens: true },
+      });
+      // As caixas saem do lote já no lançamento. Pedido do portal chega sem lote (e sem
+      // vendedor): baixa quando o lote for escolhido na edição ou na aprovação
+      if (vendedorId) {
+        await this.sincronizarLotesEmTx(
+          tx,
+          criado,
+          itensCalculados,
+          vendedorId,
+          `Pedido ${criado.numero}`,
+        );
+      }
+      await registrarHistoricoStatus(tx, criado.id, StatusPedido.AGUARDANDO_APROVACAO);
+      return criado;
     });
-    await registrarHistoricoStatus(this.prisma, pedido.id, StatusPedido.AGUARDANDO_APROVACAO);
     return pedido;
   }
 
@@ -406,6 +431,149 @@ export class PedidosService {
     return mapa;
   }
 
+  // O que o pedido já tirou de cada lote (ItemPedidoLote) comparado ao que os itens pedem agora.
+  // delta > 0: falta tirar do lote; delta < 0: sobrou e volta ao lote. Item sem lote não mexe.
+  private async deltasDeLote(
+    db: Prisma.TransactionClient,
+    pedidoId: string | null,
+    itens: ItemComLote[],
+  ) {
+    const porLote = new Map<
+      string,
+      { produtoId: string; quer: number; baixado: number; valorUnitario: number }
+    >();
+    for (const item of itens) {
+      if (!item.loteId) continue;
+      const atual = porLote.get(item.loteId);
+      porLote.set(item.loteId, {
+        produtoId: item.produtoId,
+        quer: (atual?.quer ?? 0) + Number(item.quantidade),
+        baixado: 0,
+        valorUnitario: Number(item.valorUnitario),
+      });
+    }
+    if (pedidoId) {
+      const baixados = await db.itemPedidoLote.findMany({ where: { pedidoId } });
+      for (const b of baixados) {
+        const atual = porLote.get(b.loteId);
+        porLote.set(b.loteId, {
+          produtoId: b.produtoId,
+          quer: atual?.quer ?? 0,
+          baixado: (atual?.baixado ?? 0) + Number(b.quantidade),
+          valorUnitario: atual?.valorUnitario ?? Number(b.valorUnitario),
+        });
+      }
+    }
+    return [...porLote.entries()]
+      .map(([loteId, l]) => ({
+        loteId,
+        produtoId: l.produtoId,
+        valorUnitario: l.valorUnitario,
+        delta: Number((l.quer - l.baixado).toFixed(2)),
+      }))
+      .filter((l) => l.delta !== 0);
+  }
+
+  // O que ainda falta tirar de cada lote precisa caber no saldo (mensagem com o disponível)
+  private async validarDeltas(deltas: { produtoId: string; loteId: string; delta: number }[]) {
+    const faltam = deltas.filter((d) => d.delta > 0);
+    if (faltam.length === 0) return;
+    await this.validarEstoque(
+      faltam.map((d) => ({ produtoId: d.produtoId, loteId: d.loteId, quantidade: d.delta })),
+    );
+  }
+
+  // A baixa é feita no lançamento do pedido (não na aprovação): deixa o estoque de cada lote
+  // igual ao que os itens pedem agora. Rejeitar/cancelar passa itens vazios e devolve tudo.
+  private async sincronizarLotesEmTx(
+    tx: Prisma.TransactionClient,
+    pedido: { id: string; numero: number },
+    itens: ItemComLote[],
+    usuarioId: string,
+    origem: string,
+  ) {
+    const deltas = await this.deltasDeLote(tx, pedido.id, itens);
+    for (const d of deltas) {
+      if (d.delta > 0) {
+        await this.baixarItemEmTx(tx, {
+          pedidoId: pedido.id,
+          produtoId: d.produtoId,
+          loteId: d.loteId,
+          quantidade: d.delta,
+          valorUnitario: d.valorUnitario,
+          origem,
+          usuarioId,
+        });
+        continue;
+      }
+      const movimentacao = await tx.movimentacaoEstoque.create({
+        data: {
+          produtoId: d.produtoId,
+          tipo: TipoMovimentacao.ENTRADA,
+          quantidade: Math.abs(d.delta),
+          origem,
+          pedidoId: pedido.id,
+          usuarioId,
+        },
+      });
+      await this.estoqueService.devolverAoLoteEmTx(tx, {
+        loteId: d.loteId,
+        quantidade: Math.abs(d.delta),
+        movimentacaoId: movimentacao.id,
+        origem,
+        pedidoId: pedido.id,
+      });
+    }
+  }
+
+  private itensComLote(
+    itens: {
+      produtoId: string;
+      loteId: string | null;
+      quantidade: unknown;
+      valorUnitario: unknown;
+    }[],
+  ): ItemComLote[] {
+    return itens.map((i) => ({
+      produtoId: i.produtoId,
+      loteId: i.loteId,
+      quantidade: Number(i.quantidade),
+      valorUnitario: Number(i.valorUnitario),
+    }));
+  }
+
+  // Pedidos que já aguardavam aprovação quando a baixa passou para o lançamento: tira agora
+  // do lote o que eles pedem. Idempotente (compara com o que já saiu de cada lote); o mais
+  // antigo primeiro. Pedido sem saldo fica como está e a aprovação pede outro lote.
+  async onApplicationBootstrap() {
+    const pendentes = await this.prisma.pedido.findMany({
+      where: {
+        status: StatusPedido.AGUARDANDO_APROVACAO,
+        itens: { some: { loteId: { not: null } } },
+      },
+      include: { itens: true },
+      orderBy: { criadoEm: 'asc' },
+    });
+    for (const pedido of pendentes) {
+      const usuarioId = pedido.vendedorId;
+      if (!usuarioId) continue;
+      const itens = this.itensComLote(pedido.itens);
+      try {
+        const deltas = await this.deltasDeLote(this.prisma, pedido.id, itens);
+        if (deltas.length === 0 || deltas.some((d) => d.delta < 0)) continue;
+        await this.validarDeltas(deltas);
+        await this.prisma.$transaction((tx) =>
+          this.sincronizarLotesEmTx(tx, pedido, itens, usuarioId, `Pedido ${pedido.numero}`),
+        );
+        this.logger.log(`Pedido ${pedido.numero}: caixas baixadas dos lotes (pendente antigo)`);
+      } catch (erro) {
+        this.logger.warn(
+          `Pedido ${pedido.numero} sem baixa no lote: ${(erro as Error).message ?? erro}`,
+        );
+      }
+    }
+  }
+
   async atualizar(id: string, dto: UpdatePedidoDto, usuarioId: string, papel?: PapelUsuario) {
     const pedido = await this.findOne(id, usuarioId, papel);
 
@@ -457,7 +625,10 @@ export class PedidosService {
         }
         if (extras.length > 0) await this.validarEstoque(extras);
       } else {
-        await this.validarEstoque(itens);
+        // Antes da aprovação o pedido já tirou caixas dos lotes: confere só a diferença
+        await this.validarDeltas(await this.deltasDeLote(this.prisma, id, itens));
+        const semLote = itens.filter((i) => !i.loteId);
+        if (semLote.length > 0) await this.validarEstoque(semLote);
       }
     }
 
@@ -499,6 +670,14 @@ export class PedidosService {
               },
             });
           }
+        } else {
+          await this.sincronizarLotesEmTx(
+            tx,
+            pedido,
+            itens.map((i) => ({ ...i, loteId: i.loteId ?? null })),
+            usuarioId,
+            `Pedido ${pedido.numero}`,
+          );
         }
       }
 
@@ -560,13 +739,10 @@ export class PedidosService {
       );
     }
 
-    await this.validarEstoque(
-      pedido.itens.map((item) => ({
-        produtoId: item.produtoId,
-        quantidade: Number(item.quantidade),
-        loteId: item.loteId,
-      })),
-    );
+    // As caixas já saíram do lote no lançamento; aqui só completa o que faltar
+    // (lote escolhido agora ou pedido lançado antes da baixa no lançamento)
+    const itensLote = this.itensComLote(pedido.itens);
+    await this.validarDeltas(await this.deltasDeLote(this.prisma, pedido.id, itensLote));
 
     const totalCaixas = pedido.itens.reduce(
       (acc, item) => acc + Math.round(Number(item.quantidade)),
@@ -579,18 +755,7 @@ export class PedidosService {
         data: { status: StatusPedido.APROVADO, caixasEtiquetadas: Math.max(1, totalCaixas) },
       });
 
-      for (const item of pedido.itens) {
-        await this.baixarItemEmTx(tx, {
-          pedidoId: pedido.id,
-          produtoId: item.produtoId,
-          produtoNome: item.produto.nome,
-          loteId: item.loteId,
-          quantidade: Number(item.quantidade),
-          valorUnitario: Number(item.valorUnitario),
-          origem: `Pedido ${pedido.numero}`,
-          usuarioId,
-        });
-      }
+      await this.sincronizarLotesEmTx(tx, pedido, itensLote, usuarioId, `Pedido ${pedido.numero}`);
 
       await tx.etiqueta.create({ data: { pedidoId: id } });
       await tx.logAuditoria.create({
@@ -708,8 +873,8 @@ export class PedidosService {
       throw new BadRequestException('Só é possível rejeitar pedido aguardando aprovação');
     }
     const motivo = dto.motivo.trim();
-    await this.prisma.$transaction([
-      this.prisma.pedido.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.pedido.update({
         where: { id },
         data: {
           status: StatusPedido.REJEITADO,
@@ -717,8 +882,8 @@ export class PedidosService {
             ? `${pedido.observacoes}\nRejeitado: ${motivo}`
             : `Rejeitado: ${motivo}`,
         },
-      }),
-      this.prisma.logAuditoria.create({
+      });
+      await tx.logAuditoria.create({
         data: {
           usuarioId,
           acao: 'REJEITAR_PEDIDO',
@@ -726,9 +891,17 @@ export class PedidosService {
           entidadeId: id,
           detalhes: { motivo },
         },
-      }),
-    ]);
-    await registrarHistoricoStatus(this.prisma, id, StatusPedido.REJEITADO);
+      });
+      // As caixas tiradas no lançamento voltam ao lote
+      await this.sincronizarLotesEmTx(
+        tx,
+        pedido,
+        [],
+        usuarioId,
+        `Rejeição pedido ${pedido.numero}`,
+      );
+      await registrarHistoricoStatus(tx, id, StatusPedido.REJEITADO);
+    });
     return this.findOne(id);
   }
 
@@ -806,6 +979,10 @@ export class PedidosService {
     // Cancelar pedido que já baixou estoque (e ainda não foi entregue) devolve as caixas ao lote de origem
     const devolverEstoque =
       novoStatus === StatusPedido.CANCELADO && this.statusPodeEntregar.includes(pedidoAtual.status);
+    // Pendente: devolve só o que saiu do lote no lançamento (pedido sem lote não tirou nada)
+    const devolverLancamento =
+      novoStatus === StatusPedido.CANCELADO &&
+      pedidoAtual.status === StatusPedido.AGUARDANDO_APROVACAO;
 
     const pedidoAtualizado = await this.prisma.$transaction(async (tx) => {
       const pedido = await tx.pedido.update({ where: { id }, data: { status: novoStatus } });
@@ -818,6 +995,16 @@ export class PedidosService {
         },
       });
       await tx.historicoStatusPedido.create({ data: { pedidoId: id, status: novoStatus } });
+
+      if (devolverLancamento) {
+        await this.sincronizarLotesEmTx(
+          tx,
+          pedidoAtual,
+          [],
+          usuarioId,
+          `Cancelamento pedido ${pedidoAtual.numero}`,
+        );
+      }
 
       if (devolverEstoque) {
         for (const item of pedidoAtual.itens) {

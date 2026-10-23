@@ -147,6 +147,15 @@ export function PedidosPage() {
     enabled: editando,
   })
 
+  // Pedido pendente já tirou do lote as caixas dele (a baixa é no lançamento): na edição,
+  // essas caixas contam como disponíveis para o próprio pedido
+  function baixadoPeloPedido(loteId: string) {
+    if (!loteId || pedidoSelecionado?.status !== 'AGUARDANDO_APROVACAO') return 0
+    return (pedidoSelecionado.itens ?? [])
+      .filter((i: any) => i.loteId === loteId)
+      .reduce((acc: number, i: any) => acc + Number(i.quantidade), 0)
+  }
+
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ['pedidos', filtroStatus],
     queryFn: () =>
@@ -856,9 +865,12 @@ export function PedidosPage() {
                     // Lote já escolhido mas sem saldo hoje continua aparecendo
                     const atualForaDaLista =
                       item.loteId && !opcoes.some((l) => l.id === item.loteId)
-                    const saldo = lotesDisponiveis.find(
-                      (l) => l.id === item.loteId,
-                    )?.quantidadeDisponivel
+                    const noLote = lotesDisponiveis.find((l) => l.id === item.loteId)
+                    const doPedido = baixadoPeloPedido(item.loteId)
+                    const saldo =
+                      noLote || doPedido > 0
+                        ? (noLote?.quantidadeDisponivel ?? 0) + doPedido
+                        : undefined
                     return (
                       <div
                         key={index}
@@ -897,11 +909,16 @@ export function PedidosPage() {
                           >
                             <option value="">Selecione o lote</option>
                             {atualForaDaLista && (
-                              <option value={item.loteId}>Lote atual (sem saldo)</option>
+                              <option value={item.loteId}>
+                                {doPedido > 0
+                                  ? `Lote atual • ${doPedido} cx`
+                                  : 'Lote atual (sem saldo)'}
+                              </option>
                             )}
                             {opcoes.map((l) => (
                               <option key={l.id} value={l.id}>
-                                {rotuloLote(l)} • {l.quantidadeDisponivel} cx
+                                {rotuloLote(l)} • {l.quantidadeDisponivel + baixadoPeloPedido(l.id)}{' '}
+                                cx
                               </option>
                             ))}
                           </select>

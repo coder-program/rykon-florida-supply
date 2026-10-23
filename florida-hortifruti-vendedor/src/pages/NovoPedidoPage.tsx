@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Search, Plus, Minus, ChevronRight, ArrowLeft, Check, AlertTriangle, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatBRL, formatDate, hojeISO } from '../lib/utils'
@@ -956,6 +956,7 @@ function EtapaConfirmar({ dados }: { dados: DadosPedido }) {
 // ── Componente principal ────────────────────────────────────────────────────
 export function NovoPedidoPage() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const [etapa, setEtapa] = useState<Etapa>('cliente')
   const [dados, setDados] = useState<DadosPedido>(() => carregarRascunho<DadosPedido>() ?? VAZIO)
   const [novoCliente, setNovoCliente] = useState(false)
@@ -1069,6 +1070,9 @@ export function NovoPedidoPage() {
       }),
     onSuccess: () => {
       limparRascunho()
+      // As caixas saem do lote no lançamento: saldo atualizado para o próximo pedido
+      qc.invalidateQueries({ queryKey: ['lotes-disponiveis'] })
+      qc.invalidateQueries({ queryKey: ['produtos'] })
       navigate('/')
     },
     onError: (erro: any) => {
