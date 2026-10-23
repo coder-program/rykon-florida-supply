@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Camera, Minus, Plus, X } from 'lucide-react'
 import { api, resolveAssetUrl } from '../lib/api'
-import { formatBRL, formatDate, statusPedidoVisivel } from '../lib/utils'
+import { formatBRL, formatDate, hojeISO, statusPedidoVisivel } from '../lib/utils'
+import { useAuth } from '../contexts/useAuth'
 
 const STATUS_PODE_SOLICITAR = ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA']
 const STATUS_PODE_EDITAR_DIRETO = ['ENVIADO']
@@ -51,6 +52,10 @@ export function DetalhePedidoPage() {
   const [recebidoPor, setRecebidoPor] = useState('')
   const [observacaoEntrega, setObservacaoEntrega] = useState('')
   const [fotoEntrega, setFotoEntrega] = useState('')
+  const { usuario } = useAuth()
+  const [modalPago, setModalPago] = useState(false)
+  const [dataPagamento, setDataPagamento] = useState(hojeISO)
+  const [erroPago, setErroPago] = useState('')
 
   const { data: p, isLoading } = useQuery({
     queryKey: ['pedido', id],
@@ -96,6 +101,25 @@ export function DetalhePedidoPage() {
     )
     setErro('')
   }, [p])
+
+  // Quitação total com a data em que o cliente realmente pagou. Vendedor só nos próprios
+  // pedidos; o parcial fica com o financeiro e o supervisor no painel
+  const marcarPago = useMutation({
+    mutationFn: () => api.post(`/financeiro/marcar-pago/${id}`, { data: dataPagamento }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pedido', id] })
+      qc.invalidateQueries({ queryKey: ['meus-pedidos'] })
+      qc.invalidateQueries({ queryKey: ['pedidos'] })
+      setModalPago(false)
+      setErroPago('')
+    },
+    onError: (e: any) => {
+      const msg = e?.response?.data?.message
+      setErroPago(
+        Array.isArray(msg) ? msg.join(' ') : (msg ?? 'Não foi possível marcar como pago.'),
+      )
+    },
+  })
 
   const marcarEntregue = useMutation({
     mutationFn: () => {
@@ -274,6 +298,31 @@ export function DetalhePedidoPage() {
           <Row label="Cliente" value={p.cliente?.razaoSocialOuNome} bold />
           {p.vendedor && <Row label="Vendedor" value={p.vendedor?.nome} />}
           <Row label="Pagamento" value={p.formaPagamento} />
+          <Row
+            label="Situação"
+            value={
+              p.statusPagamento === 'PAGO'
+                ? `Pago${p.pagamentos?.length ? ` em ${formatDate(p.pagamentos.at(-1).data)}` : ''}`
+                : p.statusPagamento === 'VENCIDO'
+                  ? 'Vencido'
+                  : 'Em aberto'
+            }
+          />
+          {p.statusPagamento !== 'PAGO' &&
+            !['CANCELADO', 'REJEITADO'].includes(p.status) &&
+            (usuario?.papel === 'SUPERVISOR' || p.vendedorId === usuario?.id) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDataPagamento(hojeISO())
+                  setErroPago('')
+                  setModalPago(true)
+                }}
+                className="w-full cursor-pointer rounded-lg bg-green-50 py-2 text-sm font-medium text-green-700"
+              >
+                Marcar como pago
+              </button>
+            )}
           <Row
             label="Nota fiscal"
             value={typeof p.necessitaNF === 'boolean' ? (p.necessitaNF ? 'Sim' : 'Não') : undefined}
@@ -546,6 +595,57 @@ export function DetalhePedidoPage() {
           </div>
         )}
       </div>
+
+      {modalPago && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center bg-black/40">
+          <div className="w-full max-w-lg rounded-t-2xl bg-white p-4 sm:rounded-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-semibold text-gray-900">Marcar como pago</p>
+              <button
+                type="button"
+                onClick={() => setModalPago(false)}
+                className="p-2 text-gray-400"
+                aria-label="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              Só marque quando o cliente pagou o pedido inteiro. Informe o dia em que ele pagou.
+            </p>
+            <label className="block mb-3">
+              <span className="text-xs font-medium text-gray-600">Data do pagamento</span>
+              <input
+                type="date"
+                value={dataPagamento}
+                max={hojeISO()}
+                onChange={(e) => setDataPagamento(e.target.value)}
+                className="mt-1 w-full min-h-11 rounded-lg border border-gray-300 px-3 text-base"
+              />
+            </label>
+            {erroPago && <p className="text-xs text-red-600 mb-3">{erroPago}</p>}
+            <button
+              type="button"
+              disabled={!dataPagamento || marcarPago.isPending}
+              onClick={() => marcarPago.mutate()}
+              className="w-full cursor-pointer rounded-xl bg-green-600 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {marcarPago.isPending
+                ? 'Salvando...'
+                : `Confirmar pagamento de ${formatBRL(
+                    Math.max(
+                      0,
+                      Number(p.totalFinal) -
+                        (p.pagamentos ?? []).reduce(
+                          (acc: number, pg: any) => acc + Number(pg.valor),
+                          0,
+                        ),
+                    ),
+                  )}`}
+            </button>
+          </div>
+        </div>
+      )}
 
       {modalEntrega && (
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center bg-black/40">

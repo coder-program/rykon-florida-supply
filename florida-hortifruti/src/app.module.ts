@@ -16,6 +16,7 @@ import { MotoristaModule } from './motorista/motorista.module';
 import { PortalClienteModule } from './portal-cliente/portal-cliente.module';
 import { DevolucoesModule } from './devolucoes/devolucoes.module';
 import { MetasModule } from './metas/metas.module';
+import { FornecedoresModule } from './fornecedores/fornecedores.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { MetasModule } from './metas/metas.module';
     PortalClienteModule,
     DevolucoesModule,
     MetasModule,
+    FornecedoresModule,
   ],
 })
 export class AppModule {}

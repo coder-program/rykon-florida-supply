@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { Search, Plus, Minus, ChevronRight, ArrowLeft, Check, AlertTriangle, X } from 'lucide-react'
 import { api } from '../lib/api'
-import { formatBRL } from '../lib/utils'
+import { formatBRL, formatDate, hojeISO } from '../lib/utils'
 import { salvarRascunho, carregarRascunho, limparRascunho } from '../lib/draft'
 
 type Etapa = 'cliente' | 'produtos' | 'extras' | 'confirmar'
@@ -35,6 +35,8 @@ function rotuloLote(l: LoteDisponivel) {
 interface DadosPedido {
   clienteId: string
   clienteNome: string
+  // Dia em que a venda foi fechada; vazio = hoje
+  dataPedido: string
   itens: Item[]
   valorFrete: number
   freteInclusoNoPreco: boolean
@@ -69,6 +71,7 @@ type NovoClienteErros = Partial<Record<keyof NovoClienteForm, string>>
 const VAZIO: DadosPedido = {
   clienteId: '',
   clienteNome: '',
+  dataPedido: '',
   itens: [],
   valorFrete: 0,
   freteInclusoNoPreco: false,
@@ -332,7 +335,9 @@ function EtapaCliente({
             <p className="font-semibold text-gray-900 text-sm">{c.razaoSocialOuNome}</p>
             {c.nomeFantasia && <p className="text-xs text-gray-400">{c.nomeFantasia}</p>}
             <p className="text-xs text-gray-500 mt-0.5">
-              {!c.cnpjCpf || c.cnpjCpf.startsWith('SEM-DOC-') ? 'CPF/CNPJ não informado' : c.cnpjCpf}
+              {!c.cnpjCpf || c.cnpjCpf.startsWith('SEM-DOC-')
+                ? 'CPF/CNPJ não informado'
+                : c.cnpjCpf}
               {c.cidade ? ` • ${c.cidade}` : ''}
             </p>
           </button>
@@ -621,8 +626,28 @@ function EtapaExtras({
     setDescontoInput(dados.descontoValor ? String(dados.descontoValor).replace('.', ',') : '')
   }
 
+  const hoje = hojeISO()
+  const dataPedido = dados.dataPedido || hoje
+
   return (
     <div className="flex-1 overflow-y-auto px-4 pt-4 pb-6 space-y-5">
+      {/* Data da venda: pode ser anterior quando o pedido é lançado no dia seguinte */}
+      <section className="bg-white rounded-xl border border-gray-100 p-4 space-y-2">
+        <h3 className="font-semibold text-gray-800 text-sm">Data do pedido</h3>
+        <input
+          type="date"
+          value={dataPedido}
+          max={hoje}
+          onChange={(e) => onChange({ dataPedido: e.target.value === hoje ? '' : e.target.value })}
+          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+        />
+        {dataPedido < hoje && (
+          <p className="text-xs text-amber-700">
+            Venda de outro dia: entra nos relatórios e na meta desse dia.
+          </p>
+        )}
+      </section>
+
       {/* Frete */}
       <section className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
         <h3 className="font-semibold text-gray-800 text-sm">Frete</h3>
@@ -855,6 +880,10 @@ function EtapaConfirmar({ dados }: { dados: DadosPedido }) {
           </span>
         </div>
         <div className="flex justify-between">
+          <span className="text-gray-500">Data do pedido</span>
+          <span>{formatDate(`${dados.dataPedido || hojeISO()}T12:00:00`)}</span>
+        </div>
+        <div className="flex justify-between">
           <span className="text-gray-500">Pagamento</span>
           <span>{dados.formaPagamento}</span>
         </div>
@@ -1021,6 +1050,7 @@ export function NovoPedidoPage() {
     mutationFn: () =>
       api.post('/pedidos', {
         clienteId: dados.clienteId,
+        data: dados.dataPedido || undefined,
         itens: dados.itens.map((i) => ({
           produtoId: i.produtoId,
           quantidade: i.quantidade,

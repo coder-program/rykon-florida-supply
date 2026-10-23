@@ -2,6 +2,11 @@ export function formatBRL(value: number | string) {
   return Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+/** Dia de hoje (fuso do celular) como YYYY-MM-DD, para inputs type="date" */
+export function hojeISO() {
+  return new Date().toLocaleDateString('en-CA')
+}
+
 export function formatDate(date: string | Date) {
   return new Date(date).toLocaleDateString('pt-BR')
 }

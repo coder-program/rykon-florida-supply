@@ -96,8 +96,21 @@ export class EstoqueService {
     return { numero: await this.proximoNumeroLote(this.prisma, inicio, fim) };
   }
 
+  // Fornecedor escolhido no cadastro; sem fornecedorId vale o nome digitado (integrações antigas)
+  private async resolverFornecedor(fornecedorId?: string, nome?: string) {
+    if (fornecedorId) {
+      const fornecedor = await this.prisma.fornecedor.findUnique({ where: { id: fornecedorId } });
+      if (!fornecedor) throw new BadRequestException('Fornecedor não encontrado');
+      return { fornecedorId: fornecedor.id, fornecedor: fornecedor.nome };
+    }
+    const texto = nome?.trim();
+    if (!texto) throw new BadRequestException('Selecione o fornecedor');
+    return { fornecedorId: null, fornecedor: texto };
+  }
+
   async registrarEntrada(params: {
-    fornecedor: string;
+    fornecedor?: string;
+    fornecedorId?: string;
     usuarioId: string;
     itens: ItemEntrada[];
     valorFrete?: number;
@@ -117,6 +130,10 @@ export class EstoqueService {
       throw new BadRequestException('Um ou mais produtos da compra não existem');
     }
 
+    const { fornecedor, fornecedorId } = await this.resolverFornecedor(
+      params.fornecedorId,
+      params.fornecedor,
+    );
     const valorFrete = Number(params.valorFrete ?? 0);
     const valorComissao = Number(params.valorComissao ?? 0);
     const rateados = this.calcularRateio(itens, valorFrete, valorComissao);
@@ -153,7 +170,8 @@ export class EstoqueService {
 
       const compra = await tx.compraEstoque.create({
         data: {
-          fornecedor: params.fornecedor,
+          fornecedor,
+          fornecedorId,
           valorFrete,
           valorComissao,
           observacao: params.observacao,
@@ -167,8 +185,8 @@ export class EstoqueService {
             produtoId: item.produtoId,
             tipo: TipoMovimentacao.ENTRADA,
             quantidade: item.quantidade,
-            origem: `Compra - ${params.fornecedor}`,
-            fornecedor: params.fornecedor,
+            origem: `Compra - ${fornecedor}`,
+            fornecedor,
             custoTotal: item.custoTotalItem,
             custoUnitario: item.custoUnitarioFinal,
             usuarioId: params.usuarioId,
@@ -197,7 +215,7 @@ export class EstoqueService {
             quantidade: item.quantidade,
             saldoAntes: 0,
             saldoDepois: item.quantidade,
-            origem: `Compra - ${params.fornecedor}`,
+            origem: `Compra - ${fornecedor}`,
           },
         });
 
@@ -273,6 +291,7 @@ export class EstoqueService {
     return {
       id: compra.id,
       fornecedor: compra.fornecedor,
+      fornecedorId: compra.fornecedorId,
       valorFrete: Number(compra.valorFrete),
       valorComissao: Number(compra.valorComissao),
       observacao: compra.observacao,
@@ -314,6 +333,7 @@ export class EstoqueService {
     id: string,
     dados: {
       fornecedor?: string;
+      fornecedorId?: string;
       valorFrete?: number;
       valorComissao?: number;
       observacao?: string;
@@ -326,7 +346,12 @@ export class EstoqueService {
       throw new BadRequestException('Esta entrada não tem itens para recalcular');
     }
 
-    const fornecedor = dados.fornecedor?.trim() || compra.fornecedor;
+    const { fornecedor, fornecedorId } = dados.fornecedorId
+      ? await this.resolverFornecedor(dados.fornecedorId)
+      : {
+          fornecedor: dados.fornecedor?.trim() || compra.fornecedor,
+          fornecedorId: compra.fornecedorId,
+        };
     const valorFrete =
       dados.valorFrete !== undefined ? Number(dados.valorFrete) : Number(compra.valorFrete);
     const valorComissao =
@@ -376,7 +401,7 @@ export class EstoqueService {
     await this.prisma.$transaction(async (tx) => {
       await tx.compraEstoque.update({
         where: { id },
-        data: { fornecedor, valorFrete, valorComissao, observacao },
+        data: { fornecedor, fornecedorId, valorFrete, valorComissao, observacao },
       });
 
       for (const [index, item] of compra.itens.entries()) {

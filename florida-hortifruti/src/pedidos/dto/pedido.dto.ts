@@ -31,6 +31,12 @@ export class CreatePedidoDto {
   @IsString()
   clienteId: string;
 
+  // Dia em que a venda foi fechada (YYYY-MM-DD); vazio = hoje. Às vezes o pedido é
+  // cadastrado no dia seguinte e precisa contar no dia da venda (relatórios, metas)
+  @IsOptional()
+  @IsString()
+  data?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ItemPedidoDto)
@@ -77,6 +83,11 @@ export class UpdatePedidoDto {
   @IsOptional()
   @IsString()
   clienteId?: string;
+
+  // Dia da venda (YYYY-MM-DD), para corrigir pedido cadastrado com a data errada
+  @IsOptional()
+  @IsString()
+  data?: string;
 
   @IsOptional()
   @IsArray()

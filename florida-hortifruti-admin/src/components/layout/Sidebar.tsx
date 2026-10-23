@@ -15,6 +15,7 @@ import {
   ClipboardList,
   RotateCcw,
   Target,
+  Truck,
   X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/useAuth'
@@ -33,6 +34,7 @@ const navItems = [
   { to: '/produtos', icon: Package, label: 'Produtos' },
   { to: '/estoque', icon: Warehouse, label: 'Estoque' },
   { to: '/lotes', icon: Boxes, label: 'Lotes' },
+  { to: '/fornecedores', icon: Truck, label: 'Fornecedores' },
   { to: '/financeiro', icon: Banknote, label: 'Financeiro' },
   { to: '/relatorios', icon: BarChart3, label: 'Relatórios' },
   { to: '/usuarios', icon: UserCog, label: 'Usuários' },

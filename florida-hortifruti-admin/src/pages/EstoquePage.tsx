@@ -21,6 +21,7 @@ import { Modal } from '../components/ui/Modal'
 import { Input, MoneyInput, Select } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
 import { EditarEntradaModal } from '../components/EditarEntradaModal'
+import { FornecedorSelect } from '../components/FornecedorSelect'
 import { previewRateio } from '../lib/rateio'
 
 const MOTIVOS_AJUSTE = [
@@ -53,6 +54,7 @@ export function EstoquePage() {
   const [produtoHistorico, setProdutoHistorico] = useState<any>(null)
   const [formEntrada, setFormEntrada] = useState({
     fornecedor: '',
+    fornecedorId: '',
     valorFrete: 0,
     valorComissao: 0,
     observacao: '',
@@ -99,7 +101,7 @@ export function EstoquePage() {
   const entrada = useMutation({
     mutationFn: () =>
       api.post('/estoque/entrada', {
-        fornecedor: formEntrada.fornecedor,
+        fornecedorId: formEntrada.fornecedorId,
         valorFrete: Number(formEntrada.valorFrete || 0),
         valorComissao: Number(formEntrada.valorComissao || 0),
         observacao: formEntrada.observacao || undefined,
@@ -120,6 +122,7 @@ export function EstoquePage() {
       setModalEntrada(false)
       setFormEntrada({
         fornecedor: '',
+        fornecedorId: '',
         valorFrete: 0,
         valorComissao: 0,
         observacao: '',
@@ -335,11 +338,11 @@ export function EstoquePage() {
           }}
           className="space-y-4"
         >
-          <Input
-            label="Fornecedor *"
-            value={formEntrada.fornecedor}
-            onChange={(e) => setFormEntrada((f) => ({ ...f, fornecedor: e.target.value }))}
-            required
+          <FornecedorSelect
+            fornecedorId={formEntrada.fornecedorId}
+            onChange={({ id, nome }) =>
+              setFormEntrada((f) => ({ ...f, fornecedorId: id, fornecedor: nome }))
+            }
           />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Input

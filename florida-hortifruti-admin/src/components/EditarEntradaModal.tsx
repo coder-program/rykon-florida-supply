@@ -6,10 +6,12 @@ import { previewRateio } from '../lib/rateio'
 import { Modal } from './ui/Modal'
 import { Button } from './ui/Button'
 import { Input, MoneyInput } from './ui/Input'
+import { FornecedorSelect } from './FornecedorSelect'
 
 type Compra = {
   id: string
   fornecedor: string
+  fornecedorId: string | null
   valorFrete: number
   valorComissao: number
   observacao: string | null
@@ -36,6 +38,7 @@ export function EditarEntradaModal({
   const qc = useQueryClient()
   const [form, setForm] = useState({
     fornecedor: '',
+    fornecedorId: '',
     valorFrete: 0,
     valorComissao: 0,
     observacao: '',
@@ -54,6 +57,7 @@ export function EditarEntradaModal({
     setErro('')
     setForm({
       fornecedor: compra.fornecedor,
+      fornecedorId: compra.fornecedorId ?? '',
       valorFrete: compra.valorFrete,
       valorComissao: compra.valorComissao,
       observacao: compra.observacao ?? '',
@@ -78,7 +82,10 @@ export function EditarEntradaModal({
   const salvar = useMutation({
     mutationFn: () =>
       api.patch(`/estoque/compras/${compraId}`, {
-        fornecedor: form.fornecedor,
+        // Entrada antiga sem cadastro mantém o nome até alguém escolher um fornecedor
+        ...(form.fornecedorId
+          ? { fornecedorId: form.fornecedorId }
+          : { fornecedor: form.fornecedor }),
         valorFrete: Number(form.valorFrete || 0),
         valorComissao: Number(form.valorComissao || 0),
         observacao: form.observacao,
@@ -135,11 +142,12 @@ export function EditarEntradaModal({
             {algumVendido ? ', inclusive das caixas que já foram vendidas' : ''}. A quantidade não
             muda aqui; para isso use o Ajuste.
           </p>
-          <Input
-            label="Fornecedor *"
-            value={form.fornecedor}
-            required
-            onChange={(e) => setForm((f) => ({ ...f, fornecedor: e.target.value }))}
+          <FornecedorSelect
+            fornecedorId={form.fornecedorId}
+            nomeAtual={form.fornecedor}
+            onChange={({ id, nome }) =>
+              setForm((f) => ({ ...f, fornecedorId: id, fornecedor: nome }))
+            }
           />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <MoneyInput

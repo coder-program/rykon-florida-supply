@@ -472,9 +472,27 @@ model MovimentacaoEstoqueLote {
   @@map("movimentacoes_estoque_lote")
 }
 
+// Cadastro de fornecedores, escolhidos na entrada de cada lote
+model Fornecedor {
+  id         String   @id @default(uuid())
+  nome       String
+  documento  String?
+  telefone   String?
+  observacao String?
+  ativo      Boolean  @default(true)
+  criadoEm   DateTime @default(now())
+
+  compras CompraEstoque[]
+
+  @@map("fornecedores")
+}
+
 model CompraEstoque {
   id            String              @id @default(uuid())
+  // Nome gravado na compra; entradas antigas (antes do cadastro) só têm o nome
   fornecedor    String
+  fornecedorId  String?
+  fornecedorRef Fornecedor?         @relation(fields: [fornecedorId], references: [id])
   valorFrete    Decimal             @default(0) @db.Decimal(10, 2)
   valorComissao Decimal             @default(0) @db.Decimal(10, 2)
   observacao    String?

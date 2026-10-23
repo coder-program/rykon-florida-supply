@@ -20,6 +20,10 @@ import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Select } from '../components/ui/Input'
 import { AvisosCobranca } from './AvisosCobranca'
+import {
+  RegistrarPagamentoModal,
+  type PedidoPagamento,
+} from '../components/RegistrarPagamentoModal'
 
 const SITUACAO_CONFIG: Record<string, { label: string; badge: string; row: string }> = {
   PAGO: { label: 'Pago', badge: 'bg-green-100 text-green-700', row: '' },
@@ -107,13 +111,8 @@ export function FinanceiroPage() {
         .then((r) => r.data),
   })
 
-  const marcarPago = useMutation({
-    mutationFn: (pedidoId: string) => api.post(`/financeiro/marcar-pago/${pedidoId}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['contas-a-receber'] })
-      qc.invalidateQueries({ queryKey: ['financeiro-resumo'] })
-    },
-  })
+  // Conta aberta no modal de pagamento (pede a data em que o cliente pagou)
+  const [pagando, setPagando] = useState<PedidoPagamento | null>(null)
 
   const reabrir = useMutation({
     mutationFn: (pedidoId: string) => api.post(`/financeiro/reabrir/${pedidoId}`),
@@ -316,11 +315,7 @@ export function FinanceiroPage() {
                 </div>
                 <div className="mt-3">
                   {c.situacaoCalculada !== 'PAGO' ? (
-                    <Button
-                      size="sm"
-                      onClick={() => marcarPago.mutate(c.id)}
-                      disabled={marcarPago.isPending}
-                    >
+                    <Button size="sm" onClick={() => setPagando(c)}>
                       Pago
                     </Button>
                   ) : (
@@ -430,12 +425,7 @@ export function FinanceiroPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1 justify-end">
                             {c.situacaoCalculada !== 'PAGO' ? (
-                              <Button
-                                size="sm"
-                                variant="primary"
-                                onClick={() => marcarPago.mutate(c.id)}
-                                disabled={marcarPago.isPending}
-                              >
+                              <Button size="sm" variant="primary" onClick={() => setPagando(c)}>
                                 Pago
                               </Button>
                             ) : (
@@ -544,6 +534,8 @@ export function FinanceiroPage() {
 
         <AvisosCobranca />
       </div>
+
+      <RegistrarPagamentoModal pedido={pagando} onClose={() => setPagando(null)} />
     </div>
   )
 }

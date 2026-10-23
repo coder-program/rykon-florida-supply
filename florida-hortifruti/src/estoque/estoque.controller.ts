@@ -58,6 +58,7 @@ export class EstoqueController {
         : [];
 
     return this.estoqueService.registrarEntrada({
+      fornecedorId: dto.fornecedorId,
       fornecedor: dto.fornecedor,
       valorFrete: dto.valorFrete,
       valorComissao: dto.valorComissao,

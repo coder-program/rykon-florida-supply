@@ -28,6 +28,16 @@ export function formatDate(date: string | Date) {
   return new Date(date).toLocaleDateString('pt-BR')
 }
 
+/** Dia de hoje (fuso do navegador) como YYYY-MM-DD, para inputs type="date" */
+export function hojeISO() {
+  return new Date().toLocaleDateString('en-CA')
+}
+
+/** Dia de uma data (fuso do navegador) como YYYY-MM-DD */
+export function diaISO(date: string | Date) {
+  return new Date(date).toLocaleDateString('en-CA')
+}
+
 export function formatDateTime(date: string | Date) {
   return new Date(date).toLocaleString('pt-BR')
 }

@@ -7,6 +7,7 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Input, MoneyInput, Select } from '../components/ui/Input'
+import { FornecedorSelect } from '../components/FornecedorSelect'
 import { Badge } from '../components/ui/Badge'
 import { TableScroll } from '../components/ui/TableScroll'
 import { EditarEntradaModal } from '../components/EditarEntradaModal'
@@ -39,6 +40,7 @@ const FORM_VAZIO = {
   dataLote: hojeISO(),
   numeroLote: '',
   fornecedor: '',
+  fornecedorId: '',
   produtoId: '',
   quantidade: '',
   valorProduto: 0,
@@ -114,7 +116,7 @@ export function LotesPage() {
   const criar = useMutation({
     mutationFn: () =>
       api.post('/estoque/entrada', {
-        fornecedor: form.fornecedor,
+        fornecedorId: form.fornecedorId,
         observacao: form.observacao || undefined,
         dataLote: form.dataLote,
         numeroLote: form.numeroLote.trim() || undefined,
@@ -346,11 +348,11 @@ export function LotesPage() {
               onValueChange={(valorProduto) => setForm((f) => ({ ...f, valorProduto }))}
             />
           </div>
-          <Input
-            label="Fornecedor *"
-            required
-            value={form.fornecedor}
-            onChange={(e) => setForm((f) => ({ ...f, fornecedor: e.target.value }))}
+          <FornecedorSelect
+            fornecedorId={form.fornecedorId}
+            onChange={({ id, nome }) =>
+              setForm((f) => ({ ...f, fornecedorId: id, fornecedor: nome }))
+            }
           />
           <Input
             label="Observação"

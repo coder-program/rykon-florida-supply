@@ -26,6 +26,7 @@ import {
   TipoMovimentacao,
 } from '@prisma/client';
 import { StorageService } from '../common/storage.service';
+import { dataEfetiva } from '../common/data-efetiva';
 import { registrarHistoricoStatus } from './historico-status.util';
 import { montarAvisoCobranca } from '../financeiro/avisos-cobranca.util';
 import { NotificacoesService } from '../notificacoes/notificacoes.service';
@@ -93,6 +94,7 @@ export class PedidosService {
         clienteId,
         vendedorId: origem === OrigemPedido.VENDEDOR ? vendedorId : vendedorId,
         origem,
+        data: dataEfetiva(dto.data, 'Data do pedido'),
         status: StatusPedido.AGUARDANDO_APROVACAO,
         subtotal,
         valorFrete: frete,
@@ -155,13 +157,16 @@ export class PedidosService {
           },
           etiqueta: true,
           comprovanteEntrega: true,
+          // Saldo em aberto no detalhe do pedido (registrar pagamento)
+          pagamentos: { select: { valor: true, data: true }, orderBy: { data: 'asc' } },
           solicitacoesAlteracao: {
             where: { status: StatusSolicitacaoAlteracao.PENDENTE },
             select: { id: true },
             take: 1,
           },
         },
-        orderBy: { criadoEm: 'desc' },
+        // Pela data da venda (pode ser anterior ao cadastro); no mesmo dia, o mais recente primeiro
+        orderBy: [{ data: 'desc' }, { criadoEm: 'desc' }],
       })
       .then((pedidos) => pedidos.map((p) => this.marcarAguardandoAlteracao(p)));
   }
@@ -181,6 +186,7 @@ export class PedidosService {
         },
         etiqueta: true,
         comprovanteEntrega: true,
+        pagamentos: { select: { valor: true, data: true }, orderBy: { data: 'asc' } },
         solicitacoesAlteracao: {
           include: { solicitante: { select: { id: true, nome: true } } },
           orderBy: { criadoEm: 'desc' },
@@ -500,6 +506,7 @@ export class PedidosService {
         where: { id },
         data: {
           ...(dto.clienteId ? { clienteId: dto.clienteId } : {}),
+          ...(dto.data ? { data: dataEfetiva(dto.data, 'Data do pedido') } : {}),
           subtotal,
           valorFrete: frete,
           freteInclusoNoPreco: dto.freteInclusoNoPreco ?? pedido.freteInclusoNoPreco,

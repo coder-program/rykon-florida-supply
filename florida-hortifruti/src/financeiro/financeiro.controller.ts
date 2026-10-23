@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { FinanceiroService } from './financeiro.service';
-import { RegistrarPagamentoDto } from './dto/financeiro.dto';
+import { MarcarPagoDto, RegistrarPagamentoDto } from './dto/financeiro.dto';
 
 @Controller('financeiro')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -36,19 +36,28 @@ export class FinanceiroController {
     });
   }
 
+  // Quitação total. Vendedor só nos próprios pedidos (validado no service)
   @Post('marcar-pago/:pedidoId')
-  marcarPago(@Param('pedidoId') pedidoId: string, @Request() req: any) {
-    return this.financeiroService.marcarPago(pedidoId, req.user.id);
+  @Roles(
+    PapelUsuario.ADMINISTRATIVO,
+    PapelUsuario.ADMINISTRADOR,
+    PapelUsuario.SUPERVISOR,
+    PapelUsuario.VENDEDOR,
+  )
+  marcarPago(@Param('pedidoId') pedidoId: string, @Body() dto: MarcarPagoDto, @Request() req: any) {
+    return this.financeiroService.marcarPago(pedidoId, req.user.id, req.user.papel, dto?.data);
   }
 
-  // Pagamento total ou parcial de um pedido a prazo - saldo devedor é recalculado automaticamente
+  // Pagamento total ou parcial de um pedido a prazo - saldo devedor é recalculado automaticamente.
+  // Parcial: financeiro e supervisor; o vendedor usa a quitação total
   @Post('pagamento/:pedidoId')
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
   registrarPagamento(
     @Param('pedidoId') pedidoId: string,
     @Body() dto: RegistrarPagamentoDto,
     @Request() req: any,
   ) {
-    return this.financeiroService.registrarPagamento(pedidoId, dto, req.user.id);
+    return this.financeiroService.registrarPagamento(pedidoId, dto, req.user.id, req.user.papel);
   }
 
   @Post('reabrir/:pedidoId')

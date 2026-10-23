@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Minus, AlertTriangle, X } from 'lucide-react'
 import { api } from '../lib/api'
-import { formatBRL } from '../lib/utils'
+import { formatBRL, hojeISO } from '../lib/utils'
 import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
+import { ClienteFormModal } from '../components/ClienteFormModal'
 
 const LIMITE_OBSERVACOES_PEDIDO = 255
+const NOVO_CLIENTE = '__novo_cliente'
 
 function garantirLista<T>(valor: unknown): T[] {
   if (Array.isArray(valor)) return valor as T[]
@@ -48,6 +50,9 @@ function rotuloLote(l: { numero: string; dataEntrada: string }) {
 export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const qc = useQueryClient()
   const [clienteId, setClienteId] = useState('')
+  const [cadastrandoCliente, setCadastrandoCliente] = useState(false)
+  // Dia em que a venda foi fechada; pode ser anterior quando a relação chega no dia seguinte
+  const [dataPedido, setDataPedido] = useState(hojeISO)
   const [itens, setItens] = useState<ItemNovoPedido[]>([])
   const [valorFrete, setValorFrete] = useState('')
   const [descontoValor, setDescontoValor] = useState('')
@@ -87,6 +92,7 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
     mutationFn: () =>
       api.post('/pedidos', {
         clienteId,
+        data: dataPedido,
         itens: itens.map((i) => ({
           produtoId: i.produtoId,
           loteId: i.loteId,
@@ -116,6 +122,7 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
 
   function reset() {
     setClienteId('')
+    setDataPedido(hojeISO())
     setItens([])
     setValorFrete('')
     setDescontoValor('')
@@ -234,16 +241,37 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
         <Select
           label="Cliente *"
           value={clienteId}
-          onChange={(e) => setClienteId(e.target.value)}
+          onChange={(e) => {
+            // Opção especial: abre o cadastro e, ao salvar, já seleciona o cliente novo
+            if (e.target.value === NOVO_CLIENTE) setCadastrandoCliente(true)
+            else setClienteId(e.target.value)
+          }}
           required
         >
           <option value="">Selecione o cliente</option>
+          <option value={NOVO_CLIENTE}>+ Cadastrar cliente</option>
           {clientes.map((c: any) => (
             <option key={c.id} value={c.id}>
               {c.razaoSocialOuNome}
             </option>
           ))}
         </Select>
+
+        <div>
+          <Input
+            label="Data do pedido *"
+            type="date"
+            value={dataPedido}
+            max={hojeISO()}
+            onChange={(e) => setDataPedido(e.target.value)}
+            required
+          />
+          {dataPedido && dataPedido < hojeISO() && (
+            <p className="mt-1 text-xs text-amber-700">
+              Venda de outro dia: entra nos relatórios e na meta desse dia.
+            </p>
+          )}
+        </div>
 
         <div>
           <p className="text-xs font-medium text-gray-700 mb-2">Produtos</p>
@@ -474,6 +502,13 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
           </div>
         </div>
       )}
+
+      <ClienteFormModal
+        open={cadastrandoCliente}
+        cliente={null}
+        onClose={() => setCadastrandoCliente(false)}
+        onSalvo={(cliente) => setClienteId(cliente.id)}
+      />
     </Modal>
   )
 }

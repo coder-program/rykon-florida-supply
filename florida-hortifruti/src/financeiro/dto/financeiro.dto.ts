@@ -13,4 +13,16 @@ export class RegistrarPagamentoDto {
   @IsOptional()
   @IsString()
   observacao?: string;
+
+  // Dia em que o cliente realmente pagou (YYYY-MM-DD); vazio = hoje
+  @IsOptional()
+  @IsString()
+  data?: string;
+}
+
+export class MarcarPagoDto {
+  // Dia em que o cliente realmente pagou (YYYY-MM-DD); vazio = hoje
+  @IsOptional()
+  @IsString()
+  data?: string;
 }

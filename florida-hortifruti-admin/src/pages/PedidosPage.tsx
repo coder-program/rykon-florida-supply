@@ -18,6 +18,8 @@ import { api, resolveAssetUrl } from '../lib/api'
 import {
   formatBRL,
   formatDate,
+  diaISO,
+  hojeISO,
   STATUS_PEDIDO_LABEL,
   STATUS_PAGAMENTO_COLOR,
   statusPedidoVisivel,
@@ -30,6 +32,10 @@ import { Button } from '../components/ui/Button'
 import { Select } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
 import { NovoPedidoModal } from './NovoPedidoModal'
+import {
+  RegistrarPagamentoModal,
+  type PedidoPagamento,
+} from '../components/RegistrarPagamentoModal'
 import { RastreioLotesPedido } from './RastreioLotesPedido'
 import { useAuth } from '../contexts/useAuth'
 
@@ -39,6 +45,12 @@ type LoteDisponivel = {
   numero: string
   dataEntrada: string
   quantidadeDisponivel: number
+}
+
+// Total menos os pagamentos já registrados (parciais somados)
+function saldoEmAberto(p: any) {
+  const pago = (p.pagamentos ?? []).reduce((acc: number, pg: any) => acc + Number(pg.valor), 0)
+  return Math.max(0, Number((Number(p.totalFinal) - pago).toFixed(2)))
 }
 
 function rotuloLote(l: { numero: string; dataEntrada: string }) {
@@ -108,9 +120,11 @@ export function PedidosPage() {
   const [motivoRejeicao, setMotivoRejeicao] = useState('')
   const [carregandoPedidoDetalhe, setCarregandoPedidoDetalhe] = useState(false)
   const [novoPedido, setNovoPedido] = useState(false)
+  const [pagando, setPagando] = useState<PedidoPagamento | null>(null)
   const [entregadorId, setEntregadorId] = useState('')
   const [editando, setEditando] = useState(false)
   const [formEdit, setFormEdit] = useState({
+    dataPedido: '',
     valorFrete: '',
     descontoValor: '',
     formaPagamento: '',
@@ -218,6 +232,7 @@ export function PedidosPage() {
 
   function abrirEdicao(p: any) {
     setFormEdit({
+      dataPedido: diaISO(p.data),
       valorFrete: String(Number(p.valorFrete) || ''),
       descontoValor: String(Number(p.descontoValor) || ''),
       formaPagamento: p.formaPagamento,
@@ -591,6 +606,35 @@ export function PedidosPage() {
                 <span className="text-gray-500">Pagamento:</span>{' '}
                 {FORMA_PAGAMENTO_LABEL[pedidoSelecionado.formaPagamento]}
               </div>
+              <div className="col-span-2 flex flex-wrap items-center gap-2">
+                <span className="text-gray-500">Situação:</span>
+                <Badge className={STATUS_PAGAMENTO_COLOR[pedidoSelecionado.statusPagamento]}>
+                  {pedidoSelecionado.statusPagamento?.replace('_', ' ')}
+                </Badge>
+                {pedidoSelecionado.statusPagamento === 'PAGO' &&
+                  pedidoSelecionado.pagamentos?.length > 0 && (
+                    <span className="text-xs text-gray-500">
+                      em {formatDate(pedidoSelecionado.pagamentos.at(-1).data)}
+                    </span>
+                  )}
+                {pedidoSelecionado.statusPagamento !== 'PAGO' &&
+                  !['CANCELADO', 'REJEITADO'].includes(pedidoSelecionado.status) && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        setPagando({
+                          id: pedidoSelecionado.id,
+                          numero: pedidoSelecionado.numero,
+                          totalFinal: pedidoSelecionado.totalFinal,
+                          saldoDevedor: saldoEmAberto(pedidoSelecionado),
+                        })
+                      }
+                    >
+                      Registrar pagamento
+                    </Button>
+                  )}
+              </div>
               <div>
                 <span className="text-gray-500">Nota fiscal:</span>{' '}
                 <strong>{pedidoSelecionado.necessitaNF ? 'Sim' : 'Não'}</strong>
@@ -770,8 +814,14 @@ export function PedidosPage() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault()
+                  const { dataPedido, ...resto } = formEdit
                   editarPedido.mutate({
-                    ...formEdit,
+                    ...resto,
+                    // Só manda a data quando mudou, para não mexer no horário do pedido
+                    data:
+                      dataPedido && dataPedido !== diaISO(pedidoSelecionado.data)
+                        ? dataPedido
+                        : undefined,
                     valorFrete: Number(formEdit.valorFrete),
                     descontoValor: Number(formEdit.descontoValor),
                     itens: formEdit.itens.map((i) => ({
@@ -916,6 +966,19 @@ export function PedidosPage() {
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Data do pedido
+                  </label>
+                  <input
+                    type="date"
+                    value={formEdit.dataPedido}
+                    max={hojeISO()}
+                    required
+                    onChange={(e) => setFormEdit((f) => ({ ...f, dataPedido: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
@@ -1224,6 +1287,16 @@ export function PedidosPage() {
           </form>
         )}
       </Modal>
+
+      {/* Depois do modal de detalhe para abrir por cima dele */}
+      <RegistrarPagamentoModal
+        pedido={pagando}
+        onClose={() => setPagando(null)}
+        onPago={async (id) => {
+          const { data } = await api.get(`/pedidos/${id}`)
+          setPedidoSelecionado((atual: any) => (atual?.id === id ? data : atual))
+        }}
+      />
     </div>
   )
 }

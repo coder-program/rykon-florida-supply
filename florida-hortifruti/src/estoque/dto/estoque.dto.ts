@@ -8,8 +8,14 @@ function paraNumero(value: unknown) {
 }
 
 export class EntradaEstoqueDto {
+  // Fornecedor do cadastro; o nome solto só é usado quando não vem fornecedorId
+  @IsOptional()
   @IsString()
-  fornecedor: string;
+  fornecedorId?: string;
+
+  @IsOptional()
+  @IsString()
+  fornecedor?: string;
 
   @IsOptional()
   @IsString()
@@ -73,6 +79,10 @@ export class EntradaEstoqueDto {
 // Editar uma entrada já registrada: frete e comissão costumam ser pagos depois,
 // às vezes com o lote já vendido. Quantidade não muda aqui (para isso existe o ajuste).
 export class AtualizarCompraDto {
+  @IsOptional()
+  @IsString()
+  fornecedorId?: string;
+
   @IsOptional()
   @IsString()
   fornecedor?: string;

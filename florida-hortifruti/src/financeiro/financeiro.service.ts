@@ -1,7 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma.service';
-import { StatusPedido, StatusPagamento, FormaPagamento } from '@prisma/client';
+import { StatusPedido, StatusPagamento, FormaPagamento, PapelUsuario } from '@prisma/client';
+import { dataEfetiva } from '../common/data-efetiva';
 import { hojeBrasilia, montarAvisoCobranca, TipoAvisoCobranca } from './avisos-cobranca.util';
 import { TIPO_PEDIDO_A_CAMINHO } from '../notificacoes/notificacoes.service';
 
@@ -187,14 +193,17 @@ export class FinanceiroService {
   // O saldo devedor é sempre recalculado a partir da soma de todos os pagamentos.
   async registrarPagamento(
     pedidoId: string,
-    dto: { valor: number; formaPagamento?: FormaPagamento; observacao?: string },
+    dto: { valor: number; formaPagamento?: FormaPagamento; observacao?: string; data?: string },
     usuarioId: string,
+    papel?: PapelUsuario,
   ) {
     const pedido = await this.prisma.pedido.findUnique({
       where: { id: pedidoId },
       include: { pagamentos: true },
     });
     if (!pedido) throw new NotFoundException('Pedido não encontrado');
+    this.validarResponsavel(pedido, usuarioId, papel);
+    const dataPagamento = dataEfetiva(dto.data, 'Data do pagamento');
     if (pedido.statusPagamento === StatusPagamento.PAGO) {
       throw new BadRequestException('Este pedido já está quitado');
     }
@@ -210,6 +219,10 @@ export class FinanceiroService {
         `Valor informado (${valor.toFixed(2)}) é maior que o saldo devedor (${saldoDevedor.toFixed(2)})`,
       );
     }
+    // Pagamento parcial fica com o financeiro e o supervisor; o vendedor só registra a quitação
+    if (papel === PapelUsuario.VENDEDOR && valor < saldoDevedor - 0.01) {
+      throw new ForbiddenException('Vendedor registra apenas o pagamento total do pedido');
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const pagamento = await tx.pagamentoPedido.create({
@@ -218,6 +231,7 @@ export class FinanceiroService {
           valor,
           formaPagamento: dto.formaPagamento,
           observacao: dto.observacao,
+          data: dataPagamento,
           usuarioId,
         },
       });
@@ -244,7 +258,11 @@ export class FinanceiroService {
           acao: 'REGISTRAR_PAGAMENTO',
           entidade: 'Pedido',
           entidadeId: pedidoId,
-          detalhes: { valor, saldoRestante: Math.max(0, novoSaldo) },
+          detalhes: {
+            valor,
+            saldoRestante: Math.max(0, novoSaldo),
+            dataPagamento: dataPagamento.toISOString(),
+          },
         },
       });
 
@@ -252,13 +270,25 @@ export class FinanceiroService {
     });
   }
 
+  // Vendedor só mexe no pagamento dos próprios pedidos; supervisor e financeiro, em todos
+  private validarResponsavel(
+    pedido: { vendedorId: string | null },
+    usuarioId: string,
+    papel?: PapelUsuario,
+  ) {
+    if (papel === PapelUsuario.VENDEDOR && pedido.vendedorId !== usuarioId) {
+      throw new ForbiddenException('Você só pode registrar pagamento dos seus pedidos');
+    }
+  }
+
   // Quitação total de uma vez: registra o saldo devedor restante como pagamento
-  async marcarPago(pedidoId: string, usuarioId: string) {
+  async marcarPago(pedidoId: string, usuarioId: string, papel?: PapelUsuario, data?: string) {
     const pedido = await this.prisma.pedido.findUnique({
       where: { id: pedidoId },
       include: { pagamentos: true },
     });
     if (!pedido) throw new NotFoundException('Pedido não encontrado');
+    this.validarResponsavel(pedido, usuarioId, papel);
     if (pedido.statusPagamento === StatusPagamento.PAGO) return pedido;
 
     const { saldoDevedor } = this.calcularSaldo(pedido);
@@ -277,8 +307,14 @@ export class FinanceiroService {
 
     const { pedido: atualizado } = await this.registrarPagamento(
       pedidoId,
-      { valor: saldoDevedor, formaPagamento: pedido.formaPagamento, observacao: 'Quitação total' },
+      {
+        valor: saldoDevedor,
+        formaPagamento: pedido.formaPagamento,
+        observacao: 'Quitação total',
+        data,
+      },
       usuarioId,
+      papel,
     );
     return atualizado;
   }

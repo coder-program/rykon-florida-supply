@@ -11,6 +11,7 @@ import { ClientesPage } from './pages/ClientesPage'
 import { ProdutosPage } from './pages/ProdutosPage'
 import { EstoquePage } from './pages/EstoquePage'
 import { LotesPage } from './pages/LotesPage'
+import { FornecedoresPage } from './pages/FornecedoresPage'
 import { MetasPage } from './pages/MetasPage'
 import { RelatoriosPage } from './pages/RelatoriosPage'
 import { UsuariosPage } from './pages/UsuariosPage'
@@ -54,6 +55,7 @@ export default function App() {
                 <Route path="/produtos" element={<ProdutosPage />} />
                 <Route path="/estoque" element={<EstoquePage />} />
                 <Route path="/lotes" element={<LotesPage />} />
+                <Route path="/fornecedores" element={<FornecedoresPage />} />
                 <Route path="/relatorios" element={<RelatoriosPage />} />
                 <Route path="/financeiro" element={<FinanceiroPage />} />
                 <Route path="/solicitacoes" element={<SolicitacoesAlteracaoPage />} />
