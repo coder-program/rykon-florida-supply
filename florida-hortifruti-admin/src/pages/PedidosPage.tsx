@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   FileText,
   Trash2,
+  Check,
 } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -32,6 +33,7 @@ import { Button } from '../components/ui/Button'
 import { Select } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
 import { NovoPedidoModal } from './NovoPedidoModal'
+import { MarcarEntregueModal } from '../components/MarcarEntregueModal'
 import {
   RegistrarPagamentoModal,
   type PedidoPagamento,
@@ -78,6 +80,39 @@ const STATUS_ACOES: Record<string, { label: string; next: string }[]> = {
 }
 
 const STATUS_EDITAVEL = ['AGUARDANDO_APROVACAO']
+// Pedido que já saiu do estoque e ainda não foi entregue
+const STATUS_ENTREGAVEL = ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA', 'EM_ENTREGA']
+
+type AcaoLote = 'aprovar' | 'entregue' | 'pago'
+
+// Ações em lote: quem pode e em quais pedidos cada uma se aplica (a API confere de novo)
+const ACOES_LOTE: Record<
+  AcaoLote,
+  { label: string; feito: string; papeis: string[]; aplica: (p: any) => boolean }
+> = {
+  aprovar: {
+    label: 'Aprovar pedidos',
+    feito: 'aprovado(s)',
+    papeis: ['ADMINISTRADOR', 'ADMINISTRATIVO'],
+    aplica: (p) => p.status === 'AGUARDANDO_APROVACAO',
+  },
+  entregue: {
+    label: 'Marcar como entregue',
+    feito: 'marcado(s) como entregue',
+    papeis: ['ADMINISTRADOR', 'ADMINISTRATIVO'],
+    aplica: (p) => STATUS_ENTREGAVEL.includes(p.status),
+  },
+  pago: {
+    label: 'Marcar como pago',
+    feito: 'marcado(s) como pago',
+    papeis: ['ADMINISTRADOR', 'ADMINISTRATIVO', 'SUPERVISOR'],
+    aplica: (p) => p.statusPagamento !== 'PAGO' && !['CANCELADO', 'REJEITADO'].includes(p.status),
+  },
+}
+
+function numeroPedido(p: { numero: number }) {
+  return `#${String(p.numero).padStart(6, '0')}`
+}
 const STATUS_COM_ETIQUETA = [
   'APROVADO',
   'EM_SEPARACAO',
@@ -113,6 +148,23 @@ export function PedidosPage() {
   const { usuario } = useAuth()
   const podeExcluirPedido =
     usuario?.papel === 'ADMINISTRADOR' || usuario?.papel === 'ADMINISTRATIVO'
+  // Admin/administrativo confirmam entrega sem foto; supervisor (que às vezes entrega) com foto
+  const entregaSemFoto = podeExcluirPedido
+  const podeMarcarEntregue = podeExcluirPedido || usuario?.papel === 'SUPERVISOR'
+  const [entregando, setEntregando] = useState<{ id: string; numero: number } | null>(null)
+  const acoesLote = (Object.keys(ACOES_LOTE) as AcaoLote[]).filter((a) =>
+    ACOES_LOTE[a].papeis.includes(usuario?.papel ?? ''),
+  )
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [acaoLote, setAcaoLote] = useState<AcaoLote | ''>('')
+  const [dataPagamentoLote, setDataPagamentoLote] = useState(hojeISO)
+  const [executandoLote, setExecutandoLote] = useState(false)
+  const [resultadoLote, setResultadoLote] = useState<{
+    feitos: string[]
+    pulados: string[]
+    erros: string[]
+    acao: AcaoLote
+  } | null>(null)
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
   const [pedidoSelecionado, setPedidoSelecionado] = useState<any>(null)
@@ -301,6 +353,54 @@ export function PedidosPage() {
       p.vendedor?.nome?.toLowerCase().includes(busca.toLowerCase()),
   )
 
+  // Só conta o que está visível na lista (filtro/busca)
+  const selecionadosVisiveis = pedidosFiltrados.filter((p: any) => selecionados.has(p.id))
+  const todosSelecionados =
+    pedidosFiltrados.length > 0 && selecionadosVisiveis.length === pedidosFiltrados.length
+
+  function alternarSelecao(id: string) {
+    setSelecionados((atual) => {
+      const novo = new Set(atual)
+      if (novo.has(id)) novo.delete(id)
+      else novo.add(id)
+      return novo
+    })
+  }
+
+  function alternarTodos() {
+    setSelecionados(todosSelecionados ? new Set() : new Set(pedidosFiltrados.map((p: any) => p.id)))
+  }
+
+  // Um pedido por vez: erro em um não trava os outros; no fim mostra o resumo
+  async function executarLote() {
+    if (!acaoLote) return
+    const regra = ACOES_LOTE[acaoLote]
+    const aplicaveis = selecionadosVisiveis.filter(regra.aplica)
+    const pulados = selecionadosVisiveis.filter((p: any) => !regra.aplica(p)).map(numeroPedido)
+    const feitos: string[] = []
+    const erros: string[] = []
+    setExecutandoLote(true)
+    for (const p of aplicaveis) {
+      try {
+        if (acaoLote === 'aprovar') await api.post(`/pedidos/${p.id}/aprovar`)
+        if (acaoLote === 'entregue') await api.post(`/pedidos/${p.id}/entregue`, {})
+        if (acaoLote === 'pago')
+          await api.post(`/financeiro/marcar-pago/${p.id}`, { data: dataPagamentoLote })
+        feitos.push(numeroPedido(p))
+      } catch (erro: any) {
+        const msg = erro?.response?.data?.message
+        erros.push(`${numeroPedido(p)}: ${Array.isArray(msg) ? msg.join(' ') : (msg ?? 'falhou')}`)
+      }
+    }
+    setExecutandoLote(false)
+    qc.invalidateQueries({ queryKey: ['pedidos'] })
+    qc.invalidateQueries({ queryKey: ['contas-a-receber'] })
+    qc.invalidateQueries({ queryKey: ['financeiro-resumo'] })
+    qc.invalidateQueries({ queryKey: ['lotes-disponiveis'] })
+    setSelecionados(new Set())
+    setResultadoLote({ feitos, pulados, erros, acao: acaoLote })
+  }
+
   function formatarDataArquivo() {
     return new Date().toISOString().slice(0, 10)
   }
@@ -423,6 +523,62 @@ export function PedidosPage() {
           </div>
         </div>
 
+        {acoesLote.length > 0 && selecionadosVisiveis.length > 0 && (
+          <div className="flex flex-col gap-3 rounded-xl border border-green-200 bg-green-50 p-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <p className="text-sm font-semibold text-gray-800 sm:self-center">
+              {selecionadosVisiveis.length} pedido(s) selecionado(s)
+            </p>
+            <div className="w-full sm:w-64">
+              <Select
+                label="Selecione uma ação"
+                value={acaoLote}
+                onChange={(e) => setAcaoLote(e.target.value as AcaoLote | '')}
+              >
+                <option value="">Selecione</option>
+                {acoesLote.map((a) => (
+                  <option key={a} value={a}>
+                    {ACOES_LOTE[a].label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            {acaoLote === 'pago' && (
+              <div className="w-full sm:w-48">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Data do pagamento
+                </label>
+                <input
+                  type="date"
+                  value={dataPagamentoLote}
+                  max={hojeISO()}
+                  onChange={(e) => setDataPagamentoLote(e.target.value)}
+                  className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm"
+                />
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Button
+                onClick={executarLote}
+                disabled={
+                  !acaoLote || executandoLote || (acaoLote === 'pago' && !dataPagamentoLote)
+                }
+              >
+                <Check className="w-4 h-4" /> {executandoLote ? 'Processando...' : 'Confirmar'}
+              </Button>
+              <Button variant="secondary" onClick={() => setSelecionados(new Set())}>
+                Limpar
+              </Button>
+            </div>
+            {acaoLote && (
+              <p className="w-full text-xs text-gray-600">
+                {selecionadosVisiveis.filter(ACOES_LOTE[acaoLote].aplica).length} de{' '}
+                {selecionadosVisiveis.length} pedido(s) podem receber esta ação; os demais serão
+                ignorados pelo status atual.
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="space-y-3 md:hidden">
           {isLoading && (
             <p className="brand-loading py-8 text-center text-sm text-gray-400">Carregando...</p>
@@ -431,42 +587,52 @@ export function PedidosPage() {
             <p className="py-8 text-center text-sm text-gray-400">Nenhum pedido encontrado</p>
           )}
           {pedidosFiltrados.map((p: any) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => abrirPedido(p)}
-              className="w-full rounded-xl border border-gray-200 bg-white p-4 text-left"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-gray-900">
-                    #{String(p.numero).padStart(6, '0')}
-                  </p>
-                  <p className="text-sm text-gray-700">{p.cliente?.razaoSocialOuNome}</p>
-                  <p className="mt-1 text-xs text-gray-400">
-                    {formatDate(p.data)} · {p.vendedor?.nome}
+            <div key={p.id} className="flex items-start gap-2">
+              {acoesLote.length > 0 && (
+                <input
+                  type="checkbox"
+                  checked={selecionados.has(p.id)}
+                  onChange={() => alternarSelecao(p.id)}
+                  className="mt-5 h-5 w-5 shrink-0 accent-green-600"
+                  aria-label={`Selecionar pedido ${numeroPedido(p)}`}
+                />
+              )}
+              <button
+                type="button"
+                onClick={() => abrirPedido(p)}
+                className={`w-full rounded-xl border bg-white p-4 text-left ${selecionados.has(p.id) ? 'border-green-400' : 'border-gray-200'}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-gray-900">
+                      #{String(p.numero).padStart(6, '0')}
+                    </p>
+                    <p className="text-sm text-gray-700">{p.cliente?.razaoSocialOuNome}</p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      {formatDate(p.data)} · {p.vendedor?.nome}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-sm font-semibold text-gray-900">
+                    {formatBRL(p.totalFinal)}
                   </p>
                 </div>
-                <p className="shrink-0 text-sm font-semibold text-gray-900">
-                  {formatBRL(p.totalFinal)}
-                </p>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                <Badge className={statusPedidoVisivel(p).className}>
-                  {statusPedidoVisivel(p).label}
-                </Badge>
-                <Badge className={STATUS_PAGAMENTO_COLOR[p.statusPagamento]}>
-                  {p.statusPagamento?.replace('_', ' ')}
-                </Badge>
-                <Badge
-                  className={
-                    p.necessitaNF ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'
-                  }
-                >
-                  {p.necessitaNF ? 'NF: Sim' : 'NF: Não'}
-                </Badge>
-              </div>
-            </button>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <Badge className={statusPedidoVisivel(p).className}>
+                    {statusPedidoVisivel(p).label}
+                  </Badge>
+                  <Badge className={STATUS_PAGAMENTO_COLOR[p.statusPagamento]}>
+                    {p.statusPagamento?.replace('_', ' ')}
+                  </Badge>
+                  <Badge
+                    className={
+                      p.necessitaNF ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'
+                    }
+                  >
+                    {p.necessitaNF ? 'NF: Sim' : 'NF: Não'}
+                  </Badge>
+                </div>
+              </button>
+            </div>
           ))}
         </div>
 
@@ -475,6 +641,17 @@ export function PedidosPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  {acoesLote.length > 0 && (
+                    <th className="w-10 pl-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={todosSelecionados}
+                        onChange={alternarTodos}
+                        className="h-4 w-4 accent-green-600"
+                        aria-label="Selecionar todos"
+                      />
+                    </th>
+                  )}
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">
                     Nº / Data
                   </th>
@@ -494,20 +671,34 @@ export function PedidosPage() {
               <tbody className="divide-y divide-gray-100">
                 {isLoading && (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-gray-400">
+                    <td colSpan={9} className="text-center py-8 text-gray-400">
                       Carregando...
                     </td>
                   </tr>
                 )}
                 {!isLoading && pedidosFiltrados.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-gray-400">
+                    <td colSpan={9} className="text-center py-8 text-gray-400">
                       Nenhum pedido encontrado
                     </td>
                   </tr>
                 )}
                 {pedidosFiltrados.map((p: any) => (
-                  <tr key={p.id} className="hover:bg-gray-50">
+                  <tr
+                    key={p.id}
+                    className={selecionados.has(p.id) ? 'bg-green-50/60' : 'hover:bg-gray-50'}
+                  >
+                    {acoesLote.length > 0 && (
+                      <td className="w-10 pl-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selecionados.has(p.id)}
+                          onChange={() => alternarSelecao(p.id)}
+                          className="h-4 w-4 accent-green-600"
+                          aria-label={`Selecionar pedido ${numeroPedido(p)}`}
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900">
                         #{String(p.numero).padStart(6, '0')}
@@ -1186,6 +1377,29 @@ export function PedidosPage() {
                     {label}
                   </Button>
                 ))}
+                {podeMarcarEntregue && STATUS_ENTREGAVEL.includes(pedidoSelecionado.status) && (
+                  <Button
+                    className="w-full sm:w-auto"
+                    disabled={mudarStatus.isPending || pedidoSelecionado.aguardandoAlteracao}
+                    onClick={() => {
+                      if (!entregaSemFoto) {
+                        setEntregando({
+                          id: pedidoSelecionado.id,
+                          numero: pedidoSelecionado.numero,
+                        })
+                        return
+                      }
+                      if (
+                        window.confirm(
+                          `Marcar o pedido ${numeroPedido(pedidoSelecionado)} como entregue?`,
+                        )
+                      )
+                        mudarStatus.mutate({ id: pedidoSelecionado.id, acao: 'entregue', body: {} })
+                    }}
+                  >
+                    Marcar como entregue
+                  </Button>
+                )}
                 {pedidoSelecionado.etiqueta ? (
                   <Button
                     variant="secondary"
@@ -1310,6 +1524,43 @@ export function PedidosPage() {
       </Modal>
 
       {/* Depois do modal de detalhe para abrir por cima dele */}
+      <MarcarEntregueModal
+        pedido={entregando}
+        onClose={() => setEntregando(null)}
+        onEntregue={() => setPedidoSelecionado(null)}
+      />
+      <Modal
+        open={!!resultadoLote}
+        onClose={() => setResultadoLote(null)}
+        title={resultadoLote ? ACOES_LOTE[resultadoLote.acao].label : ''}
+        size="sm"
+      >
+        {resultadoLote && (
+          <div className="space-y-3 text-sm">
+            <p className="font-medium text-green-700">
+              {resultadoLote.feitos.length} pedido(s) {ACOES_LOTE[resultadoLote.acao].feito}
+            </p>
+            {resultadoLote.pulados.length > 0 && (
+              <p className="text-gray-600">
+                Ignorados pelo status atual: {resultadoLote.pulados.join(', ')}
+              </p>
+            )}
+            {resultadoLote.erros.length > 0 && (
+              <div className="space-y-1 rounded-lg bg-red-50 p-3 text-red-700">
+                <p className="font-medium">Não foi possível:</p>
+                {resultadoLote.erros.map((e) => (
+                  <p key={e} className="text-xs">
+                    {e}
+                  </p>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end">
+              <Button onClick={() => setResultadoLote(null)}>OK</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
       <RegistrarPagamentoModal
         pedido={pagando}
         onClose={() => setPagando(null)}

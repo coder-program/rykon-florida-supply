@@ -138,8 +138,9 @@ export class PedidosController {
     return this.pedidosService.atribuir(id, { entregadorId: dto.entregadorId }, req.user.id);
   }
 
+  // Vendedor não marca entrega; admin/administrativo sem foto, supervisor com foto (no service)
   @Post(':id/entregue')
-  @Roles(...EQUIPE_VENDEDOR)
+  @Roles(...EQUIPE)
   entregue(@Param('id') id: string, @Body() dto: MarcarEntregueDto, @Request() req: any) {
     return this.pedidosService.marcarEntregue(id, req.user.id, req.user.papel, dto);
   }

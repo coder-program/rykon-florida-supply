@@ -810,18 +810,21 @@ export class PedidosService implements OnApplicationBootstrap {
         'Há uma solicitação de alteração pendente. Aprove ou negue antes de continuar.',
       );
     }
+    // Administrador e administrativo confirmam pelo escritório, sem foto; quem entrega
+    // (supervisor) manda a foto como comprovante
+    const semFoto = papel === PapelUsuario.ADMINISTRADOR || papel === PapelUsuario.ADMINISTRATIVO;
     const fotoEntrega = dto.fotoEntrega?.trim() ?? '';
-    if (!fotoEntrega) {
+    if (!fotoEntrega && !semFoto) {
       throw new BadRequestException('A foto da entrega é obrigatória');
     }
-    if (!fotoEntrega.startsWith('data:image/')) {
+    if (fotoEntrega && !fotoEntrega.startsWith('data:image/')) {
       throw new BadRequestException('A foto da entrega é inválida');
     }
     if (fotoEntrega.length > 5_500_000) {
       throw new BadRequestException('A foto é muito grande. Tire outra mais simples.');
     }
 
-    const fotoUrl = await this.storage.salvarDataUrl(fotoEntrega);
+    const fotoUrl = fotoEntrega ? await this.storage.salvarDataUrl(fotoEntrega) : null;
 
     await this.prisma.$transaction(async (tx) => {
       await tx.pedido.update({
@@ -834,22 +837,25 @@ export class PedidosService implements OnApplicationBootstrap {
           fotoEntrega: fotoUrl,
         },
       });
-      await tx.comprovanteEntrega.upsert({
-        where: { pedidoId: id },
-        create: {
-          pedidoId: id,
-          motoristaId: pedido.entregadorId ?? usuarioId,
-          fotoUrl,
-          nomeRecebedor: dto.recebidoPor?.trim() || 'Não informado',
-          observacao: dto.observacaoEntrega?.trim() || null,
-        },
-        update: {
-          fotoUrl,
-          nomeRecebedor: dto.recebidoPor?.trim() || 'Não informado',
-          observacao: dto.observacaoEntrega?.trim() || null,
-          dataHora: new Date(),
-        },
-      });
+      // Comprovante só quando há foto (confirmação do escritório não tem)
+      if (fotoUrl) {
+        await tx.comprovanteEntrega.upsert({
+          where: { pedidoId: id },
+          create: {
+            pedidoId: id,
+            motoristaId: pedido.entregadorId ?? usuarioId,
+            fotoUrl,
+            nomeRecebedor: dto.recebidoPor?.trim() || 'Não informado',
+            observacao: dto.observacaoEntrega?.trim() || null,
+          },
+          update: {
+            fotoUrl,
+            nomeRecebedor: dto.recebidoPor?.trim() || 'Não informado',
+            observacao: dto.observacaoEntrega?.trim() || null,
+            dataHora: new Date(),
+          },
+        });
+      }
       await tx.logAuditoria.create({
         data: {
           usuarioId,

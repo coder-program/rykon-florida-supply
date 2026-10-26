@@ -227,9 +227,10 @@ export function DetalhePedidoPage() {
   const status = p.status as string
   const podeSolicitar = STATUS_PODE_SOLICITAR.includes(status)
   const podeEditarDireto = STATUS_PODE_EDITAR_DIRETO.includes(status)
-  const podeEntregar = ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA', 'EM_ENTREGA'].includes(
-    status,
-  )
+  // Vendedor não marca entrega; o supervisor marca (com foto) quando ele mesmo entrega
+  const podeEntregar =
+    usuario?.papel === 'SUPERVISOR' &&
+    ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA', 'EM_ENTREGA'].includes(status)
   const pendente =
     (solicitacoes as any[]).some((s) => s.status === 'PENDENTE') || !!p.aguardandoAlteracao
   const jaBaixou = podeSolicitar
