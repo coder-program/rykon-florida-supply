@@ -156,7 +156,7 @@ export function PedidosPage() {
     ACOES_LOTE[a].papeis.includes(usuario?.papel ?? ''),
   )
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
-  const [acaoLote, setAcaoLote] = useState<AcaoLote | ''>('')
+  const [acaoEscolhida, setAcaoLote] = useState<AcaoLote | ''>('')
   const [dataPagamentoLote, setDataPagamentoLote] = useState(hojeISO)
   const [executandoLote, setExecutandoLote] = useState(false)
   const [resultadoLote, setResultadoLote] = useState<{
@@ -357,6 +357,10 @@ export function PedidosPage() {
   const selecionadosVisiveis = pedidosFiltrados.filter((p: any) => selecionados.has(p.id))
   const todosSelecionados =
     pedidosFiltrados.length > 0 && selecionadosVisiveis.length === pedidosFiltrados.length
+  // Só oferece a ação que vale para pelo menos um dos selecionados
+  // (ex.: todos já pagos -> não aparece "Marcar como pago")
+  const acoesDisponiveis = acoesLote.filter((a) => selecionadosVisiveis.some(ACOES_LOTE[a].aplica))
+  const acaoLote = acaoEscolhida && acoesDisponiveis.includes(acaoEscolhida) ? acaoEscolhida : ''
 
   function alternarSelecao(id: string) {
     setSelecionados((atual) => {
@@ -528,20 +532,26 @@ export function PedidosPage() {
             <p className="text-sm font-semibold text-gray-800 sm:self-center">
               {selecionadosVisiveis.length} pedido(s) selecionado(s)
             </p>
-            <div className="w-full sm:w-64">
-              <Select
-                label="Selecione uma ação"
-                value={acaoLote}
-                onChange={(e) => setAcaoLote(e.target.value as AcaoLote | '')}
-              >
-                <option value="">Selecione</option>
-                {acoesLote.map((a) => (
-                  <option key={a} value={a}>
-                    {ACOES_LOTE[a].label}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            {acoesDisponiveis.length > 0 ? (
+              <div className="w-full sm:w-64">
+                <Select
+                  label="Selecione uma ação"
+                  value={acaoLote}
+                  onChange={(e) => setAcaoLote(e.target.value as AcaoLote | '')}
+                >
+                  <option value="">Selecione</option>
+                  {acoesDisponiveis.map((a) => (
+                    <option key={a} value={a}>
+                      {ACOES_LOTE[a].label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600 sm:self-center">
+                Nenhuma ação disponível para os pedidos selecionados.
+              </p>
+            )}
             {acaoLote === 'pago' && (
               <div className="w-full sm:w-48">
                 <label className="block text-xs font-medium text-gray-700 mb-1">
