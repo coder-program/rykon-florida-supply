@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PapelUsuario, Prisma, TipoMovimentacao } from '@prisma/client';
+import { PapelUsuario, Prisma, StatusPedido, TipoMovimentacao } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { StorageService } from '../common/storage.service';
 import { EstoqueService } from '../estoque/estoque.service';
@@ -12,10 +12,52 @@ import {
   AtualizarStatusDevolucaoDto,
   CriarDevolucaoDto,
   CriarDevolucaoItemDto,
+  MotivoDevolucao,
   StatusDevolucao,
 } from './dto/devolucao.dto';
 
 const ACAO_DEVOLUCAO = 'REGISTRAR_DEVOLUCAO';
+
+const PAPEIS_REGISTRAM = new Set<PapelUsuario>([
+  PapelUsuario.VENDEDOR,
+  PapelUsuario.SUPERVISOR,
+  PapelUsuario.MOTORISTA,
+]);
+
+const MOTIVO_LABEL: Record<MotivoDevolucao, string> = {
+  [MotivoDevolucao.ESTRAGADO]: 'Estragado',
+  [MotivoDevolucao.REFUGO]: 'Refugo',
+  [MotivoDevolucao.MELADO]: 'Melado',
+  [MotivoDevolucao.MUITO_MADURO]: 'Muito maduro',
+  [MotivoDevolucao.MUITO_VERDE]: 'Muito verde',
+  [MotivoDevolucao.OUTROS]: 'Outros',
+};
+
+type ItemDevolvido = {
+  produtoId: string;
+  nome: string;
+  quantidade: number;
+  valorUnitario: number;
+  valorTotal: number;
+  motivos: MotivoDevolucao[];
+  motivoOutro?: string;
+};
+
+function textoMotivos(item: Pick<ItemDevolvido, 'motivos' | 'motivoOutro'>) {
+  return item.motivos
+    .map((m) =>
+      m === MotivoDevolucao.OUTROS && item.motivoOutro ? item.motivoOutro : MOTIVO_LABEL[m],
+    )
+    .join(', ');
+}
+
+const INCLUDE_PEDIDO_DEVOLUCAO = {
+  cliente: true,
+  etiqueta: { select: { id: true, tokenPublico: true } },
+  itens: { include: { produto: true } },
+} satisfies Prisma.PedidoInclude;
+
+type PedidoDevolucao = Prisma.PedidoGetPayload<{ include: typeof INCLUDE_PEDIDO_DEVOLUCAO }>;
 
 type DevolucaoDetalhes = {
   pedidoId?: string;
@@ -23,13 +65,7 @@ type DevolucaoDetalhes = {
   etiquetaId?: string;
   etiquetaToken: string;
   fotos: string[];
-  itens: {
-    produtoId: string;
-    nome: string;
-    quantidade: number;
-    valorUnitario: number;
-    valorTotal: number;
-  }[];
+  itens: ItemDevolvido[];
   observacao?: string;
   itensDevolvidos?: string;
   quantidadeCaixas?: number;
@@ -79,8 +115,13 @@ export class DevolucoesService {
               quantidade: Number(item?.quantidade ?? 0),
               valorUnitario: Number(item?.valorUnitario ?? 0),
               valorTotal: Number(item?.valorTotal ?? 0),
+              // Devoluções antigas não tinham motivo
+              motivos: Array.isArray(item?.motivos)
+                ? item.motivos.filter((m: string) => m in MOTIVO_LABEL)
+                : [],
+              motivoOutro: item?.motivoOutro ? String(item.motivoOutro) : undefined,
             }))
-            .filter((item) => item.produtoId && item.quantidade > 0)
+            .filter((item: ItemDevolvido) => item.produtoId && item.quantidade > 0)
         : [],
       observacao: obj.observacao ? String(obj.observacao) : undefined,
       itensDevolvidos: obj.itensDevolvidos ? String(obj.itensDevolvidos) : undefined,
@@ -123,7 +164,10 @@ export class DevolucoesService {
         etiquetaId: detalhes.etiquetaId ?? pedido?.etiqueta?.id ?? null,
         status: detalhes.status,
         etiquetaToken: detalhes.etiquetaToken || pedido?.etiqueta?.tokenPublico || null,
-        itens: detalhes.itens,
+        itens: detalhes.itens.map((item) => ({
+          ...item,
+          motivosTexto: item.motivos.length ? textoMotivos(item) : null,
+        })),
         itensDevolvidos: detalhes.itensDevolvidos ?? null,
         quantidadeCaixas: detalhes.quantidadeCaixas ?? null,
         valorDevolucao: detalhes.valorDevolucao ?? null,
@@ -136,28 +180,104 @@ export class DevolucoesService {
     });
   }
 
-  async criar(dto: CriarDevolucaoDto, usuarioId: string, papel: PapelUsuario) {
-    if (papel !== PapelUsuario.VENDEDOR && papel !== PapelUsuario.SUPERVISOR) {
-      throw new ForbiddenException('Somente vendedor pode registrar devolução');
+  // Vendedor vê os pedidos que vendeu, motorista os que entregou; supervisor faz os dois papéis
+  private filtroDoUsuario(usuarioId: string, papel: PapelUsuario): Prisma.PedidoWhereInput {
+    if (papel === PapelUsuario.MOTORISTA) return { entregadorId: usuarioId };
+    if (papel === PapelUsuario.VENDEDOR) return { vendedorId: usuarioId };
+    return { OR: [{ vendedorId: usuarioId }, { entregadorId: usuarioId }] };
+  }
+
+  private pertenceAoUsuario(
+    pedido: { vendedorId: string | null; entregadorId: string | null },
+    usuarioId: string,
+    papel: PapelUsuario,
+  ) {
+    if (papel === PapelUsuario.MOTORISTA) return pedido.entregadorId === usuarioId;
+    if (papel === PapelUsuario.VENDEDOR) return pedido.vendedorId === usuarioId;
+    return pedido.vendedorId === usuarioId || pedido.entregadorId === usuarioId;
+  }
+
+  private garantirPapel(papel: PapelUsuario) {
+    if (!PAPEIS_REGISTRAM.has(papel)) {
+      throw new ForbiddenException('Você não pode registrar devolução');
+    }
+  }
+
+  // Busca pelo pedido escolhido na lista ou pelo QR da etiqueta, e confere se o usuário pode usá-lo
+  private async carregarPedido(
+    ref: { pedidoId?: string; etiquetaToken?: string },
+    usuarioId: string,
+    papel: PapelUsuario,
+  ): Promise<PedidoDevolucao> {
+    let pedido: PedidoDevolucao | null = null;
+    if (ref.pedidoId?.trim()) {
+      pedido = await this.prisma.pedido.findUnique({
+        where: { id: ref.pedidoId.trim() },
+        include: INCLUDE_PEDIDO_DEVOLUCAO,
+      });
+      if (!pedido) throw new NotFoundException('Pedido não encontrado');
+    } else {
+      const token = this.extrairToken(ref.etiquetaToken ?? '');
+      if (!token) throw new BadRequestException('Selecione o pedido ou informe a etiqueta');
+      const etiqueta = await this.prisma.etiqueta.findUnique({
+        where: { tokenPublico: token },
+        include: { pedido: { include: INCLUDE_PEDIDO_DEVOLUCAO } },
+      });
+      if (!etiqueta?.pedido) throw new NotFoundException('Etiqueta não encontrada');
+      pedido = etiqueta.pedido;
     }
 
-    const token = this.extrairToken(dto.etiquetaToken);
-    if (!token) throw new BadRequestException('Informe o token da etiqueta');
+    if (!this.pertenceAoUsuario(pedido, usuarioId, papel)) {
+      throw new ForbiddenException('Você só pode registrar devolução dos seus pedidos');
+    }
+    if (pedido.status !== StatusPedido.ENTREGUE) {
+      throw new BadRequestException('Só é possível registrar devolução de pedido entregue');
+    }
+    return pedido;
+  }
+
+  // Produto dividido entre lotes vira uma linha só para quem registra a devolução
+  private resumoPedido(pedido: PedidoDevolucao) {
+    const itens = new Map<string, { produtoId: string; nome: string; quantidade: number }>();
+    for (const item of pedido.itens) {
+      const atual = itens.get(item.produtoId);
+      if (atual) atual.quantidade += Number(item.quantidade);
+      else
+        itens.set(item.produtoId, {
+          produtoId: item.produtoId,
+          nome: item.produto?.nome ?? item.produtoId,
+          quantidade: Number(item.quantidade),
+        });
+    }
+    return {
+      pedidoId: pedido.id,
+      pedidoNumero: pedido.numero,
+      cliente: pedido.cliente?.razaoSocialOuNome ?? null,
+      entregueEm: pedido.entregueEm,
+      etiquetaId: pedido.etiqueta?.id ?? null,
+      etiquetaToken: pedido.etiqueta?.tokenPublico ?? null,
+      itens: [...itens.values()].filter((item) => item.quantidade > 0),
+    };
+  }
+
+  async listarPedidosParaDevolucao(usuarioId: string, papel: PapelUsuario) {
+    this.garantirPapel(papel);
+    const pedidos = await this.prisma.pedido.findMany({
+      where: { ...this.filtroDoUsuario(usuarioId, papel), status: StatusPedido.ENTREGUE },
+      include: INCLUDE_PEDIDO_DEVOLUCAO,
+      orderBy: [{ entregueEm: 'desc' }, { numero: 'desc' }],
+      take: 200,
+    });
+    return pedidos.map((p) => this.resumoPedido(p));
+  }
+
+  async criar(dto: CriarDevolucaoDto, usuarioId: string, papel: PapelUsuario) {
+    this.garantirPapel(papel);
     if (!Array.isArray(dto.fotos) || dto.fotos.length !== 3) {
       throw new BadRequestException('Envie exatamente 3 fotos da devolução');
     }
 
-    const etiqueta = await this.prisma.etiqueta.findUnique({
-      where: { tokenPublico: token },
-      include: { pedido: { include: { itens: { include: { produto: true } } } } },
-    });
-    if (!etiqueta) throw new NotFoundException('Etiqueta não encontrada');
-
-    const pedido = etiqueta.pedido;
-    if (!pedido) throw new NotFoundException('Pedido não encontrado para esta etiqueta');
-    if (pedido.vendedorId !== usuarioId) {
-      throw new ForbiddenException('Você só pode registrar devolução dos seus pedidos');
-    }
+    const pedido = await this.carregarPedido(dto, usuarioId, papel);
 
     const itensPedido = pedido.itens.map((item) => ({
       produtoId: item.produtoId,
@@ -181,14 +301,14 @@ export class DevolucoesService {
     const detalhes: DevolucaoDetalhes = {
       pedidoId: pedido.id,
       pedidoNumero: pedido.numero,
-      etiquetaId: etiqueta.id,
-      etiquetaToken: token,
+      etiquetaId: pedido.etiqueta?.id,
+      etiquetaToken: pedido.etiqueta?.tokenPublico ?? '',
       fotos: fotosUrl,
       itens: itensDevolvidos,
       observacao: dto.observacao?.trim() || undefined,
-      itensDevolvidos:
-        dto.itensDevolvidos?.trim() ||
-        itensDevolvidos.map((item) => `${item.quantidade}x ${item.nome}`).join(', '),
+      itensDevolvidos: itensDevolvidos
+        .map((item) => `${item.quantidade}x ${item.nome} (${textoMotivos(item)})`)
+        .join(', '),
       quantidadeCaixas: dto.quantidadeCaixas ?? quantidadeCaixas,
       valorDevolucao,
       status: StatusDevolucao.PENDENTE,
@@ -220,42 +340,9 @@ export class DevolucoesService {
   }
 
   async buscarPedidoPorEtiqueta(tokenRaw: string, usuarioId: string, papel: PapelUsuario) {
-    if (papel !== PapelUsuario.VENDEDOR && papel !== PapelUsuario.SUPERVISOR) {
-      throw new ForbiddenException('Somente vendedor pode consultar etiqueta para devolução');
-    }
-
-    const token = this.extrairToken(tokenRaw);
-    if (!token) throw new BadRequestException('Etiqueta inválida');
-
-    const etiqueta = await this.prisma.etiqueta.findUnique({
-      where: { tokenPublico: token },
-      include: {
-        pedido: {
-          include: {
-            cliente: true,
-            itens: { include: { produto: true } },
-          },
-        },
-      },
-    });
-    if (!etiqueta?.pedido) throw new NotFoundException('Etiqueta não encontrada');
-
-    if (etiqueta.pedido.vendedorId !== usuarioId) {
-      throw new ForbiddenException('Você não tem acesso ao pedido desta etiqueta');
-    }
-
-    return {
-      pedidoId: etiqueta.pedido.id,
-      pedidoNumero: etiqueta.pedido.numero,
-      cliente: etiqueta.pedido.cliente?.razaoSocialOuNome ?? null,
-      etiquetaId: etiqueta.id,
-      etiquetaToken: etiqueta.tokenPublico,
-      itens: etiqueta.pedido.itens.map((item) => ({
-        produtoId: item.produtoId,
-        nome: item.produto?.nome ?? item.produtoId,
-        quantidade: Number(item.quantidade),
-      })),
-    };
+    this.garantirPapel(papel);
+    const pedido = await this.carregarPedido({ etiquetaToken: tokenRaw }, usuarioId, papel);
+    return this.resumoPedido(pedido);
   }
 
   async listarTodas() {
@@ -362,7 +449,7 @@ export class DevolucoesService {
   private validarItensDevolvidos(
     itensDto: CriarDevolucaoItemDto[],
     itensPedido: { produtoId: string; nome: string; quantidade: number; valorUnitario: number }[],
-  ) {
+  ): ItemDevolvido[] {
     if (!Array.isArray(itensDto) || itensDto.length === 0) {
       throw new BadRequestException('Informe ao menos um item devolvido');
     }
@@ -400,6 +487,15 @@ export class DevolucoesService {
         );
       }
 
+      const motivos = [...new Set(itemDto.motivos ?? [])];
+      if (motivos.length === 0) {
+        throw new BadRequestException(`Informe o motivo da devolução de ${pedidoItem.nome}`);
+      }
+      const motivoOutro = itemDto.motivoOutro?.trim() || undefined;
+      if (motivos.includes(MotivoDevolucao.OUTROS) && !motivoOutro) {
+        throw new BadRequestException(`Escreva o motivo "Outros" de ${pedidoItem.nome}`);
+      }
+
       const valorTotal = qtd * pedidoItem.valorUnitario;
       return {
         produtoId: pedidoItem.produtoId,
@@ -407,6 +503,8 @@ export class DevolucoesService {
         quantidade: qtd,
         valorUnitario: pedidoItem.valorUnitario,
         valorTotal,
+        motivos,
+        motivoOutro: motivos.includes(MotivoDevolucao.OUTROS) ? motivoOutro : undefined,
       };
     });
   }

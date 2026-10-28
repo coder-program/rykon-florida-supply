@@ -1,7 +1,15 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ClipboardList, MapPin, QrCode, TimerReset, Truck } from 'lucide-react'
+import {
+  ArrowRight,
+  ClipboardList,
+  MapPin,
+  QrCode,
+  TimerReset,
+  Truck,
+  Undo2,
+} from 'lucide-react'
 import { api } from '../lib/api'
 import { STATUS_LABEL, textoEndereco } from '../lib/utils'
 import { useAuth } from '../contexts/useAuth'
@@ -76,6 +84,12 @@ export function EntregasPage() {
           className="mt-4 flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-white/15 text-sm font-semibold text-white backdrop-blur-sm"
         >
           <QrCode className="h-4 w-4" /> Escanear pedido
+        </Link>
+        <Link
+          to="/devolucoes"
+          className="mt-2 flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-white/15 text-sm font-semibold text-white backdrop-blur-sm"
+        >
+          <Undo2 className="h-4 w-4" /> Registrar devolução
         </Link>
       </section>
 

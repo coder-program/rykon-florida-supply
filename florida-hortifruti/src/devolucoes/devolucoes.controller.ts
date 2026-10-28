@@ -22,19 +22,26 @@ export class DevolucoesController {
   constructor(private service: DevolucoesService) {}
 
   @Post()
-  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR)
+  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR, PapelUsuario.MOTORISTA)
   criar(@Body() dto: CriarDevolucaoDto, @Request() req: any) {
     return this.service.criar(dto, req.user.id, req.user.papel);
   }
 
   @Get('minhas')
-  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR)
+  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR, PapelUsuario.MOTORISTA)
   listarMinhas(@Request() req: any) {
     return this.service.listarMinhas(req.user.id);
   }
 
+  // Histórico de pedidos entregues do usuário, para escolher qual teve devolução
+  @Get('pedidos')
+  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR, PapelUsuario.MOTORISTA)
+  listarPedidos(@Request() req: any) {
+    return this.service.listarPedidosParaDevolucao(req.user.id, req.user.papel);
+  }
+
   @Get('etiqueta/:token')
-  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR)
+  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR, PapelUsuario.MOTORISTA)
   buscarPedidoPorEtiqueta(@Param('token') token: string, @Request() req: any) {
     return this.service.buscarPedidoPorEtiqueta(token, req.user.id, req.user.papel);
   }

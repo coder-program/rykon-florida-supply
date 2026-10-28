@@ -11,6 +11,15 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
+export enum MotivoDevolucao {
+  ESTRAGADO = 'ESTRAGADO',
+  REFUGO = 'REFUGO',
+  MELADO = 'MELADO',
+  MUITO_MADURO = 'MUITO_MADURO',
+  MUITO_VERDE = 'MUITO_VERDE',
+  OUTROS = 'OUTROS',
+}
+
 export class CriarDevolucaoItemDto {
   @IsString()
   produtoId: string;
@@ -18,11 +27,27 @@ export class CriarDevolucaoItemDto {
   @IsInt()
   @Min(1)
   quantidade: number;
+
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Informe ao menos um motivo para cada item devolvido' })
+  @IsEnum(MotivoDevolucao, { each: true })
+  motivos: MotivoDevolucao[];
+
+  // Obrigatório quando "OUTROS" está entre os motivos (validado no service)
+  @IsOptional()
+  @IsString()
+  motivoOutro?: string;
 }
 
+// Informe o pedido (escolhido na lista) ou o token da etiqueta (QR); um dos dois é obrigatório
 export class CriarDevolucaoDto {
+  @IsOptional()
   @IsString()
-  etiquetaToken: string;
+  pedidoId?: string;
+
+  @IsOptional()
+  @IsString()
+  etiquetaToken?: string;
 
   @IsArray()
   @ArrayMinSize(3)

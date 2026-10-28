@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { AlertCircle, ArrowLeft, Camera, CheckCircle2, XCircle } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Camera, CheckCircle2, Search, XCircle } from 'lucide-react'
 import { BrowserQRCodeReader } from '@zxing/browser'
 import { api, resolveAssetUrl } from '../lib/api'
-import { useAuth } from '../contexts/useAuth'
+import { MotivosDevolucao } from '../components/MotivosDevolucao'
+import { SELECAO_VAZIA, erroSelecao, type SelecaoMotivos } from '../lib/motivosDevolucao'
 
 function toDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -28,16 +29,36 @@ const STATUS_COLOR: Record<string, string> = {
   NEGADA: 'bg-red-100 text-red-700',
 }
 
+type PedidoDevolucao = {
+  pedidoId: string
+  pedidoNumero: number
+  cliente: string | null
+  entregueEm: string | null
+  etiquetaToken: string | null
+  itens: { produtoId: string; nome: string; quantidade: number }[]
+}
+
+function numeroPedido(numero: number | null | undefined) {
+  return String(numero ?? '').padStart(6, '0')
+}
+
+function mensagemErro(e: any, padrao: string) {
+  const msg = e?.response?.data?.message
+  return Array.isArray(msg) ? msg.join(' ') : msg || e?.message || padrao
+}
+
 export function DevolucoesPage() {
-  const { usuario } = useAuth()
   const qc = useQueryClient()
   const scannerRef = useRef<BrowserQRCodeReader | null>(null)
   const scannerControlsRef = useRef<{ stop: () => void } | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const [busca, setBusca] = useState('')
   const [etiquetaToken, setEtiquetaToken] = useState('')
-  const [pedidoIdSelecionado, setPedidoIdSelecionado] = useState('')
-  const [itensDevolvidos, setItensDevolvidos] = useState<Record<string, string>>({})
-  const [pedidoPorEtiqueta, setPedidoPorEtiqueta] = useState<any | null>(null)
+  const [pedido, setPedido] = useState<PedidoDevolucao | null>(null)
+  const [quantidades, setQuantidades] = useState<Record<string, string>>({})
+  const [motivosPorItem, setMotivosPorItem] = useState<Record<string, SelecaoMotivos>>({})
+  const [mesmoMotivo, setMesmoMotivo] = useState(false)
+  const [motivoGeral, setMotivoGeral] = useState<SelecaoMotivos>(SELECAO_VAZIA)
   const [observacao, setObservacao] = useState('')
   const [arquivos, setArquivos] = useState<File[]>([])
   const [erro, setErro] = useState('')
@@ -45,12 +66,12 @@ export function DevolucoesPage() {
   const [scannerAberto, setScannerAberto] = useState(false)
   const [devolucaoSelecionada, setDevolucaoSelecionada] = useState<any | null>(null)
 
-  const { data: pedidos = [] } = useQuery({
+  const { data: pedidos = [], isLoading: carregandoPedidos } = useQuery({
     queryKey: ['pedidos-para-devolucao'],
     queryFn: () =>
       api
-        .get('/pedidos', { params: { vendedorId: usuario?.id } })
-        .then((r) => (Array.isArray(r.data) ? r.data : [])),
+        .get('/devolucoes/pedidos')
+        .then((r) => (Array.isArray(r.data) ? (r.data as PedidoDevolucao[]) : [])),
   })
 
   const { data: devolucoes = [], isLoading } = useQuery({
@@ -58,85 +79,82 @@ export function DevolucoesPage() {
     queryFn: () => api.get('/devolucoes/minhas').then((r) => (Array.isArray(r.data) ? r.data : [])),
   })
 
+  const pedidosFiltrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase()
+    if (!termo) return pedidos
+    return pedidos.filter(
+      (p) =>
+        numeroPedido(p.pedidoNumero).includes(termo) ||
+        String(p.cliente ?? '')
+          .toLowerCase()
+          .includes(termo),
+    )
+  }, [pedidos, busca])
+
+  // Com um item só não há o que separar: o seletor geral vale para ele
+  const usarMotivoGeral = mesmoMotivo || pedido?.itens.length === 1
+
+  const itensComQuantidade = useMemo(
+    () => (pedido?.itens ?? []).filter((item) => Number(quantidades[item.produtoId] || 0) > 0),
+    [pedido, quantidades],
+  )
+
+  function limparFormulario() {
+    setPedido(null)
+    setEtiquetaToken('')
+    setQuantidades({})
+    setMotivosPorItem({})
+    setMesmoMotivo(false)
+    setMotivoGeral(SELECAO_VAZIA)
+    setObservacao('')
+    setArquivos([])
+  }
+
   const criar = useMutation({
     mutationFn: async () => {
-      if (!etiquetaToken.trim()) throw new Error('Informe o código da etiqueta')
+      if (!pedido) throw new Error('Selecione o pedido da devolução')
+      if (itensComQuantidade.length === 0) throw new Error('Informe ao menos um item devolvido')
+
+      for (const item of itensComQuantidade) {
+        const problema = erroSelecao(
+          usarMotivoGeral ? motivoGeral : motivosPorItem[item.produtoId],
+          item.nome,
+        )
+        if (problema) throw new Error(problema)
+      }
       if (arquivos.length !== 3) throw new Error('Envie exatamente 3 fotos')
 
-      const itens = Object.entries(itensDevolvidos)
-        .map(([produtoId, quantidade]) => ({ produtoId, quantidade: Number(quantidade || 0) }))
-        .filter((item) => item.quantidade > 0)
-
-      const basePedido = pedidoSelecionado ?? pedidoPorEtiqueta
-      if (!basePedido) {
-        throw new Error('Selecione um pedido para informar os itens devolvidos')
-      }
-
-      if (itens.length === 0) {
-        throw new Error('Informe ao menos um item devolvido')
-      }
-
       const fotos = await Promise.all(arquivos.map((file) => toDataUrl(file)))
-
-      const resumoItens = itens
-        .map((item) => {
-          const base = basePedido.itens.find((i: any) => i.produtoId === item.produtoId)
-          return `${item.quantidade}x ${base?.nome ?? item.produtoId}`
-        })
-        .join(', ')
-
-      const caixas = itens.reduce((acc, item) => acc + item.quantidade, 0)
+      const itens = itensComQuantidade.map((item) => {
+        const selecao = usarMotivoGeral ? motivoGeral : motivosPorItem[item.produtoId]
+        return {
+          produtoId: item.produtoId,
+          quantidade: Number(quantidades[item.produtoId]),
+          motivos: selecao.motivos,
+          motivoOutro: selecao.motivos.includes('OUTROS') ? selecao.motivoOutro.trim() : undefined,
+        }
+      })
 
       return api.post('/devolucoes', {
-        etiquetaToken: etiquetaToken.trim(),
+        pedidoId: pedido.pedidoId,
         itens,
-        itensDevolvidos: resumoItens,
-        quantidadeCaixas: caixas,
         observacao: observacao.trim() || undefined,
         fotos,
       })
     },
     onSuccess: () => {
-      setPedidoIdSelecionado('')
-      setEtiquetaToken('')
-      setItensDevolvidos({})
-      setPedidoPorEtiqueta(null)
-      setObservacao('')
-      setArquivos([])
+      limparFormulario()
       setErro('')
       setMostrarSucesso(true)
       qc.invalidateQueries({ queryKey: ['minhas-devolucoes'] })
       qc.invalidateQueries({ queryKey: ['devolucoes-resumo-home'] })
     },
     onError: (e: any) => {
-      const msg = e?.response?.data?.message
-      setErro(Array.isArray(msg) ? msg.join(' ') : msg || 'Não foi possível registrar a devolução')
+      setErro(mensagemErro(e, 'Não foi possível registrar a devolução'))
     },
   })
 
-  const podeEnviar = useMemo(() => {
-    return !criar.isPending && etiquetaToken.trim().length > 0 && arquivos.length === 3
-  }, [criar.isPending, etiquetaToken, arquivos])
-
-  const pedidosComEtiqueta = useMemo(() => {
-    return (pedidos as any[])
-      .filter((p) => p?.etiqueta?.tokenPublico)
-      .map((p) => ({
-        id: String(p.id),
-        numero: Number(p.numero ?? 0),
-        cliente: p?.cliente?.razaoSocialOuNome ?? 'Cliente',
-        etiquetaToken: String(p.etiqueta.tokenPublico),
-        itens: (p.itens ?? []).map((i: any) => ({
-          produtoId: String(i.produtoId),
-          nome: String(i?.produto?.nome ?? 'Produto'),
-          quantidade: Number(i.quantidade ?? 0),
-        })),
-      }))
-  }, [pedidos])
-
-  const pedidoSelecionado = useMemo(() => {
-    return pedidosComEtiqueta.find((p) => p.id === pedidoIdSelecionado) ?? null
-  }, [pedidosComEtiqueta, pedidoIdSelecionado])
+  const podeEnviar = !criar.isPending && !!pedido && arquivos.length === 3
 
   async function onSelecionarArquivos(e: ChangeEvent<HTMLInputElement>) {
     const list = Array.from(e.target.files ?? [])
@@ -150,43 +168,25 @@ export function DevolucoesPage() {
     setArquivos(list)
   }
 
-  function selecionarPedidoComEtiqueta(id: string) {
-    setPedidoIdSelecionado(id)
-    setPedidoPorEtiqueta(null)
-    const selecionado = pedidosComEtiqueta.find((p) => p.id === id)
-    if (selecionado) {
-      setEtiquetaToken(selecionado.etiquetaToken)
-      const base: Record<string, string> = {}
-      selecionado.itens.forEach((item) => {
-        base[item.produtoId] = ''
-      })
-      setItensDevolvidos(base)
-      setErro('')
-    }
+  function escolherPedido(selecionado: PedidoDevolucao) {
+    setPedido(selecionado)
+    setEtiquetaToken(selecionado.etiquetaToken ?? '')
+    setQuantidades({})
+    setMotivosPorItem({})
+    setErro('')
   }
 
-  async function buscarPedidoPelaEtiqueta() {
-    const token = etiquetaToken.trim()
+  async function buscarPedidoPelaEtiqueta(tokenInformado = etiquetaToken) {
+    const token = tokenInformado.trim()
     if (!token) return
     try {
       const data = await api
         .get(`/devolucoes/etiqueta/${encodeURIComponent(token)}`)
-        .then((r) => r.data)
-      setPedidoIdSelecionado('')
-      setPedidoPorEtiqueta(data)
-      setEtiquetaToken(String(data?.etiquetaToken ?? token))
-
-      const base: Record<string, string> = {}
-      ;(data?.itens ?? []).forEach((item: any) => {
-        base[String(item.produtoId)] = ''
-      })
-      setItensDevolvidos(base)
-      setErro('')
+        .then((r) => r.data as PedidoDevolucao)
+      escolherPedido(data)
     } catch (e: any) {
-      const msg = e?.response?.data?.message
-      setErro(Array.isArray(msg) ? msg.join(' ') : msg || 'Etiqueta não encontrada')
-      setPedidoPorEtiqueta(null)
-      setItensDevolvidos({})
+      setErro(mensagemErro(e, 'Etiqueta não encontrada'))
+      setPedido(null)
     }
   }
 
@@ -198,7 +198,7 @@ export function DevolucoesPage() {
       return
     }
     setErro('')
-    setItensDevolvidos((atual) => ({ ...atual, [produtoId]: valor }))
+    setQuantidades((atual) => ({ ...atual, [produtoId]: valor }))
   }
 
   function pararScanner() {
@@ -228,8 +228,8 @@ export function DevolucoesPage() {
           const textoLido = result.getText().trim()
           if (textoLido) {
             setEtiquetaToken(textoLido)
-            setPedidoIdSelecionado('')
             setScannerAberto(false)
+            void buscarPedidoPelaEtiqueta(textoLido)
           }
           return
         }
@@ -304,106 +304,185 @@ export function DevolucoesPage() {
 
       <h1 className="text-lg font-semibold text-gray-900">Devolução</h1>
       <p className="mt-1 text-xs text-gray-500">
-        Selecione o pedido com etiqueta ou escaneie o QR da caixa, e envie 3 fotos do produto
-        devolvido.
+        Escolha o pedido entregue (ou escaneie o QR da caixa), informe os itens, os motivos e envie
+        3 fotos do produto devolvido.
       </p>
 
       <div className="mt-4 space-y-3 rounded-xl border border-red-200 bg-white p-4">
-        <label className="block">
-          <span className="text-xs font-medium text-gray-700">Pedido com etiqueta</span>
-          <select
-            value={pedidoIdSelecionado}
-            onChange={(e) => selecionarPedidoComEtiqueta(e.target.value)}
-            className="mt-1 h-11 w-full cursor-pointer rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-red-400"
-          >
-            <option value="">Selecionar pedido</option>
-            {pedidosComEtiqueta.map((pedido) => (
-              <option key={pedido.id} value={pedido.id}>
-                Pedido #{String(pedido.numero).padStart(6, '0')} - {pedido.cliente}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block">
-          <span className="text-xs font-medium text-gray-700">
-            Código da etiqueta (scan/manual)
-          </span>
-          <input
-            value={etiquetaToken}
-            onChange={(e) => {
-              setEtiquetaToken(e.target.value)
-              if (pedidoIdSelecionado) setPedidoIdSelecionado('')
-            }}
-            placeholder="Ex.: URL do QR ou token"
-            className="mt-1 h-11 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-red-400"
-          />
-        </label>
-
-        <button
-          type="button"
-          onClick={() => setScannerAberto((v) => !v)}
-          className="h-10 w-full cursor-pointer rounded-lg border border-red-300 bg-white text-sm font-semibold text-red-700"
-        >
-          {scannerAberto ? 'Fechar câmera' : 'Escanear com câmera'}
-        </button>
-
-        {scannerAberto && (
-          <div className="overflow-hidden rounded-lg border border-red-200 bg-black">
-            <video ref={videoRef} className="h-56 w-full object-cover" muted playsInline autoPlay />
-          </div>
-        )}
-
-        {(pedidoSelecionado || pedidoPorEtiqueta) && (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
-            Vinculado ao pedido #
-            {String((pedidoSelecionado?.numero ?? pedidoPorEtiqueta?.pedidoNumero) || '').padStart(
-              6,
-              '0',
-            )}{' '}
-            ({pedidoSelecionado?.cliente ?? pedidoPorEtiqueta?.cliente})
-          </p>
-        )}
-
-        <button
-          type="button"
-          onClick={buscarPedidoPelaEtiqueta}
-          className="h-10 w-full cursor-pointer rounded-lg border border-red-300 bg-red-50 text-sm font-semibold text-red-700"
-        >
-          Buscar pedido pela etiqueta escaneada
-        </button>
-
-        {(pedidoSelecionado || pedidoPorEtiqueta) &&
-          (pedidoSelecionado?.itens ?? pedidoPorEtiqueta?.itens ?? []).length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-gray-700">
-                Itens devolvidos (parcial ou total)
-              </p>
-              <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                {(pedidoSelecionado?.itens ?? pedidoPorEtiqueta?.itens ?? []).map((item: any) => (
-                  <div key={item.produtoId} className="flex items-center gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-medium text-gray-800">{item.nome}</p>
-                      <p className="text-[11px] text-gray-500">
-                        No pedido: {item.quantidade} caixa(s)
-                      </p>
+        {!pedido ? (
+          <>
+            <div>
+              <p className="text-xs font-medium text-gray-700">Pedidos entregues</p>
+              <div className="relative mt-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar por número ou cliente"
+                  className="h-10 w-full rounded-lg border border-gray-300 pl-9 pr-3 text-sm outline-none focus:border-red-400"
+                />
+              </div>
+              <div className="mt-2 max-h-72 space-y-1.5 overflow-y-auto">
+                {carregandoPedidos && (
+                  <p className="brand-loading py-3 text-center text-xs text-gray-500">
+                    Carregando...
+                  </p>
+                )}
+                {!carregandoPedidos && pedidosFiltrados.length === 0 && (
+                  <p className="rounded-lg bg-gray-50 px-3 py-4 text-center text-xs text-gray-500">
+                    {busca ? 'Nenhum pedido encontrado.' : 'Nenhum pedido entregue ainda.'}
+                  </p>
+                )}
+                {pedidosFiltrados.map((p) => (
+                  <button
+                    key={p.pedidoId}
+                    type="button"
+                    onClick={() => escolherPedido(p)}
+                    className="w-full cursor-pointer rounded-lg border border-gray-200 px-3 py-2 text-left transition hover:border-red-300 hover:bg-red-50/40"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-gray-900">
+                        #{numeroPedido(p.pedidoNumero)}
+                      </span>
+                      {p.entregueEm && (
+                        <span className="text-[11px] text-gray-500">
+                          Entregue {new Date(p.entregueEm).toLocaleDateString('pt-BR')}
+                        </span>
+                      )}
                     </div>
-                    <input
-                      type="number"
-                      min={0}
-                      max={item.quantidade}
-                      value={itensDevolvidos[item.produtoId] ?? ''}
-                      onChange={(e) =>
-                        alterarQuantidadeDevolvida(item.produtoId, e.target.value, item.quantidade)
-                      }
-                      className="h-9 w-20 rounded-lg border border-gray-300 px-2 text-center text-sm outline-none focus:border-red-400"
-                      placeholder="0"
-                    />
-                  </div>
+                    <p className="truncate text-xs text-gray-600">{p.cliente ?? 'Cliente'}</p>
+                  </button>
                 ))}
               </div>
             </div>
-          )}
+
+            <div className="border-t border-gray-100 pt-3">
+              <span className="text-xs font-medium text-gray-700">
+                Ou pelo QR da etiqueta (scan/manual)
+              </span>
+              <div className="mt-1 flex gap-2">
+                <input
+                  value={etiquetaToken}
+                  onChange={(e) => setEtiquetaToken(e.target.value)}
+                  placeholder="Ex.: URL do QR ou token"
+                  className="h-10 min-w-0 flex-1 rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-red-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => buscarPedidoPelaEtiqueta()}
+                  className="h-10 cursor-pointer rounded-lg border border-red-300 bg-red-50 px-3 text-sm font-semibold text-red-700"
+                >
+                  Buscar
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setScannerAberto((v) => !v)}
+                className="mt-2 h-10 w-full cursor-pointer rounded-lg border border-red-300 bg-white text-sm font-semibold text-red-700"
+              >
+                {scannerAberto ? 'Fechar câmera' : 'Escanear com câmera'}
+              </button>
+              {scannerAberto && (
+                <div className="mt-2 overflow-hidden rounded-lg border border-red-200 bg-black">
+                  <video
+                    ref={videoRef}
+                    className="h-56 w-full object-cover"
+                    muted
+                    playsInline
+                    autoPlay
+                  />
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-red-50 px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-red-800">
+                Pedido #{numeroPedido(pedido.pedidoNumero)}
+              </p>
+              <p className="truncate text-xs text-red-700">{pedido.cliente ?? 'Cliente'}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setPedido(null)
+                setEtiquetaToken('')
+              }}
+              className="shrink-0 cursor-pointer rounded-lg border border-red-300 bg-white px-2.5 py-1 text-xs font-semibold text-red-700"
+            >
+              Trocar
+            </button>
+          </div>
+        )}
+
+        {pedido && pedido.itens.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-gray-700">Itens devolvidos (parcial ou total)</p>
+            {pedido.itens.length > 1 && (
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={mesmoMotivo}
+                  onChange={(e) => setMesmoMotivo(e.target.checked)}
+                  className="h-4 w-4 accent-red-600"
+                />
+                Usar o mesmo motivo para todos os itens
+              </label>
+            )}
+            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              {pedido.itens.map((item) => {
+                const devolvendo = Number(quantidades[item.produtoId] || 0) > 0
+                return (
+                  <div key={item.produtoId} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium text-gray-800">{item.nome}</p>
+                        <p className="text-[11px] text-gray-500">
+                          No pedido: {item.quantidade} caixa(s)
+                        </p>
+                      </div>
+                      <input
+                        type="number"
+                        min={0}
+                        max={item.quantidade}
+                        value={quantidades[item.produtoId] ?? ''}
+                        onChange={(e) =>
+                          alterarQuantidadeDevolvida(
+                            item.produtoId,
+                            e.target.value,
+                            item.quantidade,
+                          )
+                        }
+                        className="h-9 w-20 rounded-lg border border-gray-300 px-2 text-center text-sm outline-none focus:border-red-400"
+                        placeholder="0"
+                      />
+                    </div>
+                    {devolvendo && !usarMotivoGeral && (
+                      <div className="rounded-lg bg-white p-2">
+                        <p className="mb-1.5 text-[11px] font-medium text-gray-600">Motivos</p>
+                        <MotivosDevolucao
+                          valor={motivosPorItem[item.produtoId] ?? SELECAO_VAZIA}
+                          onChange={(valor) =>
+                            setMotivosPorItem((atual) => ({ ...atual, [item.produtoId]: valor }))
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            {usarMotivoGeral && itensComQuantidade.length > 0 && (
+              <div className="rounded-lg border border-gray-200 p-3">
+                <p className="mb-1.5 text-xs font-medium text-gray-700">
+                  Motivos{mesmoMotivo ? ' (todos os itens)' : ''}
+                </p>
+                <MotivosDevolucao valor={motivoGeral} onChange={setMotivoGeral} />
+              </div>
+            )}
+          </div>
+        )}
 
         <label className="block">
           <span className="text-xs font-medium text-gray-700">Fotos da caixa (3 fotos)</span>
@@ -604,7 +683,14 @@ export function DevolucoesPage() {
                       key={`${item.produtoId ?? index}-${item.nome ?? 'item'}`}
                       className="flex items-center justify-between gap-3 rounded-lg bg-white px-2 py-1.5 text-xs text-gray-700"
                     >
-                      <span>{item.nome}</span>
+                      <span>
+                        {item.nome}
+                        {item.motivosTexto && (
+                          <span className="block text-[11px] text-gray-500">
+                            Motivos: {item.motivosTexto}
+                          </span>
+                        )}
+                      </span>
                       <span className="font-medium text-gray-900">
                         {Number(item.quantidade ?? 0)}x
                       </span>

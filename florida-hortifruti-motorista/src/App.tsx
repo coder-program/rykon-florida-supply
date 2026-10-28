@@ -8,6 +8,7 @@ import { EntregasPage } from './pages/EntregasPage'
 import { EntregaDetalhePage } from './pages/EntregaDetalhePage'
 import { ConfirmarPage } from './pages/ConfirmarPage'
 import { ScannerPage } from './pages/ScannerPage'
+import { DevolucoesPage } from './pages/DevolucoesPage'
 import { ROUTER_BASENAME } from './lib/session'
 import { PageTransition } from './components/PageTransition'
 
@@ -54,6 +55,14 @@ function AppRoutes() {
           element={
             <PrivateRoute>
               <ScannerPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/devolucoes"
+          element={
+            <PrivateRoute>
+              <DevolucoesPage />
             </PrivateRoute>
           }
         />
