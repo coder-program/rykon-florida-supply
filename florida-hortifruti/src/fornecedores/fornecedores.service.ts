@@ -26,19 +26,40 @@ export class FornecedoresService {
   }
 
   // Mesmo nome (sem diferenciar maiúsculas) não pode ser cadastrado duas vezes
-  private async validarNome(nome: string, ignorarId?: string) {
-    const repetido = await this.prisma.fornecedor.findFirst({
+  private buscarPorNome(nome: string, ignorarId?: string) {
+    return this.prisma.fornecedor.findFirst({
       where: {
         nome: { equals: nome, mode: 'insensitive' },
         ...(ignorarId ? { id: { not: ignorarId } } : {}),
       },
+      orderBy: { ativo: 'desc' },
     });
-    if (repetido) throw new BadRequestException(`Já existe o fornecedor ${repetido.nome}`);
+  }
+
+  private async validarNome(nome: string, ignorarId?: string) {
+    const repetido = await this.buscarPorNome(nome, ignorarId);
+    if (!repetido) return;
+    const inativo = repetido.ativo ? '' : ' (inativo; reative-o na lista de fornecedores)';
+    throw new BadRequestException(`Já existe o fornecedor ${repetido.nome}${inativo}`);
   }
 
   async create(dto: CreateFornecedorDto) {
     const nome = dto.nome.trim();
-    await this.validarNome(nome);
+    const repetido = await this.buscarPorNome(nome);
+    if (repetido?.ativo) throw new BadRequestException(`Já existe o fornecedor ${repetido.nome}`);
+    // Apagar só inativa: cadastrar de novo o mesmo nome reativa o registro, mantendo as compras antigas
+    if (repetido) {
+      return this.prisma.fornecedor.update({
+        where: { id: repetido.id },
+        data: {
+          nome,
+          ativo: true,
+          documento: opcional(dto.documento) ?? null,
+          telefone: opcional(dto.telefone) ?? null,
+          observacao: opcional(dto.observacao) ?? null,
+        },
+      });
+    }
     return this.prisma.fornecedor.create({
       data: {
         nome,
