@@ -55,6 +55,9 @@ model Usuario {
   comprovantesEntrega         ComprovanteEntrega[]
   pagamentosPedidoRegistrados PagamentoPedido[]
 
+  investimentos          Investimento[]
+  devolucoesInvestimento DevolucaoInvestimento[]
+
   @@map("usuarios")
 }
 
@@ -641,4 +644,40 @@ model MetaDiaSemMeta {
   criadoEm DateTime @default(now())
 
   @@map("metas_dias_sem_meta")
+}
+
+// ==========================================
+// INVESTIMENTOS (aportes de sócios na empresa)
+// ==========================================
+
+model Investimento {
+  id        String   @id @default(uuid())
+  // Quem fez o aporte
+  nome      String
+  data      DateTime
+  valor     Decimal  @db.Decimal(12, 2)
+  motivo    String
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id])
+  criadoEm  DateTime @default(now())
+
+  // Status (falta devolver / parcial / devolvido) sai da soma das devoluções
+  devolucoes DevolucaoInvestimento[]
+
+  @@map("investimentos")
+}
+
+model DevolucaoInvestimento {
+  id             String       @id @default(uuid())
+  investimentoId String
+  investimento   Investimento @relation(fields: [investimentoId], references: [id], onDelete: Cascade)
+  valor          Decimal      @db.Decimal(12, 2)
+  data           DateTime
+  observacao     String?
+  usuarioId      String
+  usuario        Usuario      @relation(fields: [usuarioId], references: [id])
+  criadoEm       DateTime     @default(now())
+
+  @@index([investimentoId])
+  @@map("devolucoes_investimento")
 }

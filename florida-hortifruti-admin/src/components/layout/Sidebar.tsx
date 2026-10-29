@@ -18,6 +18,7 @@ import {
   Truck,
   Route,
   ExternalLink,
+  PiggyBank,
   X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/useAuth'
@@ -41,9 +42,13 @@ const navItems = [
   { to: '/lotes', icon: Boxes, label: 'Lotes' },
   { to: '/fornecedores', icon: Truck, label: 'Fornecedores' },
   { to: '/financeiro', icon: Banknote, label: 'Financeiro' },
+  { to: '/investimentos', icon: PiggyBank, label: 'Investimentos' },
   { to: '/relatorios', icon: BarChart3, label: 'Relatórios' },
   { to: '/usuarios', icon: UserCog, label: 'Usuários' },
 ]
+
+// Só administrador e administrativo/financeiro
+const SO_FINANCEIRO = ['/usuarios', '/investimentos']
 
 const PEDIDOS_VISTOS_STORAGE_KEY = 'admin-menu-pedidos-vistos-em'
 
@@ -140,7 +145,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             .filter((item) =>
               permitidas
                 ? permitidas.includes(item.to)
-                : item.to === '/usuarios'
+                : SO_FINANCEIRO.includes(item.to)
                   ? isFinanceiro
                   : true,
             )

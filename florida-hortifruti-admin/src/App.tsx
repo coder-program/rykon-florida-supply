@@ -20,12 +20,14 @@ import { FinanceiroPage } from './pages/FinanceiroPage'
 import { SolicitacoesAlteracaoPage } from './pages/SolicitacoesAlteracaoPage'
 import { DevolucoesPage } from './pages/DevolucoesPage'
 import { AbrirPedidoPage } from './pages/AbrirPedidoPage'
+import { InvestimentosPage } from './pages/InvestimentosPage'
 import { ROUTER_BASENAME } from './lib/session'
 import { rotasPermitidas } from './lib/permissoes'
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } })
 
-function UsuariosAccessRoute({ children }: { children: ReactNode }) {
+// Telas só do administrador e do administrativo/financeiro
+function SomenteFinanceiroRoute({ children }: { children: ReactNode }) {
   const { isFinanceiro } = useAuth()
   if (!isFinanceiro) return <Navigate to="/" replace />
   return <>{children}</>
@@ -66,9 +68,17 @@ export default function App() {
                 <Route
                   path="/usuarios"
                   element={
-                    <UsuariosAccessRoute>
+                    <SomenteFinanceiroRoute>
                       <UsuariosPage />
-                    </UsuariosAccessRoute>
+                    </SomenteFinanceiroRoute>
+                  }
+                />
+                <Route
+                  path="/investimentos"
+                  element={
+                    <SomenteFinanceiroRoute>
+                      <InvestimentosPage />
+                    </SomenteFinanceiroRoute>
                   }
                 />
               </Route>

@@ -17,6 +17,7 @@ import { PortalClienteModule } from './portal-cliente/portal-cliente.module';
 import { DevolucoesModule } from './devolucoes/devolucoes.module';
 import { MetasModule } from './metas/metas.module';
 import { FornecedoresModule } from './fornecedores/fornecedores.module';
+import { InvestimentosModule } from './investimentos/investimentos.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { FornecedoresModule } from './fornecedores/fornecedores.module';
     DevolucoesModule,
     MetasModule,
     FornecedoresModule,
+    InvestimentosModule,
   ],
 })
 export class AppModule {}
