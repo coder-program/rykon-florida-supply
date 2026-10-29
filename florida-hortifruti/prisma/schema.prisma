@@ -238,8 +238,13 @@ enum OrigemPedido {
 
 enum FormaPagamento {
   PIX
-  BOLETO
   DINHEIRO
+  FATURADO
+  LINK_PAGAMENTO
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  // Antigas: Boleto virou Faturado (migração) e Outros fica só nos pedidos já registrados
+  BOLETO
   OUTROS
 }
 

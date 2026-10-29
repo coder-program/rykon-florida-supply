@@ -5,11 +5,13 @@ import {
   IsBoolean,
   IsOptional,
   IsEnum,
+  IsIn,
   ValidateNested,
   Min,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { FormaPagamento, StatusPedido, StatusSolicitacaoAlteracao } from '@prisma/client';
+import { FORMAS_PAGAMENTO_ATIVAS, MENSAGEM_FORMA_INVALIDA } from '../../common/formas-pagamento';
 
 class ItemPedidoDto {
   @IsString()
@@ -58,7 +60,7 @@ export class CreatePedidoDto {
   @IsNumber()
   descontoPercentual?: number;
 
-  @IsEnum(FormaPagamento)
+  @IsIn(FORMAS_PAGAMENTO_ATIVAS, { message: MENSAGEM_FORMA_INVALIDA })
   formaPagamento: FormaPagamento;
 
   @IsOptional()
@@ -274,7 +276,7 @@ export class CriarPedidoPortalDto {
   observacoes?: string;
 
   @IsOptional()
-  @IsEnum(FormaPagamento)
+  @IsIn(FORMAS_PAGAMENTO_ATIVAS, { message: MENSAGEM_FORMA_INVALIDA })
   formaPagamento?: FormaPagamento;
 }
 

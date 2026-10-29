@@ -25,6 +25,7 @@ import {
   STATUS_PAGAMENTO_COLOR,
   statusPedidoVisivel,
   FORMA_PAGAMENTO_LABEL,
+  FORMAS_PAGAMENTO,
 } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
 import { TableScroll } from '../components/ui/TableScroll'
@@ -158,6 +159,8 @@ export function PedidosPage() {
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
   const [acaoEscolhida, setAcaoLote] = useState<AcaoLote | ''>('')
   const [dataPagamentoLote, setDataPagamentoLote] = useState(hojeISO)
+  // Vazio = cada pedido quita com a própria forma de pagamento
+  const [formaPagamentoLote, setFormaPagamentoLote] = useState('')
   const [executandoLote, setExecutandoLote] = useState(false)
   const [resultadoLote, setResultadoLote] = useState<{
     feitos: string[]
@@ -398,7 +401,10 @@ export function PedidosPage() {
         if (acaoLote === 'aprovar') await api.post(`/pedidos/${p.id}/aprovar`)
         if (acaoLote === 'entregue') await api.post(`/pedidos/${p.id}/entregue`, {})
         if (acaoLote === 'pago')
-          await api.post(`/financeiro/marcar-pago/${p.id}`, { data: dataPagamentoLote })
+          await api.post(`/financeiro/marcar-pago/${p.id}`, {
+            data: dataPagamentoLote,
+            formaPagamento: formaPagamentoLote || undefined,
+          })
         feitos.push(numeroPedido(p))
       } catch (erro: any) {
         const msg = erro?.response?.data?.message
@@ -573,6 +579,25 @@ export function PedidosPage() {
                   onChange={(e) => setDataPagamentoLote(e.target.value)}
                   className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm"
                 />
+              </div>
+            )}
+            {acaoLote === 'pago' && (
+              <div className="w-full sm:w-56">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Forma de pagamento *
+                </label>
+                <select
+                  value={formaPagamentoLote}
+                  onChange={(e) => setFormaPagamentoLote(e.target.value)}
+                  className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm"
+                >
+                  <option value="">A de cada pedido</option>
+                  {FORMAS_PAGAMENTO.map((f) => (
+                    <option key={f} value={f}>
+                      {FORMA_PAGAMENTO_LABEL[f]}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
             <div className="flex gap-2">
@@ -1222,9 +1247,17 @@ export function PedidosPage() {
                       }
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     >
-                      {['PIX', 'BOLETO', 'DINHEIRO', 'OUTROS'].map((v) => (
+                      {!(FORMAS_PAGAMENTO as readonly string[]).includes(
+                        formEdit.formaPagamento,
+                      ) && (
+                        <option value={formEdit.formaPagamento}>
+                          {FORMA_PAGAMENTO_LABEL[formEdit.formaPagamento] ??
+                            formEdit.formaPagamento}
+                        </option>
+                      )}
+                      {FORMAS_PAGAMENTO.map((v) => (
                         <option key={v} value={v}>
-                          {v}
+                          {FORMA_PAGAMENTO_LABEL[v]}
                         </option>
                       ))}
                     </select>

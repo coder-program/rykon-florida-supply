@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { FORMA_PAGAMENTO_LABEL, FORMAS_PAGAMENTO } from '../lib/utils'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import { Button } from './ui/Button'
@@ -522,10 +523,11 @@ function FormularioCliente({ cliente, onClose, onSalvo }: ClienteFormModalProps)
             onChange={(e) => set('formaPagamentoUsual', e.target.value)}
           >
             <option value="">Selecione</option>
-            <option>PIX</option>
-            <option>Boleto</option>
-            <option>Dinheiro</option>
-            <option>Outros</option>
+            {FORMAS_PAGAMENTO.map((f) => (
+              <option key={f} value={f}>
+                {FORMA_PAGAMENTO_LABEL[f]}
+              </option>
+            ))}
           </Select>
           <div className="flex items-center gap-2 sm:col-span-2">
             <input

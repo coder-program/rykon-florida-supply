@@ -15,7 +15,7 @@ import autoTable from 'jspdf-autotable'
 import ExcelJS from 'exceljs'
 import { api } from '../lib/api'
 import { useAuth } from '../contexts/useAuth'
-import { formatBRL, formatDate, FORMA_PAGAMENTO_LABEL } from '../lib/utils'
+import { formatBRL, formatDate, FORMA_PAGAMENTO_LABEL, FORMAS_PAGAMENTO } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -279,10 +279,12 @@ export function FinanceiroPage() {
           <div className="w-full sm:w-48">
             <Select value={filtroForma} onChange={(e) => setFiltroForma(e.target.value)}>
               <option value="">Todas as formas</option>
-              <option value="PIX">PIX</option>
-              <option value="BOLETO">Boleto</option>
-              <option value="DINHEIRO">Dinheiro</option>
-              <option value="OUTROS">Outros</option>
+              {[...FORMAS_PAGAMENTO, 'OUTROS'].map((f) => (
+                <option key={f} value={f}>
+                  {FORMA_PAGAMENTO_LABEL[f]}
+                  {f === 'OUTROS' ? ' (antigos)' : ''}
+                </option>
+              ))}
             </Select>
           </div>
         </div>

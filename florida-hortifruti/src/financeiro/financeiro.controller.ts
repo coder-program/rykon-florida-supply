@@ -45,7 +45,13 @@ export class FinanceiroController {
     PapelUsuario.VENDEDOR,
   )
   marcarPago(@Param('pedidoId') pedidoId: string, @Body() dto: MarcarPagoDto, @Request() req: any) {
-    return this.financeiroService.marcarPago(pedidoId, req.user.id, req.user.papel, dto?.data);
+    return this.financeiroService.marcarPago(
+      pedidoId,
+      req.user.id,
+      req.user.papel,
+      dto?.data,
+      dto?.formaPagamento,
+    );
   }
 
   // Pagamento total ou parcial de um pedido a prazo - saldo devedor é recalculado automaticamente.

@@ -3,7 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Search, Plus, Minus, ChevronRight, ArrowLeft, Check, AlertTriangle, X } from 'lucide-react'
 import { api } from '../lib/api'
-import { formatBRL, formatDate, hojeISO } from '../lib/utils'
+import {
+  FORMA_PAGAMENTO_LABEL,
+  FORMAS_PAGAMENTO,
+  formatBRL,
+  formatDate,
+  hojeISO,
+} from '../lib/utils'
 import { salvarRascunho, carregarRascunho, limparRascunho } from '../lib/draft'
 
 type Etapa = 'cliente' | 'produtos' | 'extras' | 'confirmar'
@@ -836,17 +842,17 @@ function EtapaExtras({
       <section className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
         <h3 className="font-semibold text-gray-800 text-sm">Forma de Pagamento</h3>
         <div className="grid grid-cols-2 gap-2">
-          {['PIX', 'BOLETO', 'DINHEIRO', 'OUTROS'].map((f) => (
+          {FORMAS_PAGAMENTO.map((f) => (
             <button
               key={f}
               onClick={() => onChange({ formaPagamento: f })}
               className={`cursor-pointer py-2.5 rounded-xl text-sm font-medium transition ${dados.formaPagamento === f ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}
             >
-              {f}
+              {FORMA_PAGAMENTO_LABEL[f]}
             </button>
           ))}
         </div>
-        {dados.formaPagamento === 'BOLETO' && (
+        {dados.formaPagamento === 'FATURADO' && (
           <div className="space-y-2">
             <label className="text-xs text-gray-500">Vencimento</label>
             <input
@@ -921,7 +927,7 @@ function EtapaConfirmar({ dados }: { dados: DadosPedido }) {
         </div>
         <div className="flex justify-between">
           <span className="text-gray-500">Pagamento</span>
-          <span>{dados.formaPagamento}</span>
+          <span>{FORMA_PAGAMENTO_LABEL[dados.formaPagamento] ?? dados.formaPagamento}</span>
         </div>
         {dados.dataVencimento && (
           <div className="flex justify-between">

@@ -42,3 +42,25 @@ export const STATUS_COLOR: Record<string, string> = {
   ENTREGUE: 'bg-emerald-100 text-emerald-700',
   CANCELADO: 'bg-red-100 text-red-700',
 }
+
+export const FORMA_PAGAMENTO_LABEL: Record<string, string> = {
+  PIX: 'Pix',
+  DINHEIRO: 'Dinheiro',
+  FATURADO: 'Faturado',
+  LINK_PAGAMENTO: 'Link de pagamento',
+  CARTAO_CREDITO: 'Cartão de crédito',
+  CARTAO_DEBITO: 'Cartão de débito',
+  // Antigas: só aparecem em pedidos já registrados
+  BOLETO: 'Boleto',
+  OUTROS: 'Outros',
+}
+
+// Opções para escolher (a API recusa Boleto e Outros em registros novos)
+export const FORMAS_PAGAMENTO: string[] = [
+  'PIX',
+  'DINHEIRO',
+  'FATURADO',
+  'LINK_PAGAMENTO',
+  'CARTAO_CREDITO',
+  'CARTAO_DEBITO',
+]

@@ -1,16 +1,23 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
-import { formatBRL, hojeISO } from '../lib/utils'
+import { FORMA_PAGAMENTO_LABEL, FORMAS_PAGAMENTO, formatBRL, hojeISO } from '../lib/utils'
 import { Modal } from './ui/Modal'
 import { Button } from './ui/Button'
-import { Input, MoneyInput } from './ui/Input'
+import { Input, MoneyInput, Select } from './ui/Input'
 
 export type PedidoPagamento = {
   id: string
   numero: number
   totalFinal: number | string
   saldoDevedor?: number
+  formaPagamento?: string
+}
+
+// Vem a forma escolhida no pedido; Boleto/Outros antigos obrigam a escolher uma atual
+function formaInicial(pedido: PedidoPagamento | null) {
+  const forma = pedido?.formaPagamento ?? ''
+  return (FORMAS_PAGAMENTO as readonly string[]).includes(forma) ? forma : ''
 }
 
 // Registra o pagamento com a data em que o cliente realmente pagou (vem hoje, pode ser anterior).
@@ -28,6 +35,13 @@ export function RegistrarPagamentoModal({
   const [data, setData] = useState(hojeISO)
   const [parcial, setParcial] = useState(false)
   const [valor, setValor] = useState<number | ''>('')
+  const [forma, setForma] = useState(() => formaInicial(pedido))
+  const [pedidoAtual, setPedidoAtual] = useState(pedido?.id)
+  // Trocou de pedido com o modal montado: recomeça pela forma do novo pedido
+  if (pedido?.id !== pedidoAtual) {
+    setPedidoAtual(pedido?.id)
+    setForma(formaInicial(pedido))
+  }
 
   const saldo = Number(pedido?.saldoDevedor ?? pedido?.totalFinal ?? 0)
 
@@ -42,9 +56,13 @@ export function RegistrarPagamentoModal({
   const registrar = useMutation({
     mutationFn: async () => {
       if (parcial) {
-        await api.post(`/financeiro/pagamento/${pedido!.id}`, { valor: Number(valor), data })
+        await api.post(`/financeiro/pagamento/${pedido!.id}`, {
+          valor: Number(valor),
+          data,
+          formaPagamento: forma,
+        })
       } else {
-        await api.post(`/financeiro/marcar-pago/${pedido!.id}`, { data })
+        await api.post(`/financeiro/marcar-pago/${pedido!.id}`, { data, formaPagamento: forma })
       }
     },
     onSuccess: () => {
@@ -83,6 +101,19 @@ export function RegistrarPagamentoModal({
           onChange={(e) => setData(e.target.value)}
           required
         />
+        <Select
+          label="Forma de pagamento *"
+          value={forma}
+          onChange={(e) => setForma(e.target.value)}
+          required
+        >
+          <option value="">Selecione</option>
+          {FORMAS_PAGAMENTO.map((f) => (
+            <option key={f} value={f}>
+              {FORMA_PAGAMENTO_LABEL[f]}
+            </option>
+          ))}
+        </Select>
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input
             type="checkbox"
@@ -108,7 +139,7 @@ export function RegistrarPagamentoModal({
           <Button type="button" variant="secondary" onClick={fechar}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={registrar.isPending || !data || valorInvalido}>
+          <Button type="submit" disabled={registrar.isPending || !data || !forma || valorInvalido}>
             {registrar.isPending
               ? 'Salvando...'
               : parcial

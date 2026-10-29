@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { FormaPagamento, OrigemPedido, TipoEntidadeEndereco } from '@prisma/client';
+import { FORMAS_PAGAMENTO_ATIVAS } from '../common/formas-pagamento';
 import { PrismaService } from '../prisma.service';
 import { PedidosService } from '../pedidos/pedidos.service';
 import { ProdutosService } from '../produtos/produtos.service';
@@ -108,7 +109,7 @@ export class PortalClienteService {
     const forma =
       dto.formaPagamento ||
       (cliente.formaPagamentoUsual &&
-      ['PIX', 'BOLETO', 'DINHEIRO', 'OUTROS'].includes(cliente.formaPagamentoUsual)
+      FORMAS_PAGAMENTO_ATIVAS.includes(cliente.formaPagamentoUsual as FormaPagamento)
         ? (cliente.formaPagamentoUsual as FormaPagamento)
         : FormaPagamento.PIX);
 

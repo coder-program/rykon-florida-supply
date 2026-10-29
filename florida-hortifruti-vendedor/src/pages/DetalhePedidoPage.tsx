@@ -3,7 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Camera, Minus, Plus, X } from 'lucide-react'
 import { api, resolveAssetUrl } from '../lib/api'
-import { formatBRL, formatDate, hojeISO, statusPedidoVisivel } from '../lib/utils'
+import {
+  FORMA_PAGAMENTO_LABEL,
+  FORMAS_PAGAMENTO,
+  formatBRL,
+  formatDate,
+  hojeISO,
+  statusPedidoVisivel,
+} from '../lib/utils'
 import { useAuth } from '../contexts/useAuth'
 
 const STATUS_PODE_SOLICITAR = ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA']
@@ -55,6 +62,7 @@ export function DetalhePedidoPage() {
   const { usuario } = useAuth()
   const [modalPago, setModalPago] = useState(false)
   const [dataPagamento, setDataPagamento] = useState(hojeISO)
+  const [formaPagamento, setFormaPagamento] = useState('')
   const [erroPago, setErroPago] = useState('')
 
   const { data: p, isLoading } = useQuery({
@@ -105,7 +113,8 @@ export function DetalhePedidoPage() {
   // Quitação total com a data em que o cliente realmente pagou. Vendedor só nos próprios
   // pedidos; o parcial fica com o financeiro e o supervisor no painel
   const marcarPago = useMutation({
-    mutationFn: () => api.post(`/financeiro/marcar-pago/${id}`, { data: dataPagamento }),
+    mutationFn: () =>
+      api.post(`/financeiro/marcar-pago/${id}`, { data: dataPagamento, formaPagamento }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pedido', id] })
       qc.invalidateQueries({ queryKey: ['meus-pedidos'] })
@@ -298,7 +307,10 @@ export function DetalhePedidoPage() {
         <div className="bg-white rounded-xl border border-gray-100 p-4 text-sm space-y-2.5">
           <Row label="Cliente" value={p.cliente?.razaoSocialOuNome} bold />
           {p.vendedor && <Row label="Vendedor" value={p.vendedor?.nome} />}
-          <Row label="Pagamento" value={p.formaPagamento} />
+          <Row
+            label="Pagamento"
+            value={FORMA_PAGAMENTO_LABEL[p.formaPagamento] ?? p.formaPagamento}
+          />
           <Row
             label="Situação"
             value={
@@ -317,6 +329,10 @@ export function DetalhePedidoPage() {
                 onClick={() => {
                   setDataPagamento(hojeISO())
                   setErroPago('')
+                  // Vem a forma do pedido; Boleto/Outros antigos obrigam a escolher uma atual
+                  setFormaPagamento(
+                    FORMAS_PAGAMENTO.includes(p.formaPagamento) ? p.formaPagamento : '',
+                  )
                   setModalPago(true)
                 }}
                 className="w-full cursor-pointer rounded-lg bg-green-50 py-2 text-sm font-medium text-green-700"
@@ -624,10 +640,25 @@ export function DetalhePedidoPage() {
                 className="mt-1 w-full min-h-11 rounded-lg border border-gray-300 px-3 text-base"
               />
             </label>
+            <label className="block mb-3">
+              <span className="text-xs font-medium text-gray-600">Forma de pagamento *</span>
+              <select
+                value={formaPagamento}
+                onChange={(e) => setFormaPagamento(e.target.value)}
+                className="mt-1 w-full min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-base"
+              >
+                <option value="">Selecione</option>
+                {FORMAS_PAGAMENTO.map((f) => (
+                  <option key={f} value={f}>
+                    {FORMA_PAGAMENTO_LABEL[f]}
+                  </option>
+                ))}
+              </select>
+            </label>
             {erroPago && <p className="text-xs text-red-600 mb-3">{erroPago}</p>}
             <button
               type="button"
-              disabled={!dataPagamento || marcarPago.isPending}
+              disabled={!dataPagamento || !formaPagamento || marcarPago.isPending}
               onClick={() => marcarPago.mutate()}
               className="w-full cursor-pointer rounded-xl bg-green-600 py-3 text-sm font-semibold text-white disabled:opacity-50"
             >

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Minus, AlertTriangle, X } from 'lucide-react'
 import { api } from '../lib/api'
-import { formatBRL, hojeISO } from '../lib/utils'
+import { FORMA_PAGAMENTO_LABEL, FORMAS_PAGAMENTO, formatBRL, hojeISO } from '../lib/utils'
 import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
@@ -449,10 +449,11 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
             value={formaPagamento}
             onChange={(e) => setFormaPagamento(e.target.value)}
           >
-            <option value="PIX">PIX</option>
-            <option value="BOLETO">Boleto</option>
-            <option value="DINHEIRO">Dinheiro</option>
-            <option value="OUTROS">Outros</option>
+            {FORMAS_PAGAMENTO.map((f) => (
+              <option key={f} value={f}>
+                {FORMA_PAGAMENTO_LABEL[f]}
+              </option>
+            ))}
           </Select>
           <Input
             label="Vencimento"

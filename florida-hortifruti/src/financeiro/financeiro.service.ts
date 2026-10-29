@@ -229,7 +229,7 @@ export class FinanceiroService {
         data: {
           pedidoId,
           valor,
-          formaPagamento: dto.formaPagamento,
+          formaPagamento: dto.formaPagamento ?? pedido.formaPagamento,
           observacao: dto.observacao,
           data: dataPagamento,
           usuarioId,
@@ -260,6 +260,7 @@ export class FinanceiroService {
           entidadeId: pedidoId,
           detalhes: {
             valor,
+            formaPagamento: pagamento.formaPagamento,
             saldoRestante: Math.max(0, novoSaldo),
             dataPagamento: dataPagamento.toISOString(),
           },
@@ -282,7 +283,13 @@ export class FinanceiroService {
   }
 
   // Quitação total de uma vez: registra o saldo devedor restante como pagamento
-  async marcarPago(pedidoId: string, usuarioId: string, papel?: PapelUsuario, data?: string) {
+  async marcarPago(
+    pedidoId: string,
+    usuarioId: string,
+    papel?: PapelUsuario,
+    data?: string,
+    formaPagamento?: FormaPagamento,
+  ) {
     const pedido = await this.prisma.pedido.findUnique({
       where: { id: pedidoId },
       include: { pagamentos: true },
@@ -305,17 +312,20 @@ export class FinanceiroService {
       return atualizado;
     }
 
+    const forma = formaPagamento ?? pedido.formaPagamento;
     const { pedido: atualizado } = await this.registrarPagamento(
       pedidoId,
-      {
-        valor: saldoDevedor,
-        formaPagamento: pedido.formaPagamento,
-        observacao: 'Quitação total',
-        data,
-      },
+      { valor: saldoDevedor, formaPagamento: forma, observacao: 'Quitação total', data },
       usuarioId,
       papel,
     );
+    // Quitado de uma vez: a forma usada passa a ser a do pedido (relatórios e filtros usam ela)
+    if (forma !== pedido.formaPagamento) {
+      return this.prisma.pedido.update({
+        where: { id: pedidoId },
+        data: { formaPagamento: forma },
+      });
+    }
     return atualizado;
   }
 

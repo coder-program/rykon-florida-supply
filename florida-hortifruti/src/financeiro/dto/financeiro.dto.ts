@@ -1,13 +1,15 @@
-import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { FormaPagamento } from '@prisma/client';
+import { FORMAS_PAGAMENTO_ATIVAS, MENSAGEM_FORMA_INVALIDA } from '../../common/formas-pagamento';
 
 export class RegistrarPagamentoDto {
   @IsNumber()
   @Min(0.01)
   valor: number;
 
+  // Como o cliente pagou; vazio = a forma do pedido
   @IsOptional()
-  @IsEnum(FormaPagamento)
+  @IsIn(FORMAS_PAGAMENTO_ATIVAS, { message: MENSAGEM_FORMA_INVALIDA })
   formaPagamento?: FormaPagamento;
 
   @IsOptional()
@@ -25,4 +27,9 @@ export class MarcarPagoDto {
   @IsOptional()
   @IsString()
   data?: string;
+
+  // Como o cliente pagou; vazio = a forma do pedido
+  @IsOptional()
+  @IsIn(FORMAS_PAGAMENTO_ATIVAS, { message: MENSAGEM_FORMA_INVALIDA })
+  formaPagamento?: FormaPagamento;
 }
