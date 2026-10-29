@@ -56,6 +56,7 @@ export class EntradaEstoqueDto {
       quantidade: paraNumero(item?.quantidade) ?? 0,
       valorProduto: paraNumero(item?.valorProduto ?? item?.custoTotal) ?? 0,
       numeroLote: item?.numeroLote != null ? String(item.numeroLote) : undefined,
+      precoSugeridoVenda: paraNumero(item?.precoSugeridoVenda),
     }));
   })
   itens?: Array<{
@@ -63,6 +64,7 @@ export class EntradaEstoqueDto {
     quantidade: number;
     valorProduto: number;
     numeroLote?: string;
+    precoSugeridoVenda?: number;
   }>;
 
   // Lote da compra (ex.: 18/09 - lote 1). Vazio = próximo número do dia
@@ -120,6 +122,15 @@ export class AtualizarLoteDto {
   @IsOptional()
   @IsString()
   numero?: string;
+
+  // null limpa o preço sugerido
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === undefined ? undefined : value === null || value === '' ? null : Number(value),
+  )
+  @IsNumber({}, { message: 'Preço sugerido inválido' })
+  @Min(0)
+  precoSugeridoVenda?: number | null;
 
   @IsOptional()
   @IsString()

@@ -439,6 +439,8 @@ model LoteProduto {
   quantidadeInicial    Decimal  @db.Decimal(10, 2)
   quantidadeDisponivel Decimal  @db.Decimal(10, 2)
   valorUnitario        Decimal  @db.Decimal(10, 2)
+  // Preço mínimo de venda por caixa, informado na entrada; só referência no pedido
+  precoSugeridoVenda   Decimal? @db.Decimal(10, 2)
   observacao           String?
   ativo                Boolean  @default(true)
   criadoEm             DateTime @default(now())

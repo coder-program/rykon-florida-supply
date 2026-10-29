@@ -43,6 +43,10 @@ export class EstoqueController {
           quantidade: Number(item.quantidade),
           valorProduto: Number(item.valorProduto ?? item.custoTotal ?? 0),
           numeroLote: item.numeroLote != null ? String(item.numeroLote) : undefined,
+          precoSugeridoVenda:
+            item.precoSugeridoVenda != null && Number(item.precoSugeridoVenda) > 0
+              ? Number(item.precoSugeridoVenda)
+              : undefined,
         }))
       : dto.produtoId
         ? [

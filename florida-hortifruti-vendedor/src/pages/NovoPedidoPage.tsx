@@ -23,6 +23,7 @@ interface LoteDisponivel {
   numero: string
   dataEntrada: string
   quantidadeDisponivel: number
+  precoSugeridoVenda?: number | null
 }
 
 function rotuloLote(l: LoteDisponivel) {
@@ -369,6 +370,10 @@ function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: I
     return lotes.find((l) => l.id === loteId)?.quantidadeDisponivel ?? 0
   }
 
+  function precoSugeridoLote(loteId?: string) {
+    return lotes.find((l) => l.id === loteId)?.precoSugeridoVenda ?? null
+  }
+
   function atualizar(index: number, patch: Partial<Item>) {
     onChange(itens.map((i, idx) => (idx === index ? { ...i, ...patch } : i)))
   }
@@ -523,6 +528,19 @@ function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: I
                         <Plus className="w-4 h-4" />
                       </button>
                     </div>
+                    {(() => {
+                      const sugerido = precoSugeridoLote(item.loteId)
+                      if (sugerido == null) return null
+                      const abaixo = item.valorUnitario > 0 && item.valorUnitario < sugerido
+                      return (
+                        <p
+                          className={`text-xs ${abaixo ? 'font-medium text-amber-700' : 'text-gray-500'}`}
+                        >
+                          Preço sugerido: {formatBRL(sugerido)}/cx
+                          {abaixo ? ' • preço abaixo do sugerido' : ''}
+                        </p>
+                      )
+                    })()}
                     {item.loteId && item.quantidade > saldo && (
                       <p className="text-xs text-red-600">
                         Saldo insuficiente: o lote tem {saldo} cx. Selecione outro lote ou divida.

@@ -30,6 +30,7 @@ type LoteDisponivel = {
   numero: string
   dataEntrada: string
   quantidadeDisponivel: number
+  precoSugeridoVenda?: number | null
 }
 
 // Cada linha é produto + lote. O lote é escolhido por quem faz o pedido (nunca automático) e o
@@ -141,6 +142,10 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
 
   function saldoLote(loteId: string) {
     return lotes.find((l) => l.id === loteId)?.quantidadeDisponivel ?? 0
+  }
+
+  function precoSugeridoLote(loteId: string) {
+    return lotes.find((l) => l.id === loteId)?.precoSugeridoVenda ?? null
   }
 
   function atualizar(index: number, patch: Partial<ItemNovoPedido>) {
@@ -358,6 +363,19 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
                             <Plus className="w-3 h-3" />
                           </button>
                         </div>
+                        {(() => {
+                          const sugerido = precoSugeridoLote(item.loteId)
+                          if (sugerido == null) return null
+                          const abaixo = item.valorUnitario > 0 && item.valorUnitario < sugerido
+                          return (
+                            <p
+                              className={`text-xs ${abaixo ? 'font-medium text-amber-700' : 'text-gray-500'}`}
+                            >
+                              Preço sugerido: {formatBRL(sugerido)}/cx
+                              {abaixo ? ' • preço abaixo do sugerido' : ''}
+                            </p>
+                          )
+                        })()}
                         {item.loteId && item.quantidade > saldo && (
                           <p className="text-xs text-red-600">
                             Saldo insuficiente: o lote tem {saldo} cx. Selecione outro lote ou

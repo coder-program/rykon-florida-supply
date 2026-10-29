@@ -21,6 +21,7 @@ type Lote = {
   quantidadeDisponivel: number
   quantidadeVendida: number
   valorUnitario: number
+  precoSugeridoVenda: number | null
   observacao: string | null
   compraId: string | null
   vendas: {
@@ -44,6 +45,7 @@ const FORM_VAZIO = {
   produtoId: '',
   quantidade: '',
   valorProduto: 0,
+  precoSugeridoVenda: 0,
   observacao: '',
 }
 
@@ -60,7 +62,11 @@ export function LotesPage() {
   const [form, setForm] = useState({ ...FORM_VAZIO })
   const [erroNovo, setErroNovo] = useState('')
   const [editando, setEditando] = useState<Lote | null>(null)
-  const [formEdicao, setFormEdicao] = useState({ numero: '', observacao: '' })
+  const [formEdicao, setFormEdicao] = useState({
+    numero: '',
+    observacao: '',
+    precoSugeridoVenda: 0,
+  })
   const [erroEdicao, setErroEdicao] = useState('')
   const [vendasDe, setVendasDe] = useState<Lote | null>(null)
   const [compraEditando, setCompraEditando] = useState<string | null>(null)
@@ -125,6 +131,7 @@ export function LotesPage() {
             produtoId: form.produtoId,
             quantidade: Number(form.quantidade),
             valorProduto: Number(form.valorProduto || 0),
+            precoSugeridoVenda: form.precoSugeridoVenda > 0 ? form.precoSugeridoVenda : undefined,
           },
         ],
       }),
@@ -144,6 +151,8 @@ export function LotesPage() {
       api.patch(`/estoque/lotes/${editando!.id}`, {
         numero: formEdicao.numero,
         observacao: formEdicao.observacao,
+        precoSugeridoVenda:
+          formEdicao.precoSugeridoVenda > 0 ? formEdicao.precoSugeridoVenda : null,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['lotes'] })
@@ -267,7 +276,11 @@ export function LotesPage() {
                         size="sm"
                         onClick={() => {
                           setErroEdicao('')
-                          setFormEdicao({ numero: lote.numero, observacao: lote.observacao ?? '' })
+                          setFormEdicao({
+                            numero: lote.numero,
+                            observacao: lote.observacao ?? '',
+                            precoSugeridoVenda: lote.precoSugeridoVenda ?? 0,
+                          })
                           setEditando(lote)
                         }}
                         title="Editar lote"
@@ -348,6 +361,11 @@ export function LotesPage() {
               onValueChange={(valorProduto) => setForm((f) => ({ ...f, valorProduto }))}
             />
           </div>
+          <MoneyInput
+            label="Preço sugerido de venda (por caixa)"
+            value={form.precoSugeridoVenda}
+            onValueChange={(precoSugeridoVenda) => setForm((f) => ({ ...f, precoSugeridoVenda }))}
+          />
           <FornecedorSelect
             fornecedorId={form.fornecedorId}
             onChange={({ id, nome }) =>
@@ -407,6 +425,13 @@ export function LotesPage() {
             label="Observação"
             value={formEdicao.observacao}
             onChange={(e) => setFormEdicao((f) => ({ ...f, observacao: e.target.value }))}
+          />
+          <MoneyInput
+            label="Preço sugerido de venda (por caixa)"
+            value={formEdicao.precoSugeridoVenda}
+            onValueChange={(precoSugeridoVenda) =>
+              setFormEdicao((f) => ({ ...f, precoSugeridoVenda }))
+            }
           />
           <p className="text-xs text-gray-500">
             Quantidades mudam por entrada de estoque ou pelas vendas, não por aqui.

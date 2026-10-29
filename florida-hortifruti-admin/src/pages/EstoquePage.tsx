@@ -33,9 +33,19 @@ const MOTIVOS_AJUSTE = [
   'Ajuste inicial',
 ]
 
-type ItemForm = { produtoId: string; quantidade: string; valorProduto: number }
+type ItemForm = {
+  produtoId: string
+  quantidade: string
+  valorProduto: number
+  precoSugeridoVenda: number
+}
 
-const ITEM_VAZIO: ItemForm = { produtoId: '', quantidade: '', valorProduto: 0 }
+const ITEM_VAZIO: ItemForm = {
+  produtoId: '',
+  quantidade: '',
+  valorProduto: 0,
+  precoSugeridoVenda: 0,
+}
 
 function valorLinhaCompra(item: { valorProdutoInformado?: number; quantidade?: number }) {
   return Number(item.valorProdutoInformado ?? 0)
@@ -113,6 +123,8 @@ export function EstoquePage() {
             produtoId: item.produtoId,
             quantidade: Number(item.quantidade),
             valorProduto: Number(item.valorProduto || 0),
+            precoSugeridoVenda:
+              Number(item.precoSugeridoVenda) > 0 ? item.precoSugeridoVenda : undefined,
           })),
       }),
     onSuccess: () => {
@@ -444,6 +456,19 @@ export function EstoquePage() {
                       value={item.valorProduto}
                       onValueChange={(valorProduto) => atualizarItem(index, { valorProduto })}
                     />
+                    <div className="sm:col-span-2">
+                      <MoneyInput
+                        label="Preço sugerido de venda (por caixa)"
+                        value={item.precoSugeridoVenda}
+                        onValueChange={(precoSugeridoVenda) =>
+                          atualizarItem(index, { precoSugeridoVenda })
+                        }
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Valor mínimo para não ter prejuízo. Aparece como referência ao escolher o
+                        lote no pedido.
+                      </p>
+                    </div>
                   </div>
                   {preview && (
                     <p className="text-xs text-gray-500">

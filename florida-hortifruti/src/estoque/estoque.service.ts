@@ -7,6 +7,7 @@ type ItemEntrada = {
   quantidade: number;
   valorProduto: number;
   numeroLote?: string;
+  precoSugeridoVenda?: number;
 };
 
 @Injectable()
@@ -204,6 +205,7 @@ export class EstoqueService {
             quantidadeInicial: item.quantidade,
             quantidadeDisponivel: item.quantidade,
             valorUnitario: item.custoUnitarioFinal,
+            precoSugeridoVenda: itens[index]?.precoSugeridoVenda ?? null,
             observacao: params.observacao,
           },
         });
@@ -620,6 +622,8 @@ export class EstoqueService {
         quantidadeDisponivel: disponivel,
         quantidadeVendida: Number((inicial - disponivel).toFixed(2)),
         valorUnitario: Number(lote.valorUnitario),
+        precoSugeridoVenda:
+          lote.precoSugeridoVenda != null ? Number(lote.precoSugeridoVenda) : null,
         observacao: lote.observacao,
         compraId: lote.movimentacoesLote[0]?.movimentacao.itemCompra?.compraId ?? null,
         vendas: lote.itensPedido.map((item) => ({
@@ -647,16 +651,21 @@ export class EstoqueService {
         numero: true,
         dataEntrada: true,
         quantidadeDisponivel: true,
+        precoSugeridoVenda: true,
       },
       orderBy: [{ dataEntrada: 'asc' }, { criadoEm: 'asc' }],
     });
     return lotes.map((lote) => ({
       ...lote,
       quantidadeDisponivel: Number(lote.quantidadeDisponivel),
+      precoSugeridoVenda: lote.precoSugeridoVenda != null ? Number(lote.precoSugeridoVenda) : null,
     }));
   }
 
-  async atualizarLote(id: string, dados: { numero?: string; observacao?: string }) {
+  async atualizarLote(
+    id: string,
+    dados: { numero?: string; observacao?: string; precoSugeridoVenda?: number | null },
+  ) {
     const lote = await this.prisma.loteProduto.findUnique({ where: { id } });
     if (!lote) throw new NotFoundException('Lote não encontrado');
 
@@ -681,6 +690,9 @@ export class EstoqueService {
       data: {
         ...(numero ? { numero } : {}),
         ...(dados.observacao !== undefined ? { observacao: dados.observacao || null } : {}),
+        ...(dados.precoSugeridoVenda !== undefined
+          ? { precoSugeridoVenda: dados.precoSugeridoVenda || null }
+          : {}),
       },
     });
   }
