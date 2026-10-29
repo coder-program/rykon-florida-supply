@@ -8,7 +8,7 @@ import { Button } from '../components/ui/Button'
 import { Select } from '../components/ui/Input'
 
 const TIPO_LABEL: Record<string, string> = {
-  COMPRA_A_PRAZO: 'Compra a prazo',
+  COMPRA_A_PRAZO: 'Compra registrada',
   VENCE_EM_3_DIAS: '3 dias antes',
   VENCIMENTO_HOJE: 'Vencimento',
 }
@@ -18,6 +18,8 @@ const STATUS_CONFIG: Record<string, { label: string; badge: string }> = {
   ENVIADA: { label: 'Enviado', badge: 'bg-green-100 text-green-700' },
   CANCELADA: { label: 'Cancelado (pago)', badge: 'bg-gray-100 text-gray-600' },
 }
+
+const FECHO_AVISO = 'Qualquer coisa ficamos à disposição,\nFlorida Supply Hortifruti ;)'
 
 // wa.me precisa do número com DDI, só dígitos
 function linkWhatsApp(telefone: string | null | undefined, texto: string) {
@@ -85,7 +87,11 @@ export function AvisosCobranca() {
       <div className="divide-y divide-gray-100">
         {avisos.map((aviso: any) => {
           const telefone = aviso.cliente?.whatsapp || aviso.cliente?.telefone
-          const texto = `Olá, ${aviso.cliente?.razaoSocialOuNome ?? ''}! ${aviso.mensagem}\n\nFlorida Supply Hortifruti`
+          // Avisos novos já trazem o fecho; os antigos ganham o mesmo fecho aqui
+          const fecho = String(aviso.mensagem).includes('Florida Supply Hortifruti')
+            ? ''
+            : `\n\n${FECHO_AVISO}`
+          const texto = `Olá, ${aviso.cliente?.razaoSocialOuNome ?? ''}! ${aviso.mensagem}${fecho}`
           const link = linkWhatsApp(telefone, texto)
           const config = STATUS_CONFIG[aviso.status] ?? STATUS_CONFIG.PENDENTE
           return (
@@ -106,7 +112,7 @@ export function AvisosCobranca() {
                     <Badge className="bg-green-50 text-green-700">Visto no portal</Badge>
                   )}
                 </div>
-                <p className="text-sm text-gray-600">{aviso.mensagem}</p>
+                <p className="whitespace-pre-line text-sm text-gray-600">{aviso.mensagem}</p>
                 <p className="text-xs text-gray-400">
                   Criado {formatDateTime(aviso.criadoEm)}
                   {aviso.enviadaEm ? ` · enviado ${formatDateTime(aviso.enviadaEm)}` : ''}

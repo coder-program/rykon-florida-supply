@@ -75,7 +75,7 @@ export function AvisosPage() {
               </span>
             )}
           </div>
-          <p className="mt-1 text-sm text-gray-600">{aviso.mensagem}</p>
+          <p className="mt-1 whitespace-pre-line text-sm text-gray-600">{aviso.mensagem}</p>
           <div className="mt-2 flex items-center justify-between text-xs text-gray-400">
             <span>{formatDate(aviso.criadoEm)}</span>
             {aviso.pedidoId && (

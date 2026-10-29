@@ -6,6 +6,9 @@ export type TipoAvisoCobranca = 'COMPRA_A_PRAZO' | 'VENCE_EM_3_DIAS' | 'VENCIMEN
 const formatarBRL = (valor: number) =>
   valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+// Fecho de todos os avisos, logo depois da data de vencimento
+export const FECHO_AVISO = 'Qualquer coisa ficamos à disposição,\nFlorida Supply Hortifruti ;)';
+
 // dataVencimento é gravada como meia-noite UTC do dia escolhido
 const formatarData = (data: Date) => data.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 
@@ -22,22 +25,30 @@ export function montarAvisoCobranca(
   const data = formatarData(dados.vencimento);
   const pedido = `pedido nº ${dados.numeroPedido}`;
 
+  const comFecho = (texto: string) => `${texto}\n\n${FECHO_AVISO}`;
+
   if (tipo === 'COMPRA_A_PRAZO') {
     return {
-      titulo: 'Compra a prazo registrada',
-      mensagem: `Sua compra a prazo do ${pedido} foi registrada. Você tem ${valor} para pagar conosco até ${data}.`,
+      titulo: 'Compra registrada',
+      mensagem: comFecho(
+        `Sua compra do ${pedido} foi registrada. Você tem ${valor} para pagar conosco até ${data}.`,
+      ),
     };
   }
   if (tipo === 'VENCE_EM_3_DIAS') {
     return {
       titulo: 'Pagamento vence em 3 dias',
-      mensagem: `Lembrete: o pagamento do ${pedido}, no valor de ${valor}, vence em ${data}.`,
+      mensagem: comFecho(
+        `Lembrete: o pagamento do ${pedido}, no valor de ${valor}, vence em ${data}.`,
+      ),
     };
   }
   return {
     titulo: dados.vencido ? 'Pagamento vencido' : 'Pagamento vence hoje',
-    mensagem: dados.vencido
-      ? `O pagamento do ${pedido} venceu em ${data} e ainda consta em aberto: ${valor}. Se já pagou, desconsidere.`
-      : `O pagamento do ${pedido}, no valor de ${valor}, vence hoje (${data}). Se já pagou, desconsidere.`,
+    mensagem: comFecho(
+      dados.vencido
+        ? `O pagamento do ${pedido} venceu em ${data} e ainda consta em aberto: ${valor}. Se já pagou, desconsidere.`
+        : `O pagamento do ${pedido}, no valor de ${valor}, vence hoje (${data}). Se já pagou, desconsidere.`,
+    ),
   };
 }
