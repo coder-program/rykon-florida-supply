@@ -20,6 +20,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { api } from '../lib/api'
 import { formatBRL, STATUS_PEDIDO_LABEL } from '../lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
+import { LucroPorLote } from '../components/LucroPorLote'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -349,6 +350,8 @@ export function DashboardPage() {
     }))
 
   const lucroGeral = lucroDiario?.geral
+  // Lucro por dia segue o filtro de datas; por lote, o lote escolhido (qualquer data)
+  const [modoLucro, setModoLucro] = useState<'dia' | 'lote'>('dia')
   const vendasPorTipo =
     (lucroDiario?.porProduto?.length ? lucroDiario.porProduto : lucroDiario?.porTipoMorango) ?? []
   const lucroAnteriorTotal = Number(lucroAnterior?.geral?.lucroTotal ?? 0)
@@ -631,26 +634,56 @@ export function DashboardPage() {
             <CardHeader className="border-b border-green-50 bg-linear-to-r from-green-50 via-white to-white">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <CardTitle>O que vendemos</CardTitle>
+                  <CardTitle>{modoLucro === 'dia' ? 'O que vendemos' : 'Lucro por lote'}</CardTitle>
                   <p className="mt-1 text-xs text-gray-500">
-                    Total do período e quanto saiu de cada tipo de produto ·{' '}
-                    {rotuloPeriodo(periodo, datas)}
+                    {modoLucro === 'dia'
+                      ? `Total do período e quanto saiu de cada tipo de produto · ${rotuloPeriodo(periodo, datas)}`
+                      : 'Vendas e lucro de um lote, do cadastro até hoje'}
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled={vendasPorTipo.length === 0}
-                  onClick={exportarCsvLucro}
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  CSV
-                </Button>
+                <div className="flex items-center gap-2">
+                  {modoLucro === 'dia' && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={vendasPorTipo.length === 0}
+                      onClick={exportarCsvLucro}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      CSV
+                    </Button>
+                  )}
+                  <div className="flex rounded-xl bg-gray-100 p-1" role="tablist">
+                    {(
+                      [
+                        ['dia', 'Lucro por dia'],
+                        ['lote', 'Lucro por lote'],
+                      ] as const
+                    ).map(([valor, rotulo]) => (
+                      <button
+                        key={valor}
+                        type="button"
+                        role="tab"
+                        aria-selected={modoLucro === valor}
+                        onClick={() => setModoLucro(valor)}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                          modoLucro === valor
+                            ? 'bg-white text-gray-900 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-800'
+                        }`}
+                      >
+                        {rotulo}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4 p-5">
-              {lucroCarregando ? (
+              {modoLucro === 'lote' ? (
+                <LucroPorLote />
+              ) : lucroCarregando ? (
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                   {[...Array(4)].map((_, i) => (
                     <div key={i} className="h-20 animate-pulse rounded-xl bg-gray-100" />

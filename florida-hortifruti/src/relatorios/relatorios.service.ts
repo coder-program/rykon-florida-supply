@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { StatusPedido, StatusPagamento } from '@prisma/client';
 
@@ -348,6 +348,104 @@ export class RelatoriosService {
       },
       porProduto,
       porTipoMorango,
+    };
+  }
+
+  async lotesParaLucro() {
+    const lotes = await this.prisma.loteProduto.findMany({
+      select: {
+        id: true,
+        numero: true,
+        dataEntrada: true,
+        quantidadeInicial: true,
+        quantidadeDisponivel: true,
+        produto: { select: { nome: true } },
+      },
+      orderBy: [{ dataEntrada: 'desc' }, { criadoEm: 'desc' }],
+    });
+    return lotes.map((l) => ({
+      id: l.id,
+      numero: l.numero,
+      dataEntrada: l.dataEntrada,
+      produto: l.produto.nome,
+      quantidadeInicial: Number(l.quantidadeInicial),
+      quantidadeDisponivel: Number(l.quantidadeDisponivel),
+    }));
+  }
+
+  // Lucro das vendas de um lote: preço de venda de cada caixa menos o custo real do lote
+  // (valor do produto + frete e comissão rateados na entrada). Pedido cancelado/rejeitado não conta.
+  async lucroPorLote(loteId: string) {
+    const lote = await this.prisma.loteProduto.findUnique({
+      where: { id: loteId },
+      include: { produto: { select: { nome: true } } },
+    });
+    if (!lote) throw new NotFoundException('Lote não encontrado');
+
+    const vendas = await this.prisma.itemPedidoLote.findMany({
+      where: {
+        loteId,
+        quantidade: { gt: 0 },
+        pedido: { status: { notIn: [StatusPedido.CANCELADO, StatusPedido.REJEITADO] } },
+      },
+      include: {
+        pedido: {
+          select: {
+            id: true,
+            numero: true,
+            data: true,
+            cliente: { select: { razaoSocialOuNome: true } },
+          },
+        },
+      },
+      orderBy: { pedido: { data: 'desc' } },
+    });
+
+    const custoUnitario = Number(lote.valorUnitario);
+    const linhas = vendas.map((v) => {
+      const quantidade = Number(v.quantidade);
+      const faturamento = Number(v.valorTotal);
+      const custoTotal = custoUnitario * quantidade;
+      return {
+        pedidoId: v.pedido.id,
+        numeroPedido: v.pedido.numero,
+        data: v.pedido.data,
+        cliente: v.pedido.cliente?.razaoSocialOuNome ?? null,
+        quantidade,
+        valorUnitario: Number(v.valorUnitario),
+        faturamento,
+        custoTotal,
+        lucro: faturamento - custoTotal,
+      };
+    });
+
+    const totalVendido = linhas.reduce((acc, l) => acc + l.faturamento, 0);
+    const quantidadeTotal = linhas.reduce((acc, l) => acc + l.quantidade, 0);
+    const custoTotal = custoUnitario * quantidadeTotal;
+    const lucroTotal = totalVendido - custoTotal;
+    const quantidadeInicial = Number(lote.quantidadeInicial);
+
+    return {
+      lote: {
+        id: lote.id,
+        numero: lote.numero,
+        dataEntrada: lote.dataEntrada,
+        produto: lote.produto.nome,
+        quantidadeInicial,
+        quantidadeDisponivel: Number(lote.quantidadeDisponivel),
+        custoUnitario,
+        // Quanto custou o lote inteiro, para comparar com o que já voltou em vendas
+        custoLote: custoUnitario * quantidadeInicial,
+      },
+      geral: {
+        totalVendido,
+        custoTotal,
+        lucroTotal,
+        margemPercentual: totalVendido > 0 ? (lucroTotal / totalVendido) * 100 : 0,
+        quantidadeTotal,
+        precoMedio: quantidadeTotal > 0 ? totalVendido / quantidadeTotal : 0,
+      },
+      vendas: linhas,
     };
   }
 

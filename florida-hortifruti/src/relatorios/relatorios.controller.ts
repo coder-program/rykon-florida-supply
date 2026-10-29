@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { PapelUsuario } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -54,6 +54,29 @@ export class RelatoriosController {
   )
   lucroDiario(@Query() query: Record<string, string | undefined>) {
     return this.relatoriosService.lucroDiario(query ?? {});
+  }
+
+  // Lucro por lote (Dashboard): todos os lotes já cadastrados, inclusive os esgotados
+  @Get('relatorios/lucro-lote/lotes')
+  @Roles(
+    PapelUsuario.ADMINISTRATIVO,
+    PapelUsuario.ADMINISTRADOR,
+    PapelUsuario.SUPERVISOR,
+    PapelUsuario.VISAO_GERAL,
+  )
+  lotesParaLucro() {
+    return this.relatoriosService.lotesParaLucro();
+  }
+
+  @Get('relatorios/lucro-lote/:loteId')
+  @Roles(
+    PapelUsuario.ADMINISTRATIVO,
+    PapelUsuario.ADMINISTRADOR,
+    PapelUsuario.SUPERVISOR,
+    PapelUsuario.VISAO_GERAL,
+  )
+  lucroPorLote(@Param('loteId') loteId: string) {
+    return this.relatoriosService.lucroPorLote(loteId);
   }
 
   @Get('relatorios/financeiro')
