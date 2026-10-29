@@ -14,6 +14,7 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import ExcelJS from 'exceljs'
 import { api } from '../lib/api'
+import { useAuth } from '../contexts/useAuth'
 import { formatBRL, formatDate, FORMA_PAGAMENTO_LABEL } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Badge } from '../components/ui/Badge'
@@ -87,6 +88,8 @@ function getPeriodoDates(p: string) {
 
 export function FinanceiroPage() {
   const qc = useQueryClient()
+  // Supervisor vê e registra pagamentos; reabrir (estornar) fica com o financeiro
+  const { isFinanceiro } = useAuth()
   const [periodo, setPeriodo] = useState('mes')
   const [filtroSituacao, setFiltroSituacao] = useState('')
   const [filtroForma, setFiltroForma] = useState('')
@@ -318,7 +321,7 @@ export function FinanceiroPage() {
                     <Button size="sm" onClick={() => setPagando(c)}>
                       Pago
                     </Button>
-                  ) : (
+                  ) : isFinanceiro ? (
                     <Button
                       size="sm"
                       variant="secondary"
@@ -329,7 +332,7 @@ export function FinanceiroPage() {
                     >
                       Reabrir
                     </Button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             )

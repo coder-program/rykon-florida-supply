@@ -93,7 +93,7 @@ const ACOES_LOTE: Record<
   aprovar: {
     label: 'Aprovar pedidos',
     feito: 'aprovado(s)',
-    papeis: ['ADMINISTRADOR', 'ADMINISTRATIVO'],
+    papeis: ['ADMINISTRADOR', 'ADMINISTRATIVO', 'SUPERVISOR'],
     aplica: (p) => p.status === 'AGUARDANDO_APROVACAO',
   },
   entregue: {

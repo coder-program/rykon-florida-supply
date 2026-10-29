@@ -8,7 +8,7 @@ import { MarcarPagoDto, RegistrarPagamentoDto } from './dto/financeiro.dto';
 
 @Controller('financeiro')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+@Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
 export class FinanceiroController {
   constructor(private financeiroService: FinanceiroService) {}
 
@@ -60,7 +60,9 @@ export class FinanceiroController {
     return this.financeiroService.registrarPagamento(pedidoId, dto, req.user.id, req.user.papel);
   }
 
+  // Estorno da quitação: só o financeiro, mesmo com o supervisor vendo a aba
   @Post('reabrir/:pedidoId')
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
   reabrir(@Param('pedidoId') pedidoId: string, @Request() req: any) {
     return this.financeiroService.reabrir(pedidoId, req.user.id);
   }
