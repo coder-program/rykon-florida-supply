@@ -110,9 +110,28 @@ export class MotoristaService {
         itens: { include: { produto: { select: { id: true, nome: true, unidadeVenda: true } } } },
         comprovanteEntrega: true,
       },
-      orderBy: { data: 'asc' },
+      // Ordem da rota definida pelo supervisor; sem ela, pela data do pedido
+      orderBy: [{ ordemRota: { sort: 'asc', nulls: 'last' } }, { data: 'asc' }],
     });
     return Promise.all(pedidos.map((p) => this.formatar(p)));
+  }
+
+  async registrarLocalizacao(
+    motoristaId: string,
+    dto: { latitude: number; longitude: number; precisao?: number },
+  ) {
+    const dados = {
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      precisao: dto.precisao ?? null,
+      atualizadoEm: new Date(),
+    };
+    await this.prisma.localizacaoMotorista.upsert({
+      where: { usuarioId: motoristaId },
+      create: { usuarioId: motoristaId, ...dados },
+      update: dados,
+    });
+    return { ok: true };
   }
 
   async detalhe(id: string, motoristaId: string) {

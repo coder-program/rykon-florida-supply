@@ -19,6 +19,7 @@ import {
   Route,
   ExternalLink,
   PiggyBank,
+  MapPinned,
   X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/useAuth'
@@ -35,6 +36,7 @@ const navItems = [
   { to: '/metas', icon: Target, label: 'Metas' },
   { to: '/pedidos', icon: ShoppingCart, label: 'Pedidos' },
   { to: '/devolucoes', icon: RotateCcw, label: 'Devoluções' },
+  { to: '/entregas', icon: MapPinned, label: 'Acompanhar entregas' },
   { to: '/solicitacoes', icon: ClipboardList, label: 'Solicitações de Alteração' },
   { to: '/clientes', icon: Users, label: 'Clientes' },
   { to: '/produtos', icon: Package, label: 'Produtos' },
@@ -187,7 +189,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             >
               <Route className="h-4 w-4" />
               <span className="flex items-center gap-2">
-                Entregas
+                Minhas entregas
                 <ExternalLink className="h-3 w-3" />
               </span>
             </a>

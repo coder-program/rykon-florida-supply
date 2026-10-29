@@ -61,6 +61,7 @@ model Usuario {
 
   investimentos          Investimento[]
   devolucoesInvestimento DevolucaoInvestimento[]
+  localizacao            LocalizacaoMotorista?
 
   @@map("usuarios")
 }
@@ -112,6 +113,11 @@ model Endereco {
   cidadeId                     String
   cidade                       Cidade               @relation(fields: [cidadeId], references: [id])
   pontoReferencia              String?
+  // Ponto no mapa (acompanhamento das entregas); preenchido sob demanda pela geocodificação
+  latitude                     Float?
+  longitude                    Float?
+  // Última tentativa de geocodificar (com ou sem sucesso), para não repetir a toda hora
+  geocodificadoEm              DateTime?
   criadoEm                     DateTime             @default(now())
   atualizadoEm                 DateTime             @updatedAt
   usuariosComEnderecoPrincipal Usuario[]            @relation("EnderecoPrincipalUsuario")
@@ -304,6 +310,8 @@ model Pedido {
   // Pedido de revendedor: preço que ele cobra do cliente dele, por produto ({ produtoId: valor }).
   // Só para o controle dele; os itens levam o preço da Flórida para ele
   precosRevenda     Json?
+  // Posição na rota do entregador, definida pelo supervisor; nulo = ordem em que ficou pronto
+  ordemRota         Int?
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
@@ -691,4 +699,21 @@ model DevolucaoInvestimento {
 
   @@index([investimentoId])
   @@map("devolucoes_investimento")
+}
+
+// ==========================================
+// ACOMPANHAMENTO DAS ENTREGAS
+// ==========================================
+
+// Última posição enviada pelo app do motorista (com o app aberto)
+model LocalizacaoMotorista {
+  usuarioId    String   @id
+  usuario      Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  latitude     Float
+  longitude    Float
+  // Precisão em metros informada pelo GPS
+  precisao     Float?
+  atualizadoEm DateTime @default(now())
+
+  @@map("localizacoes_motorista")
 }

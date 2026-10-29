@@ -16,6 +16,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { MotoristaService } from './motorista.service';
 import { ConfirmarEntregaMotoristaDto, ScanEtiquetaDto } from '../pedidos/dto/pedido.dto';
+import { LocalizacaoMotoristaDto } from './dto/localizacao.dto';
 
 @Controller('motorista/entregas')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -27,6 +28,12 @@ export class MotoristaController {
   @Get()
   listar(@Request() req: any) {
     return this.motoristaService.listar(req.user.id);
+  }
+
+  // Posição do celular enquanto o app está aberto (acompanhamento das entregas no painel)
+  @Post('localizacao')
+  localizacao(@Body() dto: LocalizacaoMotoristaDto, @Request() req: any) {
+    return this.motoristaService.registrarLocalizacao(req.user.id, dto);
   }
 
   // Leitura do QR Code da etiqueta pela câmera do celular -> avança para "a caminho" (EM_ENTREGA)

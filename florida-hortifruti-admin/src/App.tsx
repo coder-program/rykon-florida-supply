@@ -21,6 +21,7 @@ import { SolicitacoesAlteracaoPage } from './pages/SolicitacoesAlteracaoPage'
 import { DevolucoesPage } from './pages/DevolucoesPage'
 import { AbrirPedidoPage } from './pages/AbrirPedidoPage'
 import { InvestimentosPage } from './pages/InvestimentosPage'
+import { AcompanhamentoEntregasPage } from './pages/AcompanhamentoEntregasPage'
 import { ROUTER_BASENAME } from './lib/session'
 import { rotasPermitidas } from './lib/permissoes'
 
@@ -65,6 +66,7 @@ export default function App() {
                 <Route path="/financeiro" element={<FinanceiroPage />} />
                 <Route path="/solicitacoes" element={<SolicitacoesAlteracaoPage />} />
                 <Route path="/devolucoes" element={<DevolucoesPage />} />
+                <Route path="/entregas" element={<AcompanhamentoEntregasPage />} />
                 <Route
                   path="/usuarios"
                   element={

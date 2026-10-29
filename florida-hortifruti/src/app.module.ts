@@ -18,6 +18,7 @@ import { DevolucoesModule } from './devolucoes/devolucoes.module';
 import { MetasModule } from './metas/metas.module';
 import { FornecedoresModule } from './fornecedores/fornecedores.module';
 import { InvestimentosModule } from './investimentos/investimentos.module';
+import { EntregasModule } from './entregas/entregas.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { InvestimentosModule } from './investimentos/investimentos.module';
     MetasModule,
     FornecedoresModule,
     InvestimentosModule,
+    EntregasModule,
   ],
 })
 export class AppModule {}

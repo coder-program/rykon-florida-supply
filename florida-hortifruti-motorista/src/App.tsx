@@ -11,6 +11,7 @@ import { ScannerPage } from './pages/ScannerPage'
 import { DevolucoesPage } from './pages/DevolucoesPage'
 import { ROUTER_BASENAME } from './lib/session'
 import { PageTransition } from './components/PageTransition'
+import { Localizacao } from './components/Localizacao'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 15_000 } },
@@ -22,53 +23,58 @@ function PrivateRoute({ children }: { children: ReactNode }) {
 }
 
 function AppRoutes() {
+  const { usuario } = useAuth()
   return (
-    <PageTransition>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/"
-          element={
-            <PrivateRoute>
-              <EntregasPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/entrega/:id"
-          element={
-            <PrivateRoute>
-              <EntregaDetalhePage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/entrega/:id/confirmar"
-          element={
-            <PrivateRoute>
-              <ConfirmarPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/scan"
-          element={
-            <PrivateRoute>
-              <ScannerPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/devolucoes"
-          element={
-            <PrivateRoute>
-              <DevolucoesPage />
-            </PrivateRoute>
-          }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </PageTransition>
+    <>
+      {/* Posição para o acompanhamento das entregas, em qualquer tela do app */}
+      {usuario && <Localizacao />}
+      <PageTransition>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/"
+            element={
+              <PrivateRoute>
+                <EntregasPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/entrega/:id"
+            element={
+              <PrivateRoute>
+                <EntregaDetalhePage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/entrega/:id/confirmar"
+            element={
+              <PrivateRoute>
+                <ConfirmarPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/scan"
+            element={
+              <PrivateRoute>
+                <ScannerPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/devolucoes"
+            element={
+              <PrivateRoute>
+                <DevolucoesPage />
+              </PrivateRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </PageTransition>
+    </>
   )
 }
 
