@@ -26,6 +26,7 @@ import { UpsertPrecoClienteDto } from '../produtos/dto/produto.dto';
   PapelUsuario.SUPERVISOR,
   PapelUsuario.ADMINISTRATIVO,
   PapelUsuario.ADMINISTRADOR,
+  PapelUsuario.REVENDEDOR,
 )
 export class ClientesController {
   constructor(
@@ -34,33 +35,41 @@ export class ClientesController {
   ) {}
 
   @Post()
-  create(@Body() dto: CreateClienteDto) {
-    return this.clientesService.create(dto);
+  create(@Body() dto: CreateClienteDto, @Request() req: any) {
+    return this.clientesService.create(dto, req.user);
   }
 
   @Get()
-  findAll(@Query('busca') busca?: string, @Query('incluirInativos') incluirInativos?: string) {
-    if (busca) return this.clientesService.search(busca);
-    return this.clientesService.findAll(incluirInativos === 'true');
+  findAll(
+    @Request() req: any,
+    @Query('busca') busca?: string,
+    @Query('incluirInativos') incluirInativos?: string,
+  ) {
+    if (busca) return this.clientesService.search(busca, req.user);
+    return this.clientesService.findAll(incluirInativos === 'true', req.user);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  async findOne(@Param('id') id: string, @Request() req: any) {
+    await this.clientesService.garantirAcesso(id, req.user);
     return this.clientesService.findOne(id);
   }
 
   @Put(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateClienteDto) {
+  async update(@Param('id') id: string, @Body() dto: UpdateClienteDto, @Request() req: any) {
+    await this.clientesService.garantirAcesso(id, req.user);
     return this.clientesService.update(id, dto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  async remove(@Param('id') id: string, @Request() req: any) {
+    await this.clientesService.garantirAcesso(id, req.user);
     return this.clientesService.remove(id);
   }
 
   @Post(':id/reativar')
-  reativar(@Param('id') id: string) {
+  async reativar(@Param('id') id: string, @Request() req: any) {
+    await this.clientesService.garantirAcesso(id, req.user);
     return this.clientesService.reativar(id);
   }
 

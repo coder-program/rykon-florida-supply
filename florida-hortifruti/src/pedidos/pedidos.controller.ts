@@ -25,6 +25,7 @@ import {
   RejeitarPedidoDto,
   AtribuirPedidoDto,
   AtualizarItensPedidoDto,
+  PrecosRevendaDto,
 } from './dto/pedido.dto';
 
 const EQUIPE = [
@@ -37,6 +38,7 @@ const EQUIPE_VENDEDOR = [
   PapelUsuario.ADMINISTRADOR,
   PapelUsuario.VENDEDOR,
   PapelUsuario.SUPERVISOR,
+  PapelUsuario.REVENDEDOR,
 ] as const;
 
 @Controller('pedidos')
@@ -47,7 +49,14 @@ export class PedidosController {
 
   @Post()
   create(@Body() dto: CreatePedidoDto, @Request() req: any) {
-    return this.pedidosService.create(dto, req.user.id);
+    return this.pedidosService.create(dto, req.user.id, { papel: req.user.papel });
+  }
+
+  // Revendedor ajusta o preço que cobra dos clientes dele (só controle dele)
+  @Patch(':id/precos-revenda')
+  @Roles(PapelUsuario.REVENDEDOR)
+  precosRevenda(@Param('id') id: string, @Body() dto: PrecosRevendaDto, @Request() req: any) {
+    return this.pedidosService.atualizarPrecosRevenda(id, dto.precos, req.user.id, req.user.papel);
   }
 
   @Get()

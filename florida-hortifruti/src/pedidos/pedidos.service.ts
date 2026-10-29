@@ -28,6 +28,7 @@ import {
   TipoMovimentacao,
 } from '@prisma/client';
 import { StorageService } from '../common/storage.service';
+import { vendeSoOSeu } from '../common/papeis';
 import { dataEfetiva } from '../common/data-efetiva';
 import { registrarHistoricoStatus } from './historico-status.util';
 import { montarAvisoCobranca } from '../financeiro/avisos-cobranca.util';
@@ -83,22 +84,32 @@ export class PedidosService implements OnApplicationBootstrap {
   async create(
     dto: CreatePedidoDto,
     vendedorId: string | null,
-    opts: { origem?: OrigemPedido; clienteId?: string } = {},
+    opts: { origem?: OrigemPedido; clienteId?: string; papel?: PapelUsuario } = {},
   ) {
     this.validarLotesRepetidos(dto.itens);
     await this.validarEstoque(dto.itens);
-    const itensCalculados = dto.itens.map((item) => ({
+    const origem = opts.origem ?? OrigemPedido.VENDEDOR;
+    const clienteId = opts.clienteId ?? dto.clienteId;
+    const revendedor = opts.papel === PapelUsuario.REVENDEDOR;
+    await this.validarDonoDoCliente(clienteId, vendedorId, revendedor);
+
+    // Revendedor: o preço digitado é o que ele cobra do cliente dele (fica em precosRevenda);
+    // o pedido sai com o preço da Flórida para ele, que o financeiro ajusta antes de aprovar
+    const precosRevenda = revendedor ? this.mapaPrecosRevenda(dto.itens) : undefined;
+    const itensBase = revendedor ? await this.comPrecoFlorida(dto.itens) : dto.itens;
+    const itensCalculados = itensBase.map((item) => ({
       ...item,
       valorTotal: item.quantidade * item.valorUnitario,
     }));
 
     const subtotal = itensCalculados.reduce((acc, i) => acc + i.valorTotal, 0);
-    const frete = dto.valorFrete ?? 0;
-    const desconto =
-      dto.descontoValor ?? (dto.descontoPercentual ? (subtotal * dto.descontoPercentual) / 100 : 0);
+    // Frete e desconto do revendedor são entre ele e o cliente dele
+    const frete = revendedor ? 0 : (dto.valorFrete ?? 0);
+    const desconto = revendedor
+      ? 0
+      : (dto.descontoValor ??
+        (dto.descontoPercentual ? (subtotal * dto.descontoPercentual) / 100 : 0));
     const totalFinal = subtotal + frete - desconto;
-    const origem = opts.origem ?? OrigemPedido.VENDEDOR;
-    const clienteId = opts.clienteId ?? dto.clienteId;
 
     const pedido = await this.prisma.$transaction(async (tx) => {
       const criado = await tx.pedido.create({
@@ -112,8 +123,9 @@ export class PedidosService implements OnApplicationBootstrap {
           valorFrete: frete,
           freteInclusoNoPreco: dto.freteInclusoNoPreco ?? false,
           descontoValor: desconto,
-          descontoPercentual: dto.descontoPercentual,
+          descontoPercentual: revendedor ? null : dto.descontoPercentual,
           totalFinal,
+          precosRevenda,
           formaPagamento: dto.formaPagamento,
           dataVencimento: dto.dataVencimento ? new Date(dto.dataVencimento) : undefined,
           condicaoNegociada: dto.condicaoNegociada,
@@ -153,7 +165,7 @@ export class PedidosService implements OnApplicationBootstrap {
   findAll(filtros: FiltrosPedidoDto = {}, usuarioId?: string, papel?: PapelUsuario) {
     const where: any = {};
 
-    if (papel === PapelUsuario.VENDEDOR) {
+    if (vendeSoOSeu(papel)) {
       where.vendedorId = usuarioId;
     } else if (filtros.vendedorId) {
       where.vendedorId = filtros.vendedorId;
@@ -193,7 +205,9 @@ export class PedidosService implements OnApplicationBootstrap {
         // Pela data da venda (pode ser anterior ao cadastro); no mesmo dia, o mais recente primeiro
         orderBy: [{ data: 'desc' }, { criadoEm: 'desc' }],
       })
-      .then((pedidos) => pedidos.map((p) => this.marcarAguardandoAlteracao(p)));
+      .then((pedidos) =>
+        pedidos.map((p) => this.semCustoParaRevendedor(this.marcarAguardandoAlteracao(p), papel)),
+      );
   }
 
   async findOne(id: string, usuarioId?: string, papel?: PapelUsuario) {
@@ -219,7 +233,7 @@ export class PedidosService implements OnApplicationBootstrap {
       },
     });
     if (!pedido) throw new NotFoundException('Pedido não encontrado');
-    if (papel === PapelUsuario.VENDEDOR && pedido.vendedorId !== usuarioId) {
+    if (vendeSoOSeu(papel) && pedido.vendedorId !== usuarioId) {
       throw new ForbiddenException('Você não tem acesso a este pedido');
     }
 
@@ -247,7 +261,89 @@ export class PedidosService implements OnApplicationBootstrap {
       };
     });
 
-    return this.marcarAguardandoAlteracao({ ...pedido, devolucoes });
+    return this.semCustoParaRevendedor(
+      this.marcarAguardandoAlteracao({ ...pedido, devolucoes }),
+      papel,
+    );
+  }
+
+  // Revendedor nunca vê custo da Flórida (o produto vem junto nos itens)
+  private semCustoParaRevendedor<T extends { itens?: any[] }>(pedido: T, papel?: PapelUsuario) {
+    if (papel !== PapelUsuario.REVENDEDOR || !pedido.itens) return pedido;
+    return {
+      ...pedido,
+      itens: pedido.itens.map((item) =>
+        item.produto ? { ...item, produto: { ...item.produto, custo: undefined } } : item,
+      ),
+    };
+  }
+
+  // Cliente do revendedor só nos pedidos dele; o da Flórida, só nos da Flórida
+  private async validarDonoDoCliente(
+    clienteId: string,
+    usuarioId: string | null,
+    revendedor: boolean,
+  ) {
+    const cliente = await this.prisma.cliente.findUnique({
+      where: { id: clienteId },
+      select: { revendedorId: true },
+    });
+    if (!cliente) throw new NotFoundException('Cliente não encontrado');
+    if (revendedor ? cliente.revendedorId !== usuarioId : cliente.revendedorId !== null) {
+      throw new ForbiddenException('Este cliente não pode ser usado neste pedido');
+    }
+  }
+
+  private mapaPrecosRevenda(itens: { produtoId: string; valorUnitario: number }[]) {
+    const mapa: Record<string, number> = {};
+    for (const item of itens) {
+      if (mapa[item.produtoId] === undefined)
+        mapa[item.produtoId] = Number(item.valorUnitario) || 0;
+    }
+    return mapa;
+  }
+
+  // Preço inicial da Flórida para o revendedor: o preço sugerido do lote, senão o do produto
+  private async comPrecoFlorida<
+    T extends { produtoId: string; loteId?: string | null; valorUnitario: number },
+  >(itens: T[]) {
+    const loteIds = itens.map((i) => i.loteId).filter((id): id is string => !!id);
+    const [lotes, produtos] = await Promise.all([
+      this.prisma.loteProduto.findMany({
+        where: { id: { in: loteIds } },
+        select: { id: true, precoSugeridoVenda: true },
+      }),
+      this.prisma.produto.findMany({
+        where: { id: { in: [...new Set(itens.map((i) => i.produtoId))] } },
+        select: { id: true, precoSugerido: true },
+      }),
+    ]);
+    return itens.map((item) => {
+      const lote = lotes.find((l) => l.id === item.loteId);
+      const produto = produtos.find((p) => p.id === item.produtoId);
+      const preco = lote?.precoSugeridoVenda ?? produto?.precoSugerido ?? 0;
+      return { ...item, valorUnitario: Number(preco) };
+    });
+  }
+
+  async atualizarPrecosRevenda(
+    id: string,
+    precos: { produtoId: string; valor: number }[],
+    usuarioId: string,
+    papel: PapelUsuario,
+  ) {
+    const pedido = await this.findOne(id, usuarioId, papel);
+    const produtosDoPedido = new Set(pedido.itens.map((i: any) => i.produtoId));
+    const atual = (pedido.precosRevenda ?? {}) as Record<string, number>;
+    const novo: Record<string, number> = { ...atual };
+    for (const p of precos) {
+      if (!produtosDoPedido.has(p.produtoId)) {
+        throw new BadRequestException('Produto não pertence ao pedido');
+      }
+      novo[p.produtoId] = Number(p.valor) || 0;
+    }
+    await this.prisma.pedido.update({ where: { id }, data: { precosRevenda: novo } });
+    return this.findOne(id, usuarioId, papel);
   }
 
   async rastreioLotes(id: string, usuarioId?: string, papel?: PapelUsuario) {
@@ -581,7 +677,7 @@ export class PedidosService implements OnApplicationBootstrap {
       throw new BadRequestException('Não é possível editar pedido neste status');
     }
 
-    if (papel === PapelUsuario.VENDEDOR) {
+    if (vendeSoOSeu(papel)) {
       throw new ForbiddenException('Para alterar a quantidade, envie uma solicitação de alteração');
     }
 
@@ -1181,7 +1277,7 @@ export class PedidosService implements OnApplicationBootstrap {
   ) {
     const where: Prisma.SolicitacaoAlteracaoPedidoWhereInput = {};
     if (filtros.status) where.status = filtros.status;
-    if (papel === PapelUsuario.VENDEDOR) where.solicitanteId = usuarioId;
+    if (vendeSoOSeu(papel)) where.solicitanteId = usuarioId;
 
     const lista = await this.prisma.solicitacaoAlteracaoPedido.findMany({
       where,

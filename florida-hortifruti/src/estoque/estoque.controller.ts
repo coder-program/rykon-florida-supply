@@ -111,9 +111,14 @@ export class EstoqueController {
     PapelUsuario.SUPERVISOR,
     PapelUsuario.ADMINISTRATIVO,
     PapelUsuario.ADMINISTRADOR,
+    PapelUsuario.REVENDEDOR,
   )
-  lotesDisponiveis(@Query('produtoId') produtoId?: string) {
-    return this.estoqueService.lotesDisponiveis(produtoId);
+  async lotesDisponiveis(@Request() req: any, @Query('produtoId') produtoId?: string) {
+    const lotes = await this.estoqueService.lotesDisponiveis(produtoId);
+    // Preço sugerido sai do custo da Flórida: o revendedor vê só as caixas
+    return req.user.papel === PapelUsuario.REVENDEDOR
+      ? lotes.map((l) => ({ ...l, precoSugeridoVenda: null }))
+      : lotes;
   }
 
   @Get('lotes/proximo-numero')

@@ -24,6 +24,9 @@ enum PapelUsuario {
   ADMINISTRADOR
   MOTORISTA
   CLIENTE
+  // Compra da Flórida para revender: só os próprios pedidos, clientes e devoluções, e o
+  // estoque em caixas (sem custo)
+  REVENDEDOR
 }
 
 model Usuario {
@@ -44,6 +47,7 @@ model Usuario {
   pedidosCriados              Pedido[]                     @relation("VendedorPedido")
   pedidosEntrega              Pedido[]                     @relation("EntregadorPedido")
   cliente                     Cliente?
+  clientesRevendedor          Cliente[]                    @relation("ClientesRevendedor")
   pushInscricoes              PushInscricao[]
   ajustesEstoque              MovimentacaoEstoque[]
   comprasEstoque              CompraEstoque[]
@@ -128,6 +132,9 @@ enum StatusConviteCliente {
 
 model Cliente {
   id                  String   @id @default(uuid())
+  // Cliente do revendedor: só ele vê; nulo = cliente da Flórida
+  revendedorId        String?
+  revendedor          Usuario? @relation("ClientesRevendedor", fields: [revendedorId], references: [id])
   razaoSocialOuNome   String
   nomeFantasia        String?
   cnpjCpf             String   @unique
@@ -153,6 +160,7 @@ model Cliente {
   historicoPrecos HistoricoPreco[]
   notificacoes    NotificacaoCliente[]
 
+  @@index([revendedorId])
   @@map("clientes")
 }
 
@@ -293,6 +301,9 @@ model Pedido {
   recebidoPor       String?
   observacaoEntrega String?
   fotoEntrega       String?   @db.Text
+  // Pedido de revendedor: preço que ele cobra do cliente dele, por produto ({ produtoId: valor }).
+  // Só para o controle dele; os itens levam o preço da Flórida para ele
+  precosRevenda     Json?
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt

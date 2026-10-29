@@ -12,6 +12,7 @@ import {
   statusPedidoVisivel,
 } from '../lib/utils'
 import { useAuth } from '../contexts/useAuth'
+import { ResumoRevenda } from '../components/ResumoRevenda'
 
 const STATUS_PODE_SOLICITAR = ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA']
 const STATUS_PODE_EDITAR_DIRETO = ['ENVIADO']
@@ -323,6 +324,7 @@ export function DetalhePedidoPage() {
           />
           {p.statusPagamento !== 'PAGO' &&
             !['CANCELADO', 'REJEITADO'].includes(p.status) &&
+            usuario?.papel !== 'REVENDEDOR' &&
             (usuario?.papel === 'SUPERVISOR' || p.vendedorId === usuario?.id) && (
               <button
                 type="button"
@@ -461,9 +463,13 @@ export function DetalhePedidoPage() {
           </div>
         )}
 
+        {usuario?.papel === 'REVENDEDOR' && <ResumoRevenda pedido={p} />}
+
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
           <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-            <p className="text-xs font-semibold text-gray-500">PRODUTOS</p>
+            <p className="text-xs font-semibold text-gray-500">
+              {usuario?.papel === 'REVENDEDOR' ? 'PRODUTOS (PREÇO DA FLÓRIDA)' : 'PRODUTOS'}
+            </p>
             {podeEditarDireto && (
               <p className="text-xs text-gray-400 mt-0.5">
                 Você pode ajustar as quantidades agora. As alterações serão salvas direto no pedido.

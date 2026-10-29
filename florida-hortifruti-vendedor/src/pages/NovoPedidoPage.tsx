@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Search, Plus, Minus, ChevronRight, ArrowLeft, Check, AlertTriangle, X } from 'lucide-react'
 import { api } from '../lib/api'
+import { useAuth } from '../contexts/useAuth'
 import {
   FORMA_PAGAMENTO_LABEL,
   FORMAS_PAGAMENTO,
@@ -358,6 +359,8 @@ function EtapaCliente({
 // Cada linha é produto + lote. O vendedor escolhe o lote (nunca automático) e pode dividir
 // o mesmo produto entre lotes, ex.: 20 cx do lote 1 + 10 cx do lote 2.
 function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: Item[]) => void }) {
+  // Revendedor digita o preço que cobra do cliente dele; o da Flórida vem na aprovação
+  const revendedor = useAuth().usuario?.papel === 'REVENDEDOR'
   const { data: produtos = [] } = useQuery({
     queryKey: ['produtos'],
     queryFn: () => api.get('/produtos').then((r) => garantirLista(r.data)),
@@ -558,7 +561,9 @@ function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: I
                       </p>
                     )}
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">Preço (R$/cx):</span>
+                      <span className="text-xs text-gray-500">
+                        {revendedor ? 'Seu preço de venda (R$/cx):' : 'Preço (R$/cx):'}
+                      </span>
                       <input
                         type="number"
                         step="0.01"
@@ -620,6 +625,8 @@ function EtapaExtras({
   dados: DadosPedido
   onChange: (p: Partial<DadosPedido>) => void
 }) {
+  // Frete e desconto do revendedor são entre ele e o cliente dele: não entram no pedido
+  const revendedor = useAuth().usuario?.papel === 'REVENDEDOR'
   const DESCONTO_REAIS_PRESETS = [10, 20, 30, 40, 50]
   const DESCONTO_PERCENTUAL_PRESETS = [10, 20, 30, 40, 50]
   const [editandoFrete, setEditandoFrete] = useState(false)
@@ -690,157 +697,163 @@ function EtapaExtras({
         )}
       </section>
 
-      {/* Frete */}
-      <section className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
-        <h3 className="font-semibold text-gray-800 text-sm">Frete</h3>
-        <div className="flex items-center gap-3">
-          <label className="text-sm text-gray-600">Valor (R$)</label>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={
-              editandoFrete
-                ? freteInput
-                : dados.valorFrete
-                  ? formatarNumeroBR(dados.valorFrete)
-                  : ''
-            }
-            onFocus={() => {
-              setEditandoFrete(true)
-              setFreteInput(dados.valorFrete ? String(dados.valorFrete).replace('.', ',') : '')
-            }}
-            onChange={(e) => setFreteInput(e.target.value)}
-            onBlur={() => {
-              const valor = parseNumeroBR(freteInput)
-              onChange({ valorFrete: valor })
-              setFreteInput(valor ? formatarNumeroBR(valor) : '')
-              setEditandoFrete(false)
-            }}
-            placeholder="0,00"
-            className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-base text-right focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-        </div>
-        <label className="flex items-center gap-2 text-sm text-gray-600">
-          <input
-            type="checkbox"
-            checked={dados.freteInclusoNoPreco}
-            onChange={(e) => onChange({ freteInclusoNoPreco: e.target.checked })}
-            className="accent-green-600 w-4 h-4"
-          />
-          Frete incluso no preço
-        </label>
-      </section>
+      {!revendedor && (
+        <>
+          {/* Frete */}
+          <section className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+            <h3 className="font-semibold text-gray-800 text-sm">Frete</h3>
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-gray-600">Valor (R$)</label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={
+                  editandoFrete
+                    ? freteInput
+                    : dados.valorFrete
+                      ? formatarNumeroBR(dados.valorFrete)
+                      : ''
+                }
+                onFocus={() => {
+                  setEditandoFrete(true)
+                  setFreteInput(dados.valorFrete ? String(dados.valorFrete).replace('.', ',') : '')
+                }}
+                onChange={(e) => setFreteInput(e.target.value)}
+                onBlur={() => {
+                  const valor = parseNumeroBR(freteInput)
+                  onChange({ valorFrete: valor })
+                  setFreteInput(valor ? formatarNumeroBR(valor) : '')
+                  setEditandoFrete(false)
+                }}
+                placeholder="0,00"
+                className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-base text-right focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={dados.freteInclusoNoPreco}
+                onChange={(e) => onChange({ freteInclusoNoPreco: e.target.checked })}
+                className="accent-green-600 w-4 h-4"
+              />
+              Frete incluso no preço
+            </label>
+          </section>
 
-      {/* Desconto */}
-      <section className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
-        <h3 className="font-semibold text-gray-800 text-sm">Desconto</h3>
-        <div className="flex gap-2 text-sm">
-          <button
-            onClick={() => {
-              setEditandoDesconto(false)
-              onChange({ usarPercentual: false })
-            }}
-            className={`flex-1 cursor-pointer py-2 rounded-lg font-medium transition ${!dados.usarPercentual ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}
-          >
-            R$
-          </button>
-          <button
-            onClick={() => {
-              setEditandoDesconto(false)
-              onChange({ usarPercentual: true })
-            }}
-            className={`flex-1 cursor-pointer py-2 rounded-lg font-medium transition ${dados.usarPercentual ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}
-          >
-            %
-          </button>
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          {(dados.usarPercentual ? DESCONTO_PERCENTUAL_PRESETS : DESCONTO_REAIS_PRESETS).map(
-            (valor) => {
-              const ativo = Math.abs(valor - descontoAtual) < 0.0001 && !editandoDesconto
-              return (
-                <button
-                  key={valor}
-                  type="button"
-                  onClick={() => selecionarPresetDesconto(valor)}
-                  className={`cursor-pointer rounded-xl px-3 py-2 text-sm font-medium transition ${ativo ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                >
-                  {dados.usarPercentual ? `${valor}%` : `R$ ${formatarNumeroBR(valor)}`}
-                </button>
-              )
-            },
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={abrirDescontoOutros}
-          className={`w-full cursor-pointer rounded-xl border px-3 py-2 text-sm font-medium transition ${mostrarCampoOutros ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}
-        >
-          Outros
-        </button>
-        {mostrarCampoOutros &&
-          (dados.usarPercentual ? (
-            <input
-              type="text"
-              inputMode="decimal"
-              value={
-                editandoDesconto
-                  ? descontoInput
-                  : dados.descontoPercentual
-                    ? formatarNumeroBR(dados.descontoPercentual, 1)
-                    : ''
-              }
-              onFocus={() => {
-                setEditandoDesconto(true)
-                setDescontoInput(
-                  dados.descontoPercentual
-                    ? String(dados.descontoPercentual).replace('.', ',')
-                    : '',
-                )
-              }}
-              onChange={(e) => setDescontoInput(e.target.value)}
-              onBlur={() => {
-                const valor = parseNumeroBR(descontoInput)
-                onChange({ descontoPercentual: valor })
-                setDescontoInput(valor ? formatarNumeroBR(valor, 1) : '')
-                setEditandoDesconto(false)
-              }}
-              placeholder="Ex.: 12,5"
-              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base text-right focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          ) : (
-            <input
-              type="text"
-              inputMode="decimal"
-              value={
-                editandoDesconto
-                  ? descontoInput
-                  : dados.descontoValor
-                    ? formatarNumeroBR(dados.descontoValor)
-                    : ''
-              }
-              onFocus={() => {
-                setEditandoDesconto(true)
-                setDescontoInput(
-                  dados.descontoValor ? String(dados.descontoValor).replace('.', ',') : '',
-                )
-              }}
-              onChange={(e) => setDescontoInput(e.target.value)}
-              onBlur={() => {
-                const valor = parseNumeroBR(descontoInput)
-                onChange({ descontoValor: valor })
-                setDescontoInput(valor ? formatarNumeroBR(valor) : '')
-                setEditandoDesconto(false)
-              }}
-              placeholder="0,00"
-              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base text-right focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          ))}
-      </section>
+          {/* Desconto */}
+          <section className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+            <h3 className="font-semibold text-gray-800 text-sm">Desconto</h3>
+            <div className="flex gap-2 text-sm">
+              <button
+                onClick={() => {
+                  setEditandoDesconto(false)
+                  onChange({ usarPercentual: false })
+                }}
+                className={`flex-1 cursor-pointer py-2 rounded-lg font-medium transition ${!dados.usarPercentual ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+              >
+                R$
+              </button>
+              <button
+                onClick={() => {
+                  setEditandoDesconto(false)
+                  onChange({ usarPercentual: true })
+                }}
+                className={`flex-1 cursor-pointer py-2 rounded-lg font-medium transition ${dados.usarPercentual ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+              >
+                %
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {(dados.usarPercentual ? DESCONTO_PERCENTUAL_PRESETS : DESCONTO_REAIS_PRESETS).map(
+                (valor) => {
+                  const ativo = Math.abs(valor - descontoAtual) < 0.0001 && !editandoDesconto
+                  return (
+                    <button
+                      key={valor}
+                      type="button"
+                      onClick={() => selecionarPresetDesconto(valor)}
+                      className={`cursor-pointer rounded-xl px-3 py-2 text-sm font-medium transition ${ativo ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                    >
+                      {dados.usarPercentual ? `${valor}%` : `R$ ${formatarNumeroBR(valor)}`}
+                    </button>
+                  )
+                },
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={abrirDescontoOutros}
+              className={`w-full cursor-pointer rounded-xl border px-3 py-2 text-sm font-medium transition ${mostrarCampoOutros ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}
+            >
+              Outros
+            </button>
+            {mostrarCampoOutros &&
+              (dados.usarPercentual ? (
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={
+                    editandoDesconto
+                      ? descontoInput
+                      : dados.descontoPercentual
+                        ? formatarNumeroBR(dados.descontoPercentual, 1)
+                        : ''
+                  }
+                  onFocus={() => {
+                    setEditandoDesconto(true)
+                    setDescontoInput(
+                      dados.descontoPercentual
+                        ? String(dados.descontoPercentual).replace('.', ',')
+                        : '',
+                    )
+                  }}
+                  onChange={(e) => setDescontoInput(e.target.value)}
+                  onBlur={() => {
+                    const valor = parseNumeroBR(descontoInput)
+                    onChange({ descontoPercentual: valor })
+                    setDescontoInput(valor ? formatarNumeroBR(valor, 1) : '')
+                    setEditandoDesconto(false)
+                  }}
+                  placeholder="Ex.: 12,5"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base text-right focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              ) : (
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={
+                    editandoDesconto
+                      ? descontoInput
+                      : dados.descontoValor
+                        ? formatarNumeroBR(dados.descontoValor)
+                        : ''
+                  }
+                  onFocus={() => {
+                    setEditandoDesconto(true)
+                    setDescontoInput(
+                      dados.descontoValor ? String(dados.descontoValor).replace('.', ',') : '',
+                    )
+                  }}
+                  onChange={(e) => setDescontoInput(e.target.value)}
+                  onBlur={() => {
+                    const valor = parseNumeroBR(descontoInput)
+                    onChange({ descontoValor: valor })
+                    setDescontoInput(valor ? formatarNumeroBR(valor) : '')
+                    setEditandoDesconto(false)
+                  }}
+                  placeholder="0,00"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base text-right focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              ))}
+          </section>
+        </>
+      )}
 
       {/* Pagamento */}
       <section className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
-        <h3 className="font-semibold text-gray-800 text-sm">Forma de Pagamento</h3>
+        <h3 className="font-semibold text-gray-800 text-sm">
+          {revendedor ? 'Como você vai pagar a Flórida' : 'Forma de Pagamento'}
+        </h3>
         <div className="grid grid-cols-2 gap-2">
           {FORMAS_PAGAMENTO.map((f) => (
             <button

@@ -289,3 +289,19 @@ class ItemPedidoPortalDto {
   @Min(1)
   quantidade: number;
 }
+
+export class PrecoRevendaItemDto {
+  @IsString()
+  produtoId: string;
+
+  @IsNumber()
+  @Min(0)
+  valor: number;
+}
+
+export class PrecosRevendaDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PrecoRevendaItemDto)
+  precos: PrecoRevendaItemDto[];
+}

@@ -19,6 +19,7 @@ const PAPEL_COLOR: Record<string, string> = {
   VISAO_GERAL: 'bg-slate-100 text-slate-700',
   MOTORISTA: 'bg-orange-100 text-orange-700',
   CLIENTE: 'bg-teal-100 text-teal-700',
+  REVENDEDOR: 'bg-amber-100 text-amber-800',
 }
 
 const EMPTY = {
@@ -637,6 +638,7 @@ export function UsuariosPage() {
               <option value="SUPERVISOR">Supervisor (vendedor + compras)</option>
               <option value="VISAO_GERAL">Visão geral (TV: dashboard e metas)</option>
               <option value="MOTORISTA">Motorista</option>
+              <option value="REVENDEDOR">Revendedor (compra para revender)</option>
               <option value="ADMINISTRATIVO">Administrativo/Financeiro</option>
               <option value="ADMINISTRADOR">Administrador</option>
             </Select>

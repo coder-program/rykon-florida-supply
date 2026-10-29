@@ -22,6 +22,7 @@ const PAPEIS_REGISTRAM = new Set<PapelUsuario>([
   PapelUsuario.VENDEDOR,
   PapelUsuario.SUPERVISOR,
   PapelUsuario.MOTORISTA,
+  PapelUsuario.REVENDEDOR,
 ]);
 
 const MOTIVO_LABEL: Record<MotivoDevolucao, string> = {
@@ -183,7 +184,8 @@ export class DevolucoesService {
   // Vendedor vê os pedidos que vendeu, motorista os que entregou; supervisor faz os dois papéis
   private filtroDoUsuario(usuarioId: string, papel: PapelUsuario): Prisma.PedidoWhereInput {
     if (papel === PapelUsuario.MOTORISTA) return { entregadorId: usuarioId };
-    if (papel === PapelUsuario.VENDEDOR) return { vendedorId: usuarioId };
+    if (papel === PapelUsuario.VENDEDOR || papel === PapelUsuario.REVENDEDOR)
+      return { vendedorId: usuarioId };
     return { OR: [{ vendedorId: usuarioId }, { entregadorId: usuarioId }] };
   }
 
@@ -193,7 +195,8 @@ export class DevolucoesService {
     papel: PapelUsuario,
   ) {
     if (papel === PapelUsuario.MOTORISTA) return pedido.entregadorId === usuarioId;
-    if (papel === PapelUsuario.VENDEDOR) return pedido.vendedorId === usuarioId;
+    if (papel === PapelUsuario.VENDEDOR || papel === PapelUsuario.REVENDEDOR)
+      return pedido.vendedorId === usuarioId;
     return pedido.vendedorId === usuarioId || pedido.entregadorId === usuarioId;
   }
 

@@ -16,32 +16,39 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { DevolucoesService } from './devolucoes.service';
 import { AtualizarStatusDevolucaoDto, CriarDevolucaoDto } from './dto/devolucao.dto';
 
+const QUEM_REGISTRA = [
+  PapelUsuario.VENDEDOR,
+  PapelUsuario.SUPERVISOR,
+  PapelUsuario.MOTORISTA,
+  PapelUsuario.REVENDEDOR,
+];
+
 @Controller('devolucoes')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class DevolucoesController {
   constructor(private service: DevolucoesService) {}
 
   @Post()
-  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR, PapelUsuario.MOTORISTA)
+  @Roles(...QUEM_REGISTRA)
   criar(@Body() dto: CriarDevolucaoDto, @Request() req: any) {
     return this.service.criar(dto, req.user.id, req.user.papel);
   }
 
   @Get('minhas')
-  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR, PapelUsuario.MOTORISTA)
+  @Roles(...QUEM_REGISTRA)
   listarMinhas(@Request() req: any) {
     return this.service.listarMinhas(req.user.id);
   }
 
   // Histórico de pedidos entregues do usuário, para escolher qual teve devolução
   @Get('pedidos')
-  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR, PapelUsuario.MOTORISTA)
+  @Roles(...QUEM_REGISTRA)
   listarPedidos(@Request() req: any) {
     return this.service.listarPedidosParaDevolucao(req.user.id, req.user.papel);
   }
 
   @Get('etiqueta/:token')
-  @Roles(PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR, PapelUsuario.MOTORISTA)
+  @Roles(...QUEM_REGISTRA)
   buscarPedidoPorEtiqueta(@Param('token') token: string, @Request() req: any) {
     return this.service.buscarPedidoPorEtiqueta(token, req.user.id, req.user.papel);
   }

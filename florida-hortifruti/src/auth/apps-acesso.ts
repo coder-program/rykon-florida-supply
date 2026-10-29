@@ -9,7 +9,7 @@ export const PAPEIS_POR_APP = {
     PapelUsuario.SUPERVISOR,
     PapelUsuario.VISAO_GERAL,
   ],
-  vendedor: [PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR],
+  vendedor: [PapelUsuario.VENDEDOR, PapelUsuario.SUPERVISOR, PapelUsuario.REVENDEDOR],
   // Supervisor às vezes faz entregas
   motorista: [PapelUsuario.MOTORISTA, PapelUsuario.SUPERVISOR],
   cliente: [PapelUsuario.CLIENTE],

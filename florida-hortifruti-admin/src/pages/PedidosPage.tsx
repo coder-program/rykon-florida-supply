@@ -654,6 +654,7 @@ export function PedidosPage() {
                     <p className="text-sm text-gray-700">{p.cliente?.razaoSocialOuNome}</p>
                     <p className="mt-1 text-xs text-gray-400">
                       {formatDate(p.data)} · {p.vendedor?.nome}
+                      {p.vendedor?.papel === 'REVENDEDOR' && ' (revendedor)'}
                     </p>
                   </div>
                   <p className="shrink-0 text-sm font-semibold text-gray-900">
@@ -752,7 +753,14 @@ export function PedidosPage() {
                     <td className="px-4 py-3 text-gray-700 max-w-45 truncate">
                       {p.cliente?.razaoSocialOuNome}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{p.vendedor?.nome}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {p.vendedor?.nome}
+                      {p.vendedor?.papel === 'REVENDEDOR' && (
+                        <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                          Revendedor
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <Badge className={statusPedidoVisivel(p).className}>
                         {statusPedidoVisivel(p).label}
@@ -845,6 +853,11 @@ export function PedidosPage() {
               <div>
                 <span className="text-gray-500">Vendedor:</span>{' '}
                 <strong>{pedidoSelecionado.vendedor?.nome}</strong>
+                {pedidoSelecionado.vendedor?.papel === 'REVENDEDOR' && (
+                  <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                    Revendedor
+                  </span>
+                )}
               </div>
               <div>
                 <span className="text-gray-500">Data:</span> {formatDate(pedidoSelecionado.data)}
@@ -1047,6 +1060,14 @@ export function PedidosPage() {
             {!['AGUARDANDO_APROVACAO', 'REJEITADO'].includes(pedidoSelecionado.status) && (
               <RastreioLotesPedido pedidoId={pedidoSelecionado.id} />
             )}
+
+            {pedidoSelecionado.vendedor?.papel === 'REVENDEDOR' &&
+              pedidoSelecionado.status === 'AGUARDANDO_APROVACAO' && (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Pedido de revendedor: os preços são o que a Flórida cobra dele (vêm do preço
+                  sugerido do lote). Confira e ajuste em "Editar Pedido" antes de aprovar.
+                </p>
+              )}
 
             {/* Edição antes de aprovar */}
             {STATUS_EDITAVEL.includes(pedidoSelecionado.status) && !editando && (

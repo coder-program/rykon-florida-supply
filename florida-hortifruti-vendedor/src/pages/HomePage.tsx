@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, LogOut, RefreshCw, RotateCcw, Target } from 'lucide-react'
+import { Boxes, Plus, LogOut, RefreshCw, RotateCcw, Target } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../contexts/useAuth'
 import { formatBRL, formatDate, statusPedidoVisivel } from '../lib/utils'
@@ -22,6 +22,8 @@ function garantirLista<T>(valor: unknown): T[] {
 
 export function HomePage() {
   const { usuario, logout } = useAuth()
+  // Revendedor: pedidos, devoluções e estoque em caixas; sem a meta da empresa
+  const revendedor = usuario?.papel === 'REVENDEDOR'
   const navigate = useNavigate()
   const temRascunho = !!carregarRascunho()
 
@@ -60,6 +62,7 @@ export function HomePage() {
     queryFn: () => api.get('/metas/hoje').then((r) => r.data),
     refetchInterval: 5 * 60_000,
     retry: false,
+    enabled: !revendedor,
   })
 
   return (
@@ -118,8 +121,26 @@ export function HomePage() {
         </button>
       </div>
 
+      {revendedor && (
+        <div className="px-4 mt-3">
+          <button
+            type="button"
+            onClick={() => navigate('/estoque')}
+            className="w-full cursor-pointer bg-white shadow-sm rounded-2xl px-5 py-4 flex items-center gap-4 border border-gray-200 active:scale-95 transition"
+          >
+            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center shrink-0">
+              <Boxes className="w-6 h-6 text-green-700" />
+            </div>
+            <div className="text-left">
+              <p className="font-bold text-gray-900">Estoque</p>
+              <p className="text-xs text-gray-500">Caixas disponíveis para pedido</p>
+            </div>
+          </button>
+        </div>
+      )}
+
       {/* Meta do dia */}
-      {meta?.temMeta && (
+      {!revendedor && meta?.temMeta && (
         <div className="px-4 mt-3">
           <div className="rounded-2xl bg-white px-5 py-4 shadow-sm border border-gray-100">
             <div className="flex items-center justify-between gap-3">

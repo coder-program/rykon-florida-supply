@@ -23,7 +23,7 @@ export function caminhoAtual() {
 // Perfis que podem entrar neste app. A API confere o mesmo no login (src/auth/apps-acesso.ts);
 // motorista, vendedor, cliente etc. nunca entram pelo app de outro perfil.
 export const APP = 'vendedor'
-export const PAPEIS_DO_APP: string[] = ['VENDEDOR', 'SUPERVISOR']
+export const PAPEIS_DO_APP: string[] = ['VENDEDOR', 'SUPERVISOR', 'REVENDEDOR']
 export const MENSAGEM_APP_ERRADO = 'Este usuário não tem acesso a este app.'
 
 // Painel admin (mesmo domínio, em /admin): o QR da etiqueta também abre o pedido por lá

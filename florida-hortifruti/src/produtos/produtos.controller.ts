@@ -22,6 +22,11 @@ import {
   UpdateCategoriaDto,
 } from './dto/produto.dto';
 
+// Revendedor não vê o custo da Flórida
+function semCusto<T extends object>(produto: T) {
+  return { ...produto, custo: undefined };
+}
+
 @Controller('produtos')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(
@@ -29,6 +34,7 @@ import {
   PapelUsuario.SUPERVISOR,
   PapelUsuario.ADMINISTRATIVO,
   PapelUsuario.ADMINISTRADOR,
+  PapelUsuario.REVENDEDOR,
 )
 export class ProdutosController {
   constructor(private produtosService: ProdutosService) {}
@@ -40,13 +46,15 @@ export class ProdutosController {
   }
 
   @Get()
-  findAll(@Query('incluirInativos') incluirInativos?: string) {
-    return this.produtosService.findAll(incluirInativos === 'true');
+  async findAll(@Request() req: any, @Query('incluirInativos') incluirInativos?: string) {
+    const lista = await this.produtosService.findAll(incluirInativos === 'true');
+    return req.user.papel === PapelUsuario.REVENDEDOR ? lista.map(semCusto) : lista;
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.produtosService.findOne(id);
+  async findOne(@Param('id') id: string, @Request() req: any) {
+    const produto = await this.produtosService.findOne(id);
+    return req.user.papel === PapelUsuario.REVENDEDOR ? semCusto(produto) : produto;
   }
 
   @Put(':id')

@@ -9,6 +9,7 @@ import { NovoPedidoPage } from './pages/NovoPedidoPage'
 import { DetalhePedidoPage } from './pages/DetalhePedidoPage'
 import { AbrirPedidoPage } from './pages/AbrirPedidoPage'
 import { DevolucoesPage } from './pages/DevolucoesPage'
+import { EstoquePage } from './pages/EstoquePage'
 import { ROUTER_BASENAME } from './lib/session'
 import { PageTransition } from './components/PageTransition'
 
@@ -56,6 +57,14 @@ function AppRoutes() {
           element={
             <PrivateRoute>
               <DevolucoesPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/estoque"
+          element={
+            <PrivateRoute>
+              <EstoquePage />
             </PrivateRoute>
           }
         />

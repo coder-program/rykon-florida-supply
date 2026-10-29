@@ -1,14 +1,25 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, StatusConviteCliente, TipoEntidadeEndereco } from '@prisma/client';
+import { PapelUsuario, Prisma, StatusConviteCliente, TipoEntidadeEndereco } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { EnderecosService } from '../enderecos/enderecos.service';
 import { CreateClienteDto, UpdateClienteDto } from './dto/cliente.dto';
+
+type UsuarioLogado = { id: string; papel: PapelUsuario };
+
+// Revendedor só enxerga os clientes dele; a equipe da Flórida, só os da Flórida
+function filtroDono(usuario?: UsuarioLogado): Prisma.ClienteWhereInput {
+  if (!usuario) return {};
+  return usuario.papel === PapelUsuario.REVENDEDOR
+    ? { revendedorId: usuario.id }
+    : { revendedorId: null };
+}
 
 @Injectable()
 export class ClientesService {
@@ -51,7 +62,7 @@ export class ClientesService {
     };
   }
 
-  async create(dto: CreateClienteDto) {
+  async create(dto: CreateClienteDto, usuario?: UsuarioLogado) {
     const { endereco, ...dadosCliente } = dto as any;
 
     let cliente;
@@ -60,6 +71,7 @@ export class ClientesService {
         data: {
           ...dadosCliente,
           cnpjCpf: dadosCliente.cnpjCpf || this.gerarPlaceholderDoc(),
+          revendedorId: usuario?.papel === PapelUsuario.REVENDEDOR ? usuario.id : null,
         },
       });
     } catch (error) {
@@ -76,9 +88,9 @@ export class ClientesService {
     return this.findOne(cliente.id);
   }
 
-  async findAll(incluirInativos = false) {
+  async findAll(incluirInativos = false, usuario?: UsuarioLogado) {
     const clientes = await this.prisma.cliente.findMany({
-      where: incluirInativos ? {} : { ativo: true },
+      where: { ...filtroDono(usuario), ...(incluirInativos ? {} : { ativo: true }) },
       orderBy: [{ ativo: 'desc' }, { razaoSocialOuNome: 'asc' }],
     });
 
@@ -93,9 +105,10 @@ export class ClientesService {
     );
   }
 
-  async search(termo: string) {
+  async search(termo: string, usuario?: UsuarioLogado) {
     const clientes = await this.prisma.cliente.findMany({
       where: {
+        ...filtroDono(usuario),
         ativo: true,
         OR: [
           { razaoSocialOuNome: { contains: termo, mode: 'insensitive' } },
@@ -115,6 +128,20 @@ export class ClientesService {
         ),
       })),
     );
+  }
+
+  // Revendedor só abre/edita cliente dele; a equipe da Flórida não mexe nos do revendedor
+  async garantirAcesso(id: string, usuario: UsuarioLogado) {
+    const cliente = await this.prisma.cliente.findUnique({
+      where: { id },
+      select: { revendedorId: true },
+    });
+    if (!cliente) throw new NotFoundException('Cliente não encontrado');
+    const permitido =
+      usuario.papel === PapelUsuario.REVENDEDOR
+        ? cliente.revendedorId === usuario.id
+        : cliente.revendedorId === null;
+    if (!permitido) throw new ForbiddenException('Você não tem acesso a este cliente');
   }
 
   async findOne(id: string) {
