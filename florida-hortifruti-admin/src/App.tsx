@@ -19,6 +19,7 @@ import { EtiquetaPage } from './pages/EtiquetaPage'
 import { FinanceiroPage } from './pages/FinanceiroPage'
 import { SolicitacoesAlteracaoPage } from './pages/SolicitacoesAlteracaoPage'
 import { DevolucoesPage } from './pages/DevolucoesPage'
+import { AbrirPedidoPage } from './pages/AbrirPedidoPage'
 import { ROUTER_BASENAME } from './lib/session'
 import { rotasPermitidas } from './lib/permissoes'
 
@@ -47,6 +48,8 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route element={<AppLayout />}>
+              {/* QR da etiqueta: abre o pedido em Pedidos (que confere o papel) */}
+              <Route path="/abrir-pedido/:token" element={<AbrirPedidoPage />} />
               <Route element={<RotasDoPapel />}>
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/metas" element={<MetasPage />} />

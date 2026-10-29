@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { Input } from '../components/ui/Input'
 import { mensagemErroLogin } from '../lib/session'
 import { useAuth } from '../contexts/useAuth'
@@ -8,12 +8,15 @@ import logo from '../assets/logo.png'
 
 export function LoginPage() {
   const { login, usuario } = useAuth()
+  const [params] = useSearchParams()
+  const redirectRaw = params.get('redirect') || '/'
+  const redirect = redirectRaw.startsWith('/') ? redirectRaw : '/'
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  if (usuario) return <Navigate to="/" replace />
+  if (usuario) return <Navigate to={redirect} replace />
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()

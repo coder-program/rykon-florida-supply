@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../contexts/useAuth'
+import { temSessaoPainelAdmin, urlPedidoNoPainel } from '../lib/session'
 
 export function AbrirPedidoPage() {
   const { token } = useParams<{ token: string }>()
@@ -43,6 +44,11 @@ export function AbrirPedidoPage() {
   if (!token) return <Navigate to="/" replace />
 
   if (!usuario) {
+    // Administrador lendo o QR: abre o pedido no painel em vez de pedir login de vendedor
+    if (temSessaoPainelAdmin()) {
+      window.location.replace(urlPedidoNoPainel(token))
+      return null
+    }
     return (
       <Navigate to={`/login?redirect=${encodeURIComponent(`/abrir-pedido/${token}`)}`} replace />
     )

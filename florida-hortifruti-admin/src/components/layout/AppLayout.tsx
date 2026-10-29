@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import { useAuth } from '../../contexts/useAuth'
 import { Sidebar } from './Sidebar'
@@ -8,9 +8,14 @@ import logo from '../../assets/logo.png'
 
 export function AppLayout() {
   const { usuario } = useAuth()
+  const { pathname, search } = useLocation()
   const [menuAberto, setMenuAberto] = useState(false)
 
-  if (!usuario) return <Navigate to="/login" replace />
+  if (!usuario) {
+    const destino = `${pathname}${search}`
+    const login = destino === '/' ? '/login' : `/login?redirect=${encodeURIComponent(destino)}`
+    return <Navigate to={login} replace />
+  }
 
   return (
     <div className="flex min-h-dvh min-h-screen bg-gray-50">

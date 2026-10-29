@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Search,
   ChevronDown,
@@ -224,6 +224,15 @@ export function PedidosPage() {
   const motoristas = (usuarios as any[]).filter(
     (u) => (u.papel === 'MOTORISTA' || u.papel === 'SUPERVISOR') && u.ativo,
   )
+
+  // Vindo do QR da etiqueta (/abrir-pedido/:token): abre o detalhe do pedido direto
+  const [searchParams, setSearchParams] = useSearchParams()
+  const pedidoDaUrl = searchParams.get('pedido')
+  useEffect(() => {
+    if (!pedidoDaUrl) return
+    setSearchParams({}, { replace: true })
+    void abrirPedido({ id: pedidoDaUrl })
+  }, [pedidoDaUrl])
 
   async function abrirPedido(p: any) {
     setPedidoSelecionado(p)

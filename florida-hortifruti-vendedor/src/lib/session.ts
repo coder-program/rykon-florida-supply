@@ -26,6 +26,22 @@ export const APP = 'vendedor'
 export const PAPEIS_DO_APP: string[] = ['VENDEDOR', 'SUPERVISOR']
 export const MENSAGEM_APP_ERRADO = 'Este usuário não tem acesso a este app.'
 
+// Painel admin (mesmo domínio, em /admin): o QR da etiqueta também abre o pedido por lá
+const URL_PAINEL_ADMIN = import.meta.env.VITE_ADMIN_URL ?? '/admin/'
+
+export function urlPedidoNoPainel(token: string) {
+  return `${URL_PAINEL_ADMIN.replace(/\/?$/, '/')}abrir-pedido/${encodeURIComponent(token)}`
+}
+
+/** Já existe login do painel admin neste navegador (só vale quando estão no mesmo domínio) */
+export function temSessaoPainelAdmin() {
+  try {
+    return !!localStorage.getItem('fh-admin:token')
+  } catch {
+    return false
+  }
+}
+
 /** Usuário salvo só vale se o perfil for deste app; senão a sessão é descartada */
 export function usuarioSalvo<T extends { papel: string }>(): T | null {
   let usuario: T | null = null

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
-import { mensagemErroLogin } from '../lib/session'
+import { mensagemErroLogin, urlPedidoNoPainel } from '../lib/session'
 import { useAuth } from '../contexts/useAuth'
 import logo from '../assets/logo.png'
 
@@ -11,6 +11,7 @@ export function LoginPage() {
   const [params] = useSearchParams()
   const redirectRaw = params.get('redirect') || '/'
   const redirect = redirectRaw.startsWith('/') ? redirectRaw : '/'
+  const tokenQr = redirect.match(/^\/abrir-pedido\/([^/?#]+)/)?.[1]
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -89,6 +90,14 @@ export function LoginPage() {
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
+        {tokenQr && (
+          <a
+            href={urlPedidoNoPainel(decodeURIComponent(tokenQr))}
+            className="mt-4 block text-center text-sm font-medium text-green-700 underline"
+          >
+            É administrador? Abrir este pedido no painel
+          </a>
+        )}
       </div>
     </div>
   )
