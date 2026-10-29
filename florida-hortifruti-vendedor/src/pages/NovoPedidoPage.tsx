@@ -416,6 +416,16 @@ function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: I
     atualizar(index, { quantidade: nova })
   }
 
+  // Digitação livre: vazio vira 0 enquanto edita e volta a 1 ao sair do campo
+  function digitarQuantidade(index: number, valor: string) {
+    const n = Number.parseInt(valor, 10)
+    atualizar(index, { quantidade: Number.isFinite(n) ? Math.max(0, n) : 0 })
+  }
+
+  function confirmarQuantidade(index: number) {
+    if (itens[index].quantidade <= 0) atualizar(index, { quantidade: 1 })
+  }
+
   const linhasSemLote = itens.some((i) => !i.loteId)
   const acimaDoSaldo = itens.some((i) => i.loteId && i.quantidade > saldoLote(i.loteId))
 
@@ -494,9 +504,17 @@ function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: I
                       >
                         <Minus className="w-4 h-4" />
                       </button>
-                      <span className="w-7 text-center font-bold text-gray-900">
-                        {item.quantidade}
-                      </span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        value={item.quantidade || ''}
+                        onChange={(e) => digitarQuantidade(index, e.target.value)}
+                        onBlur={() => confirmarQuantidade(index)}
+                        onFocus={(e) => e.target.select()}
+                        aria-label="Quantidade de caixas"
+                        className="w-14 h-8 shrink-0 rounded-lg border border-gray-300 bg-white text-center font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
                       <button
                         onClick={() => mudarQuantidade(index, 1)}
                         disabled={noLimite}

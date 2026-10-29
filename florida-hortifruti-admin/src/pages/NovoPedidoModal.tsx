@@ -188,6 +188,16 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
     atualizar(index, { quantidade: nova })
   }
 
+  // Digitação livre: vazio vira 0 enquanto edita e volta a 1 ao sair do campo
+  function digitarQuantidade(index: number, valor: string) {
+    const n = Number.parseInt(valor, 10)
+    atualizar(index, { quantidade: Number.isFinite(n) ? Math.max(0, n) : 0 })
+  }
+
+  function confirmarQuantidade(index: number) {
+    if (itens[index].quantidade <= 0) atualizar(index, { quantidade: 1 })
+  }
+
   const linhasSemLote = itens.some((i) => !i.loteId)
   const acimaDoSaldo = itens.some((i) => i.loteId && i.quantidade > saldoLote(i.loteId))
   const precoInvalido = itens.some((i) => !(i.valorUnitario > 0))
@@ -328,7 +338,17 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
                           >
                             <Minus className="w-3 h-3" />
                           </button>
-                          <span className="w-6 text-center font-semibold">{item.quantidade}</span>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            value={item.quantidade || ''}
+                            onChange={(e) => digitarQuantidade(index, e.target.value)}
+                            onBlur={() => confirmarQuantidade(index)}
+                            onFocus={(e) => e.target.select()}
+                            aria-label="Quantidade de caixas"
+                            className="w-12 h-6 shrink-0 rounded border border-gray-300 bg-white text-center text-sm font-semibold"
+                          />
                           <button
                             type="button"
                             onClick={() => mudarQuantidade(index, 1)}
