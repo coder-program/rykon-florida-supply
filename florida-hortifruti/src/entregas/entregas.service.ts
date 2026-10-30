@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PapelUsuario, Prisma, StatusPedido, TipoEntidadeEndereco } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { GeocodificacaoService } from '../common/geocodificacao.service';
@@ -56,21 +56,8 @@ export class EntregasService {
     return prontoA - prontoB;
   }
 
-  async acompanhamento() {
-    const inicioDoDia = new Date(`${hojeEmBrasilia()}T00:00:00-03:00`);
-    const pedidos = await this.prisma.pedido.findMany({
-      where: {
-        entregadorId: { not: null },
-        OR: [
-          { status: { in: STATUS_PENDENTES } },
-          { status: StatusPedido.ENTREGUE, entregueEm: { gte: inicioDoDia } },
-        ],
-      },
-      include: INCLUDE_PEDIDO,
-    });
-
-    // Endereço de entrega de cada cliente (o de entrega, senão o principal)
-    const clienteIds = [...new Set(pedidos.map((p) => p.clienteId))];
+  // Endereço de entrega de cada cliente (o de entrega, senão o principal)
+  private async enderecosDeEntrega(clienteIds: string[]) {
     const enderecos = clienteIds.length
       ? await this.prisma.endereco.findMany({
           where: { entidadeTipo: TipoEntidadeEndereco.CLIENTE, entidadeId: { in: clienteIds } },
@@ -87,6 +74,134 @@ export class EntregasService {
         doCliente[0];
       if (escolhido) enderecoDoCliente.set(id, escolhido);
     }
+    return enderecoDoCliente;
+  }
+
+  // Pendentes, em rota e com problema aparecem sempre; os entregues, só os do período
+  async painel(dataInicio?: string, dataFim?: string) {
+    const hoje = hojeEmBrasilia();
+    const inicio = new Date(`${dataInicio || hoje}T00:00:00-03:00`);
+    const fim = new Date(`${dataFim || hoje}T23:59:59.999-03:00`);
+    if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime())) {
+      throw new BadRequestException('Período inválido');
+    }
+
+    const pedidos = await this.prisma.pedido.findMany({
+      where: {
+        OR: [
+          { status: { in: STATUS_PENDENTES } },
+          { status: StatusPedido.ENTREGUE, entregueEm: { gte: inicio, lte: fim } },
+        ],
+      },
+      include: {
+        cliente: { select: { razaoSocialOuNome: true, nomeFantasia: true } },
+        entregador: { select: { nome: true } },
+      },
+      orderBy: [{ dataPrevistaEntrega: { sort: 'asc', nulls: 'last' } }, { numero: 'asc' }],
+    });
+
+    const enderecos = await this.enderecosDeEntrega([...new Set(pedidos.map((p) => p.clienteId))]);
+
+    return pedidos.map((p) => ({
+      id: p.id,
+      numero: p.numero,
+      status: p.status,
+      situacao:
+        p.status === StatusPedido.ENTREGUE
+          ? 'ENTREGUE'
+          : p.problemaEntrega
+            ? 'PROBLEMA'
+            : p.status === StatusPedido.EM_ENTREGA
+              ? 'EM_ROTA'
+              : 'PENDENTE',
+      cliente: p.cliente.nomeFantasia || p.cliente.razaoSocialOuNome,
+      endereco: textoEndereco(enderecos.get(p.clienteId)),
+      dataPrevista: p.dataPrevistaEntrega,
+      responsavel: p.entregador?.nome ?? null,
+      entregueEm: p.entregueEm,
+      problema: p.problemaEntrega,
+      problemaEm: p.problemaEntregaEm,
+    }));
+  }
+
+  private async pedidoEmAberto(id: string) {
+    const pedido = await this.prisma.pedido.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
+    if (!pedido) throw new NotFoundException('Pedido não encontrado');
+    if (!STATUS_PENDENTES.includes(pedido.status)) {
+      throw new BadRequestException('Esta entrega já foi encerrada');
+    }
+    return pedido;
+  }
+
+  async definirDataPrevista(id: string, dataPrevista?: string) {
+    await this.pedidoEmAberto(id);
+    await this.prisma.pedido.update({
+      where: { id },
+      data: { dataPrevistaEntrega: dataPrevista ? new Date(dataPrevista) : null },
+    });
+    return { ok: true };
+  }
+
+  async registrarProblema(id: string, descricao: string, usuarioId: string) {
+    await this.pedidoEmAberto(id);
+    const problema = descricao.trim();
+    if (!problema) throw new BadRequestException('Descreva o problema da entrega');
+    await this.prisma.$transaction([
+      this.prisma.pedido.update({
+        where: { id },
+        data: { problemaEntrega: problema, problemaEntregaEm: new Date() },
+      }),
+      this.prisma.logAuditoria.create({
+        data: {
+          usuarioId,
+          acao: 'PROBLEMA_ENTREGA',
+          entidade: 'Pedido',
+          entidadeId: id,
+          detalhes: { problema },
+        },
+      }),
+    ]);
+    return { ok: true };
+  }
+
+  async resolverProblema(id: string, usuarioId: string) {
+    await this.pedidoEmAberto(id);
+    await this.prisma.$transaction([
+      this.prisma.pedido.update({
+        where: { id },
+        data: { problemaEntrega: null, problemaEntregaEm: null },
+      }),
+      this.prisma.logAuditoria.create({
+        data: {
+          usuarioId,
+          acao: 'PROBLEMA_ENTREGA_RESOLVIDO',
+          entidade: 'Pedido',
+          entidadeId: id,
+        },
+      }),
+    ]);
+    return { ok: true };
+  }
+
+  async acompanhamento() {
+    const inicioDoDia = new Date(`${hojeEmBrasilia()}T00:00:00-03:00`);
+    const pedidos = await this.prisma.pedido.findMany({
+      where: {
+        entregadorId: { not: null },
+        OR: [
+          { status: { in: STATUS_PENDENTES } },
+          { status: StatusPedido.ENTREGUE, entregueEm: { gte: inicioDoDia } },
+        ],
+      },
+      include: INCLUDE_PEDIDO,
+    });
+
+    const enderecoDoCliente = await this.enderecosDeEntrega([
+      ...new Set(pedidos.map((p) => p.clienteId)),
+    ]);
     // Pendentes primeiro: são os que importam no mapa
     const ordemGeo = [
       ...pedidos.filter((p) => p.status !== StatusPedido.ENTREGUE),
