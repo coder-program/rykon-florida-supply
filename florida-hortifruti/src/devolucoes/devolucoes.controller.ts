@@ -43,7 +43,7 @@ export class DevolucoesController {
   @Get('minhas')
   @Roles(...QUEM_REGISTRA)
   listarMinhas(@Request() req: any) {
-    return this.service.listarMinhas(req.user.id);
+    return this.service.listarMinhas(req.user.id, req.user.papel);
   }
 
   // Histórico de pedidos entregues do usuário, para escolher qual teve devolução

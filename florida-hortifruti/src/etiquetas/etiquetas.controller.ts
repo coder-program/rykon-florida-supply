@@ -5,6 +5,11 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { EtiquetasService } from './etiquetas.service';
 
+// A etiqueta traz endereço e telefone do cliente: o revendedor não acessa
+const SEM_REVENDEDOR = Object.values(PapelUsuario).filter(
+  (papel) => papel !== PapelUsuario.REVENDEDOR,
+);
+
 @Controller()
 export class EtiquetasController {
   constructor(private etiquetasService: EtiquetasService) {}
@@ -18,19 +23,22 @@ export class EtiquetasController {
 
   // Dados completos para impressão da etiqueta (autenticado)
   @Get('etiquetas/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...SEM_REVENDEDOR)
   buscarCompleto(@Param('id') id: string) {
     return this.etiquetasService.buscarCompleto(id);
   }
 
   @Get('etiquetas/:id/qrcode')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...SEM_REVENDEDOR)
   gerarQRCode(@Param('id') id: string) {
     return this.etiquetasService.gerarQRCode(id);
   }
 
   @Post('etiquetas/:id/reimprimir')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...SEM_REVENDEDOR)
   reimprimir(@Param('id') id: string) {
     return this.etiquetasService.marcarReimpressao(id);
   }

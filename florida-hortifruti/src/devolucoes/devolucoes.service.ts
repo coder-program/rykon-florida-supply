@@ -236,6 +236,16 @@ export class DevolucoesService {
     return pedido.vendedorId === usuarioId;
   }
 
+  // A etiqueta dá acesso ao endereço e ao telefone do cliente: o revendedor não recebe
+  private semEtiquetaParaRevendedor<T extends { etiquetaId: unknown; etiquetaToken: unknown }>(
+    item: T,
+    papel: PapelUsuario,
+  ) {
+    return papel === PapelUsuario.REVENDEDOR
+      ? { ...item, etiquetaId: null, etiquetaToken: null }
+      : item;
+  }
+
   private garantirPapel(papel: PapelUsuario) {
     if (!PAPEIS_REGISTRAM.has(papel)) {
       throw new ForbiddenException('Você não pode registrar devolução');
@@ -307,7 +317,7 @@ export class DevolucoesService {
       orderBy: [{ entregueEm: 'desc' }, { numero: 'desc' }],
       take: 200,
     });
-    return pedidos.map((p) => this.resumoPedido(p));
+    return pedidos.map((p) => this.semEtiquetaParaRevendedor(this.resumoPedido(p), papel));
   }
 
   async criar(dto: CriarDevolucaoDto, usuarioId: string, papel: PapelUsuario) {
@@ -373,22 +383,23 @@ export class DevolucoesService {
     });
 
     const [item] = await this.enrich([log]);
-    return item;
+    return this.semEtiquetaParaRevendedor(item, papel);
   }
 
-  async listarMinhas(usuarioId: string) {
+  async listarMinhas(usuarioId: string, papel: PapelUsuario) {
     const logs = await this.prisma.logAuditoria.findMany({
       where: { acao: ACAO_DEVOLUCAO, usuarioId },
       include: { usuario: { select: { id: true, nome: true } } },
       orderBy: { data: 'desc' },
     });
-    return this.enrich(logs);
+    const itens = await this.enrich(logs);
+    return itens.map((item) => this.semEtiquetaParaRevendedor(item, papel));
   }
 
   async buscarPedidoPorEtiqueta(tokenRaw: string, usuarioId: string, papel: PapelUsuario) {
     this.garantirPapel(papel);
     const pedido = await this.carregarPedido({ etiquetaToken: tokenRaw }, usuarioId, papel);
-    return this.resumoPedido(pedido);
+    return this.semEtiquetaParaRevendedor(this.resumoPedido(pedido), papel);
   }
 
   async listarTodas() {

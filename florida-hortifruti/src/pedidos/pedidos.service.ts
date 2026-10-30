@@ -280,6 +280,8 @@ export class PedidosService implements OnApplicationBootstrap {
     return {
       ...pedido,
       cliente: pedido.cliente && clienteParaRevendedor(pedido.cliente, pedido.vendedorId),
+      // A etiqueta dá acesso ao endereço e ao telefone do cliente
+      etiqueta: undefined,
       itens: pedido.itens.map((item) =>
         item.produto ? { ...item, produto: { ...item.produto, custo: undefined } } : item,
       ),
