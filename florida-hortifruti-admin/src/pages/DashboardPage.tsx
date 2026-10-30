@@ -21,6 +21,8 @@ import { api } from '../lib/api'
 import { formatBRL, STATUS_PEDIDO_LABEL } from '../lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { LucroPorLote } from '../components/LucroPorLote'
+import { PainelEntregas } from '../components/PainelEntregas'
+import { PerdasCard } from '../components/PerdasCard'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -69,6 +71,7 @@ interface LucroDiarioResponse {
   geral: {
     totalVendido: number
     custoTotal: number
+    perdas?: number
     lucroTotal: number
     margemPercentual: number
     quantidadeTotal: number
@@ -275,6 +278,7 @@ export function DashboardPage() {
   const [customFim, setCustomFim] = useState(hojeIso)
   const datas = getPeriodoDates(periodo, { dataInicio: customInicio, dataFim: customFim })
   const nome = primeiroNome(usuario?.nome)
+  const [aba, setAba] = useState<'geral' | 'entregas'>('geral')
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['dashboard', datas.dataInicio, datas.dataFim],
@@ -508,9 +512,38 @@ export function DashboardPage() {
             )}
           </div>
         </div>
+        <div className="mt-4 flex w-full rounded-xl bg-gray-100 p-1 sm:w-fit" role="tablist">
+          {(
+            [
+              ['geral', 'Visão geral'],
+              ['entregas', 'Entregas'],
+            ] as const
+          ).map(([valor, rotulo]) => (
+            <button
+              key={valor}
+              type="button"
+              role="tab"
+              aria-selected={aba === valor}
+              onClick={() => setAba(valor)}
+              className={`flex-1 rounded-lg px-4 py-1.5 text-sm font-medium transition-all sm:flex-none ${
+                aba === valor
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {rotulo}
+            </button>
+          ))}
+        </div>
       </header>
 
-      <div className="space-y-6 p-4 md:p-6">
+      {aba === 'entregas' && (
+        <div className="p-4 md:p-6">
+          <PainelEntregas dataInicio={datas.dataInicio} dataFim={datas.dataFim} />
+        </div>
+      )}
+
+      <div className={aba === 'geral' ? 'space-y-6 p-4 md:p-6' : 'hidden'}>
         {(zerados > 0 || vencidos > 0 || devolucoesGerais.pendentes > 0) && (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             {zerados > 0 && (
@@ -630,6 +663,14 @@ export function DashboardPage() {
         </section>
 
         <section>
+          <PerdasCard
+            dataInicio={datas.dataInicio}
+            dataFim={datas.dataFim}
+            rotulo={rotuloPeriodo(periodo, datas)}
+          />
+        </section>
+
+        <section>
           <Card className="overflow-hidden rounded-2xl border-green-100">
             <CardHeader className="border-b border-green-50 bg-linear-to-r from-green-50 via-white to-white">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -715,6 +756,11 @@ export function DashboardPage() {
                       <p className="mt-1 text-xl font-semibold text-green-800">
                         {formatBRL(Number(lucroGeral?.lucroTotal ?? 0))}
                       </p>
+                      {Number(lucroGeral?.perdas ?? 0) > 0 && (
+                        <p className="mt-0.5 text-[11px] text-green-700">
+                          Já com {formatBRL(Number(lucroGeral?.perdas))} de perdas descontados
+                        </p>
+                      )}
                     </div>
                     <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
                       <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">

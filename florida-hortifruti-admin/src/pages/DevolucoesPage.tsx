@@ -1,28 +1,36 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, Clock3, Eye, Loader2, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock3, Eye, Loader2, Plus, Wallet, XCircle } from 'lucide-react'
 import { api, resolveAssetUrl } from '../lib/api'
-import { formatBRL, formatDateTime, statusPedidoVisivel } from '../lib/utils'
+import { FORMA_PAGAMENTO_LABEL, formatBRL, formatDateTime, statusPedidoVisivel } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
+import { RegistrarDevolucaoModal } from '../components/RegistrarDevolucaoModal'
+import { ReembolsoDevolucaoModal } from '../components/ReembolsoDevolucaoModal'
+import { useAuth } from '../contexts/useAuth'
 
 const STATUS_LABEL: Record<string, string> = {
   PENDENTE: 'Pendente',
+  APROVADA: 'Aguardando reembolso',
   CONCLUIDA: 'Concluída',
   NEGADA: 'Negada',
 }
 
 const STATUS_CLASS: Record<string, string> = {
   PENDENTE: 'bg-amber-100 text-amber-800',
+  APROVADA: 'bg-blue-100 text-blue-700',
   CONCLUIDA: 'bg-emerald-100 text-emerald-700',
   NEGADA: 'bg-red-100 text-red-700',
 }
 
 export function DevolucoesPage() {
   const qc = useQueryClient()
+  const { isVisaoGeral } = useAuth()
   const [devolucaoSelecionada, setDevolucaoSelecionada] = useState<any | null>(null)
+  const [registrando, setRegistrando] = useState(false)
+  const [reembolsando, setReembolsando] = useState<any | null>(null)
 
   const { data: devolucoes = [], isLoading } = useQuery({
     queryKey: ['admin-devolucoes'],
@@ -36,7 +44,7 @@ export function DevolucoesPage() {
   })
 
   const atualizar = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: 'CONCLUIDA' | 'NEGADA' }) =>
+    mutationFn: ({ id, status }: { id: string; status: 'APROVADA' | 'NEGADA' }) =>
       api.patch(`/devolucoes/${id}/status`, { status }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-devolucoes'] })
@@ -45,6 +53,45 @@ export function DevolucoesPage() {
   })
 
   const pendentes = (devolucoes as any[]).filter((d) => d.status === 'PENDENTE').length
+
+  function acoes(item: any) {
+    if (isVisaoGeral) return null
+    if (item.status === 'PENDENTE') {
+      return (
+        <>
+          <Button
+            size="sm"
+            className="cursor-pointer bg-emerald-600 hover:bg-emerald-700"
+            disabled={atualizar.isPending}
+            onClick={() => atualizar.mutate({ id: item.id, status: 'APROVADA' })}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" /> Aprovar
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            className="cursor-pointer"
+            disabled={atualizar.isPending}
+            onClick={() => atualizar.mutate({ id: item.id, status: 'NEGADA' })}
+          >
+            <XCircle className="h-3.5 w-3.5" /> Negar
+          </Button>
+        </>
+      )
+    }
+    if (item.status === 'APROVADA') {
+      return (
+        <Button size="sm" className="cursor-pointer" onClick={() => setReembolsando(item)}>
+          <Wallet className="h-3.5 w-3.5" /> Reembolso
+        </Button>
+      )
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+        <Clock3 className="h-3.5 w-3.5" /> Finalizada
+      </span>
+    )
+  }
 
   function renderFotos(item: any, mini = true) {
     if (!Array.isArray(item.fotos) || item.fotos.length === 0) {
@@ -90,13 +137,20 @@ export function DevolucoesPage() {
     <div>
       <PageHeader
         title="Devoluções"
-        subtitle={`Solicitações de devolução dos vendedores · ${pendentes} pendente(s)`}
+        subtitle={`Solicitações de devolução · ${pendentes} pendente(s) de aprovação`}
       />
 
       <div className="p-4 md:p-6">
         <Card>
           <CardHeader>
-            <CardTitle>Fila de devoluções</CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle>Fila de devoluções</CardTitle>
+              {!isVisaoGeral && (
+                <Button size="sm" onClick={() => setRegistrando(true)}>
+                  <Plus className="h-3.5 w-3.5" /> Registrar devolução
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             {isLoading && (
@@ -168,31 +222,7 @@ export function DevolucoesPage() {
                         >
                           <Eye className="h-3.5 w-3.5" /> Ver detalhes
                         </Button>
-                        {item.status === 'PENDENTE' ? (
-                          <>
-                            <Button
-                              size="sm"
-                              className="cursor-pointer bg-emerald-600 hover:bg-emerald-700"
-                              disabled={atualizar.isPending}
-                              onClick={() => atualizar.mutate({ id: item.id, status: 'CONCLUIDA' })}
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" /> Concluir
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="danger"
-                              className="cursor-pointer"
-                              disabled={atualizar.isPending}
-                              onClick={() => atualizar.mutate({ id: item.id, status: 'NEGADA' })}
-                            >
-                              <XCircle className="h-3.5 w-3.5" /> Negar
-                            </Button>
-                          </>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-                            <Clock3 className="h-3.5 w-3.5" /> Finalizada
-                          </span>
-                        )}
+                        {acoes(item)}
                       </div>
                     </article>
                   ))}
@@ -267,36 +297,7 @@ export function DevolucoesPage() {
                               >
                                 <Eye className="h-3.5 w-3.5" />
                               </Button>
-                              {item.status === 'PENDENTE' && (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    className="cursor-pointer bg-emerald-600 hover:bg-emerald-700"
-                                    disabled={atualizar.isPending}
-                                    onClick={() =>
-                                      atualizar.mutate({ id: item.id, status: 'CONCLUIDA' })
-                                    }
-                                  >
-                                    <CheckCircle2 className="h-3.5 w-3.5" /> Concluir
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="danger"
-                                    className="cursor-pointer"
-                                    disabled={atualizar.isPending}
-                                    onClick={() =>
-                                      atualizar.mutate({ id: item.id, status: 'NEGADA' })
-                                    }
-                                  >
-                                    <XCircle className="h-3.5 w-3.5" /> Negar
-                                  </Button>
-                                </>
-                              )}
-                              {item.status !== 'PENDENTE' && (
-                                <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-                                  <Clock3 className="h-3.5 w-3.5" /> Finalizada
-                                </span>
-                              )}
+                              {acoes(item)}
                             </div>
                           </td>
                         </tr>
@@ -350,6 +351,15 @@ export function DevolucoesPage() {
                   {devolucaoSelecionada.registradoPor ?? '—'}
                 </p>
                 <p>
+                  <span className="text-gray-500">
+                    {devolucaoSelecionada.status === 'NEGADA' ? 'Negado por:' : 'Aprovado por:'}
+                  </span>{' '}
+                  {devolucaoSelecionada.analisadoPor ?? '—'}
+                  {devolucaoSelecionada.analisadoEm
+                    ? ` · ${formatDateTime(devolucaoSelecionada.analisadoEm)}`
+                    : ''}
+                </p>
+                <p>
                   <span className="text-gray-500">Caixas:</span>{' '}
                   {devolucaoSelecionada.quantidadeCaixas ?? '—'}
                 </p>
@@ -360,6 +370,31 @@ export function DevolucoesPage() {
                     : '—'}
                 </p>
               </div>
+
+              {devolucaoSelecionada.reembolso && (
+                <div className="mt-3 rounded-lg bg-gray-50 p-2.5 text-sm text-gray-700">
+                  <p className="text-xs font-semibold text-gray-500">REEMBOLSO</p>
+                  <p className="mt-1">
+                    {devolucaoSelecionada.reembolso.tipo === 'CAIXAS'
+                      ? `Em caixas: ${devolucaoSelecionada.reembolso.quantidadeCaixas} cx · lote ${devolucaoSelecionada.reembolso.lote}`
+                      : `Em dinheiro: ${formatBRL(devolucaoSelecionada.reembolso.valor)} · ${FORMA_PAGAMENTO_LABEL[devolucaoSelecionada.reembolso.formaPagamento] ?? devolucaoSelecionada.reembolso.formaPagamento}`}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Feito em{' '}
+                    {new Date(devolucaoSelecionada.reembolso.data).toLocaleDateString('pt-BR')} ·
+                    registrado por {devolucaoSelecionada.reembolso.registradoPor}
+                  </p>
+                  {devolucaoSelecionada.reembolso.perda && (
+                    <p className="mt-1 text-xs text-red-700">
+                      Perda: {devolucaoSelecionada.reembolso.perda.quantidade} cx · lote{' '}
+                      {devolucaoSelecionada.reembolso.perda.lote}
+                      {devolucaoSelecionada.reembolso.perda.valor > 0
+                        ? ` · ${formatBRL(devolucaoSelecionada.reembolso.perda.valor)}`
+                        : ''}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {devolucaoSelecionada.itensDevolvidos && (
                 <p className="mt-2 text-sm text-gray-700">
@@ -516,6 +551,11 @@ export function DevolucoesPage() {
           </div>
         )}
       </Modal>
+
+      {registrando && <RegistrarDevolucaoModal onFechar={() => setRegistrando(false)} />}
+      {reembolsando && (
+        <ReembolsoDevolucaoModal devolucao={reembolsando} onFechar={() => setReembolsando(null)} />
+      )}
     </div>
   )
 }

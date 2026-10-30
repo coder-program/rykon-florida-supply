@@ -227,6 +227,7 @@ export class RelatoriosService {
     const devolucoes = {
       total: devolucoesLogs.length,
       pendentes: 0,
+      aprovadas: 0,
       concluidas: 0,
       negadas: 0,
       totalCaixas: 0,
@@ -241,11 +242,14 @@ export class RelatoriosService {
       ) as Record<string, unknown>;
 
       const status =
-        detalhes.status === 'CONCLUIDA' || detalhes.status === 'NEGADA'
+        detalhes.status === 'CONCLUIDA' ||
+        detalhes.status === 'NEGADA' ||
+        detalhes.status === 'APROVADA'
           ? String(detalhes.status)
           : 'PENDENTE';
 
       if (status === 'CONCLUIDA') devolucoes.concluidas += 1;
+      else if (status === 'APROVADA') devolucoes.aprovadas += 1;
       else if (status === 'NEGADA') devolucoes.negadas += 1;
       else devolucoes.pendentes += 1;
 
@@ -332,7 +336,17 @@ export class RelatoriosService {
       { totalVendido: 0, custoTotal: 0, quantidadeTotal: 0 },
     );
 
-    const lucroTotal = resumo.totalVendido - resumo.custoTotal;
+    // Perdas das devoluções entram no resultado pela data do reembolso
+    const periodo = this.periodoWhere(query.dataInicio, query.dataFim);
+    const somaPerdas = await this.prisma.perdaDevolucao.aggregate({
+      where: {
+        ...(periodo ? { data: periodo } : {}),
+        ...(query.vendedorId ? { pedido: { vendedorId: query.vendedorId } } : {}),
+      },
+      _sum: { valor: true },
+    });
+    const perdas = Number(somaPerdas._sum.valor ?? 0);
+    const lucroTotal = resumo.totalVendido - resumo.custoTotal - perdas;
 
     return {
       periodo: {
@@ -342,6 +356,7 @@ export class RelatoriosService {
       geral: {
         totalVendido: resumo.totalVendido,
         custoTotal: resumo.custoTotal,
+        perdas,
         lucroTotal,
         margemPercentual: resumo.totalVendido > 0 ? (lucroTotal / resumo.totalVendido) * 100 : 0,
         quantidadeTotal: resumo.quantidadeTotal,
@@ -359,6 +374,8 @@ export class RelatoriosService {
         dataEntrada: true,
         quantidadeInicial: true,
         quantidadeDisponivel: true,
+        produtoId: true,
+        valorUnitario: true,
         produto: { select: { nome: true } },
       },
       orderBy: [{ dataEntrada: 'desc' }, { criadoEm: 'desc' }],
@@ -367,6 +384,8 @@ export class RelatoriosService {
       id: l.id,
       numero: l.numero,
       dataEntrada: l.dataEntrada,
+      produtoId: l.produtoId,
+      custoUnitario: Number(l.valorUnitario),
       produto: l.produto.nome,
       quantidadeInicial: Number(l.quantidadeInicial),
       quantidadeDisponivel: Number(l.quantidadeDisponivel),
@@ -422,7 +441,12 @@ export class RelatoriosService {
     const totalVendido = linhas.reduce((acc, l) => acc + l.faturamento, 0);
     const quantidadeTotal = linhas.reduce((acc, l) => acc + l.quantidade, 0);
     const custoTotal = custoUnitario * quantidadeTotal;
-    const lucroTotal = totalVendido - custoTotal;
+    const somaPerdas = await this.prisma.perdaDevolucao.aggregate({
+      where: { loteId },
+      _sum: { valor: true },
+    });
+    const perdas = Number(somaPerdas._sum.valor ?? 0);
+    const lucroTotal = totalVendido - custoTotal - perdas;
     const quantidadeInicial = Number(lote.quantidadeInicial);
 
     return {
@@ -440,6 +464,7 @@ export class RelatoriosService {
       geral: {
         totalVendido,
         custoTotal,
+        perdas,
         lucroTotal,
         margemPercentual: totalVendido > 0 ? (lucroTotal / totalVendido) * 100 : 0,
         quantidadeTotal,

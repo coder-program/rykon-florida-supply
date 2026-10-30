@@ -125,12 +125,14 @@ const STATUS_PODE_ATRIBUIR = ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA',
 
 const DEVOL_LABEL: Record<string, string> = {
   PENDENTE: 'Pendente',
+  APROVADA: 'Aguardando reembolso',
   CONCLUIDA: 'Concluída',
   NEGADA: 'Negada',
 }
 
 const DEVOL_COLOR: Record<string, string> = {
   PENDENTE: 'bg-amber-100 text-amber-800',
+  APROVADA: 'bg-blue-100 text-blue-700',
   CONCLUIDA: 'bg-emerald-100 text-emerald-700',
   NEGADA: 'bg-red-100 text-red-700',
 }

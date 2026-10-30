@@ -18,13 +18,15 @@ function toDataUrl(file: File): Promise<string> {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDENTE: 'Pendente',
+  PENDENTE: 'Aguardando aprovação',
+  APROVADA: 'Aprovada, aguardando reembolso',
   CONCLUIDA: 'Concluída',
   NEGADA: 'Negada',
 }
 
 const STATUS_COLOR: Record<string, string> = {
   PENDENTE: 'bg-amber-100 text-amber-800',
+  APROVADA: 'bg-blue-100 text-blue-700',
   CONCLUIDA: 'bg-emerald-100 text-emerald-700',
   NEGADA: 'bg-red-100 text-red-700',
 }
@@ -697,6 +699,23 @@ export function DevolucoesPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {devolucaoSelecionada.reembolso && (
+              <div className="mt-3 rounded-xl border border-gray-200 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Reembolso
+                </p>
+                <p className="mt-2 text-sm text-gray-700">
+                  {devolucaoSelecionada.reembolso.tipo === 'CAIXAS'
+                    ? `${devolucaoSelecionada.reembolso.quantidadeCaixas} caixa(s), lote ${devolucaoSelecionada.reembolso.lote}`
+                    : Number(devolucaoSelecionada.reembolso.valor).toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      })}{' '}
+                  em {new Date(devolucaoSelecionada.reembolso.data).toLocaleDateString('pt-BR')}
+                </p>
               </div>
             )}
 

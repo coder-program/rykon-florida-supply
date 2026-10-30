@@ -18,6 +18,7 @@ type LucroLote = {
   geral: {
     totalVendido: number
     custoTotal: number
+    perdas: number
     lucroTotal: number
     margemPercentual: number
     quantidadeTotal: number
@@ -144,6 +145,11 @@ export function LucroPorLote() {
             Custo da caixa neste lote: <strong>{formatBRL(data.lote.custoUnitario)}</strong> (com
             frete e comissão) · preço médio de venda:{' '}
             <strong>{formatBRL(data.geral.precoMedio)}</strong> ·{' '}
+            {data.geral.perdas > 0 && (
+              <>
+                perdas descontadas do lucro: <strong>{formatBRL(data.geral.perdas)}</strong> ·{' '}
+              </>
+            )}
             {data.lote.quantidadeDisponivel > 0
               ? `${data.lote.quantidadeDisponivel.toFixed(0)} cx ainda em estoque`
               : 'lote esgotado'}

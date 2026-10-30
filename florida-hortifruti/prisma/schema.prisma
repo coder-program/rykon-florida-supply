@@ -312,6 +312,11 @@ model Pedido {
   precosRevenda     Json?
   // Posição na rota do entregador, definida pelo supervisor; nulo = ordem em que ficou pronto
   ordemRota         Int?
+  // Meia-noite UTC do dia previsto (mesma base da dataVencimento)
+  dataPrevistaEntrega DateTime?
+  // Imprevisto na entrega; preenchido = "Entrega com problema" até ser resolvido ou entregue
+  problemaEntrega     String?
+  problemaEntregaEm   DateTime?
 
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
@@ -320,6 +325,7 @@ model Pedido {
 
   itens                 ItemPedido[]
   itensLote             ItemPedidoLote[]
+  perdas                PerdaDevolucao[]
   movimentacoes         MovimentacaoEstoque[]
   etiqueta              Etiqueta?
   solicitacoesAlteracao SolicitacaoAlteracaoPedido[]
@@ -391,6 +397,25 @@ model ItemPedidoLote {
 
   @@index([pedidoId, produtoId])
   @@map("itens_pedido_lote")
+}
+
+// Caixas devolvidas não voltam ao estoque: ficam registradas como perda do lote
+model PerdaDevolucao {
+  id          String      @id @default(uuid())
+  // Id do registro da devolução (logs_auditoria)
+  devolucaoId String
+  pedidoId    String
+  pedido      Pedido      @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  loteId      String
+  lote        LoteProduto @relation(fields: [loteId], references: [id])
+  quantidade  Decimal     @db.Decimal(10, 2)
+  valor       Decimal     @default(0) @db.Decimal(10, 2)
+  data        DateTime
+  usuarioId   String
+  criadoEm    DateTime    @default(now())
+
+  @@index([data])
+  @@map("perdas_devolucao")
 }
 
 model ComprovanteEntrega {
@@ -475,6 +500,7 @@ model LoteProduto {
   itensPedido       ItemPedidoLote[]
   itensSelecionados ItemPedido[]
   movimentacoesLote MovimentacaoEstoqueLote[]
+  perdas            PerdaDevolucao[]
 
   // Número do lote é único por produto e dia (ex.: 18/09 - lote 1), validado no EstoqueService
   @@index([produtoId, numero])

@@ -14,13 +14,19 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { DevolucoesService } from './devolucoes.service';
-import { AtualizarStatusDevolucaoDto, CriarDevolucaoDto } from './dto/devolucao.dto';
+import {
+  AtualizarStatusDevolucaoDto,
+  CriarDevolucaoDto,
+  RegistrarReembolsoDto,
+} from './dto/devolucao.dto';
 
 const QUEM_REGISTRA = [
   PapelUsuario.VENDEDOR,
   PapelUsuario.SUPERVISOR,
   PapelUsuario.MOTORISTA,
   PapelUsuario.REVENDEDOR,
+  PapelUsuario.ADMINISTRADOR,
+  PapelUsuario.ADMINISTRATIVO,
 ];
 
 @Controller('devolucoes')
@@ -67,6 +73,29 @@ export class DevolucoesController {
     @Body() dto: AtualizarStatusDevolucaoDto,
   ) {
     return this.service.atualizarStatus(id, dto, req.user.id);
+  }
+
+  // Separado da aprovação: o reembolso pode ser feito dias depois
+  @Patch(':id/reembolso')
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
+  registrarReembolso(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Body() dto: RegistrarReembolsoDto,
+  ) {
+    return this.service.registrarReembolso(id, dto, req.user.id);
+  }
+
+  // Card de Perdas do Dashboard
+  @Get('perdas')
+  @Roles(
+    PapelUsuario.ADMINISTRATIVO,
+    PapelUsuario.ADMINISTRADOR,
+    PapelUsuario.SUPERVISOR,
+    PapelUsuario.VISAO_GERAL,
+  )
+  perdas(@Query('dataInicio') dataInicio?: string, @Query('dataFim') dataFim?: string) {
+    return this.service.perdas(dataInicio, dataFim);
   }
 
   @Get('resumo')

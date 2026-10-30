@@ -5,11 +5,14 @@ import {
   IsOptional,
   IsString,
   IsEnum,
+  IsIn,
   IsInt,
+  IsNumber,
   Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { FORMAS_PAGAMENTO_ATIVAS, MENSAGEM_FORMA_INVALIDA } from '../../common/formas-pagamento';
 
 export enum MotivoDevolucao {
   ESTRAGADO = 'ESTRAGADO',
@@ -49,11 +52,12 @@ export class CriarDevolucaoDto {
   @IsString()
   etiquetaToken?: string;
 
+  // 3 fotos; administrador e administrativo registram sem foto (validado no service)
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(3)
   @ArrayMaxSize(3)
   @IsString({ each: true })
-  fotos: string[];
+  fotos?: string[];
 
   @IsArray()
   @ArrayMinSize(1)
@@ -77,15 +81,65 @@ export class CriarDevolucaoDto {
 
 export enum StatusDevolucao {
   PENDENTE = 'PENDENTE',
+  // Aprovada, aguardando o reembolso ao cliente
+  APROVADA = 'APROVADA',
   CONCLUIDA = 'CONCLUIDA',
   NEGADA = 'NEGADA',
 }
 
 export class AtualizarStatusDevolucaoDto {
-  @IsEnum(StatusDevolucao)
-  status: StatusDevolucao;
+  @IsIn([StatusDevolucao.APROVADA, StatusDevolucao.NEGADA])
+  status: StatusDevolucao.APROVADA | StatusDevolucao.NEGADA;
 
   @IsOptional()
   @IsString()
   resposta?: string;
+}
+
+export enum TipoReembolso {
+  CAIXAS = 'CAIXAS',
+  DINHEIRO = 'DINHEIRO',
+}
+
+export class RegistrarReembolsoDto {
+  @IsEnum(TipoReembolso)
+  tipo: TipoReembolso;
+
+  // Dia em que o reembolso foi feito (YYYY-MM-DD)
+  @IsString()
+  data: string;
+
+  // Em caixas
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  quantidadeCaixas?: number;
+
+  @IsOptional()
+  @IsString()
+  loteId?: string;
+
+  // Em dinheiro
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  valor?: number;
+
+  @IsOptional()
+  @IsIn(FORMAS_PAGAMENTO_ATIVAS, { message: MENSAGEM_FORMA_INVALIDA })
+  formaPagamento?: string;
+
+  // Perda: as caixas devolvidas não voltam ao estoque
+  @IsInt()
+  @Min(1)
+  perdaQuantidade: number;
+
+  @IsString()
+  perdaLoteId: string;
+
+  // Valor perdido, informado no reembolso em dinheiro
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  perdaValor?: number;
 }

@@ -886,6 +886,47 @@ export class EstoqueService {
     return restante;
   }
 
+  // Tira do pedido caixas que não voltam ao estoque (perda): só deixam de contar como vendidas
+  async retirarDoPedidoEmTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      pedidoId: string;
+      produtoId: string;
+      quantidade: number;
+      loteIdPreferido?: string | null;
+    },
+  ) {
+    let restante = Number(params.quantidade || 0);
+    const usados = await tx.itemPedidoLote.findMany({
+      where: { pedidoId: params.pedidoId, produtoId: params.produtoId },
+      orderBy: { id: 'asc' },
+    });
+    usados.sort(
+      (a, b) =>
+        Number(b.loteId === params.loteIdPreferido) - Number(a.loteId === params.loteIdPreferido),
+    );
+
+    for (const usado of usados) {
+      if (restante <= 0) break;
+      const atual = Number(usado.quantidade);
+      const qtd = Math.min(restante, atual);
+      if (qtd <= 0) continue;
+      const resta = Number((atual - qtd).toFixed(2));
+      if (resta <= 0) {
+        await tx.itemPedidoLote.delete({ where: { id: usado.id } });
+      } else {
+        await tx.itemPedidoLote.update({
+          where: { id: usado.id },
+          data: {
+            quantidade: resta,
+            valorTotal: Number((resta * Number(usado.valorUnitario)).toFixed(2)),
+          },
+        });
+      }
+      restante = Number((restante - qtd).toFixed(2));
+    }
+  }
+
   // Rastreabilidade de um pedido: cada movimento de lote (saída, devolução) com saldo antes/depois,
   // e o resumo do que ficou com o cliente por lote
   async lotesUtilizadosNoPedido(pedidoId: string) {

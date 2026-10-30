@@ -28,7 +28,7 @@ import {
   TipoMovimentacao,
 } from '@prisma/client';
 import { StorageService } from '../common/storage.service';
-import { vendeSoOSeu } from '../common/papeis';
+import { clienteParaRevendedor, vendeSoOSeu } from '../common/papeis';
 import { dataEfetiva } from '../common/data-efetiva';
 import { registrarHistoricoStatus } from './historico-status.util';
 import { montarAvisoCobranca } from '../financeiro/avisos-cobranca.util';
@@ -268,17 +268,25 @@ export class PedidosService implements OnApplicationBootstrap {
   }
 
   // Revendedor nunca vê custo da Flórida (o produto vem junto nos itens)
-  private semCustoParaRevendedor<T extends { itens?: any[] }>(pedido: T, papel?: PapelUsuario) {
+  // nem os dados internos do cliente da Flórida
+  private semCustoParaRevendedor<
+    T extends {
+      itens?: any[];
+      vendedorId: string | null;
+      cliente: { revendedorId: string | null } | null;
+    },
+  >(pedido: T, papel?: PapelUsuario) {
     if (papel !== PapelUsuario.REVENDEDOR || !pedido.itens) return pedido;
     return {
       ...pedido,
+      cliente: pedido.cliente && clienteParaRevendedor(pedido.cliente, pedido.vendedorId),
       itens: pedido.itens.map((item) =>
         item.produto ? { ...item, produto: { ...item.produto, custo: undefined } } : item,
       ),
     };
   }
 
-  // Cliente do revendedor só nos pedidos dele; o da Flórida, só nos da Flórida
+  // Cliente do revendedor só nos pedidos dele; a equipe da Flórida só usa os da Flórida
   private async validarDonoDoCliente(
     clienteId: string,
     usuarioId: string | null,
@@ -289,7 +297,9 @@ export class PedidosService implements OnApplicationBootstrap {
       select: { revendedorId: true },
     });
     if (!cliente) throw new NotFoundException('Cliente não encontrado');
-    if (revendedor ? cliente.revendedorId !== usuarioId : cliente.revendedorId !== null) {
+    const permitido =
+      cliente.revendedorId === null || (revendedor && cliente.revendedorId === usuarioId);
+    if (!permitido) {
       throw new ForbiddenException('Este cliente não pode ser usado neste pedido');
     }
   }
@@ -367,7 +377,9 @@ export class PedidosService implements OnApplicationBootstrap {
 
     return {
       status:
-        obj.status === 'CONCLUIDA' || obj.status === 'NEGADA' ? String(obj.status) : 'PENDENTE',
+        obj.status === 'CONCLUIDA' || obj.status === 'NEGADA' || obj.status === 'APROVADA'
+          ? String(obj.status)
+          : 'PENDENTE',
       etiquetaToken: obj.etiquetaToken ? String(obj.etiquetaToken) : null,
       itens,
       itensDevolvidos: obj.itensDevolvidos ? String(obj.itensDevolvidos) : null,
@@ -866,11 +878,16 @@ export class PedidosService implements OnApplicationBootstrap {
       await registrarHistoricoStatus(tx, id, StatusPedido.APROVADO);
 
       // Compra a prazo: avisa o cliente do valor que ficou para pagar
-      if (pedido.dataVencimento && pedido.statusPagamento !== StatusPagamento.PAGO) {
+      // (no pedido do revendedor, quem deve à Flórida é ele, não o cliente)
+      if (
+        pedido.dataVencimento &&
+        pedido.statusPagamento !== StatusPagamento.PAGO &&
+        pedido.vendedor?.papel !== PapelUsuario.REVENDEDOR
+      ) {
         const { titulo, mensagem } = montarAvisoCobranca('COMPRA_A_PRAZO', {
-          numeroPedido: pedido.numero,
+          cliente: pedido.cliente.razaoSocialOuNome,
+          dataCompra: pedido.data,
           valor: Number(pedido.totalFinal),
-          vencimento: new Date(pedido.dataVencimento),
         });
         await tx.notificacaoCliente.create({
           data: {
@@ -928,6 +945,8 @@ export class PedidosService implements OnApplicationBootstrap {
         data: {
           status: StatusPedido.ENTREGUE,
           entregueEm: new Date(),
+          problemaEntrega: null,
+          problemaEntregaEm: null,
           recebidoPor: dto.recebidoPor?.trim() || null,
           observacaoEntrega: dto.observacaoEntrega?.trim() || null,
           fotoEntrega: fotoUrl,
