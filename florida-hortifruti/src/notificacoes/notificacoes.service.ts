@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PapelUsuario } from '@prisma/client';
 import * as webpush from 'web-push';
 import { PrismaService } from '../prisma.service';
 import { InscricaoPushDto } from './dto/push.dto';
@@ -61,9 +62,12 @@ export class NotificacoesService {
           numero: true,
           clienteId: true,
           cliente: { select: { usuarioId: true } },
+          vendedor: { select: { papel: true } },
         },
       });
       if (!pedido?.clienteId) return;
+      // Pedido do revendedor não aparece para o cliente no portal
+      if (pedido.vendedor?.papel === PapelUsuario.REVENDEDOR) return;
 
       // Mesmo pedido saindo de novo para entrega não gera aviso repetido
       const existente = await this.prisma.notificacaoCliente.findFirst({

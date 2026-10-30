@@ -51,8 +51,8 @@ export class ClientesController {
 
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req: any) {
-    await this.clientesService.garantirAcesso(id, req.user);
-    return this.clientesService.findOne(id);
+    await this.clientesService.garantirAcesso(id, req.user, { leitura: true });
+    return this.clientesService.visivelPara(await this.clientesService.findOne(id), req.user);
   }
 
   @Put(':id')

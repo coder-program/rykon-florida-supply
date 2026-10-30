@@ -1,10 +1,15 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { PapelUsuario } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { CreateEnderecoDto, UpdateEnderecoDto } from './dto/enderecos.dto';
 import { EnderecosService } from './enderecos.service';
 
+// Revendedor não usa: ele só pode ver a cidade dos clientes da Flórida
 @Controller('enderecos')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(...Object.values(PapelUsuario).filter((papel) => papel !== PapelUsuario.REVENDEDOR))
 export class EnderecosController {
   constructor(private readonly enderecosService: EnderecosService) {}
 

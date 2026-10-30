@@ -9,15 +9,16 @@ import { PapelUsuario, Prisma, StatusConviteCliente, TipoEntidadeEndereco } from
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { EnderecosService } from '../enderecos/enderecos.service';
+import { clienteParaRevendedor } from '../common/papeis';
 import { CreateClienteDto, UpdateClienteDto } from './dto/cliente.dto';
 
 type UsuarioLogado = { id: string; papel: PapelUsuario };
 
-// Revendedor só enxerga os clientes dele; a equipe da Flórida, só os da Flórida
+// Revendedor enxerga os clientes dele e os da Flórida; a equipe da Flórida, só os da Flórida
 function filtroDono(usuario?: UsuarioLogado): Prisma.ClienteWhereInput {
   if (!usuario) return {};
   return usuario.papel === PapelUsuario.REVENDEDOR
-    ? { revendedorId: usuario.id }
+    ? { OR: [{ revendedorId: usuario.id }, { revendedorId: null }] }
     : { revendedorId: null };
 }
 
@@ -62,6 +63,15 @@ export class ClientesService {
     };
   }
 
+  visivelPara<T extends { revendedorId: string | null; enderecos?: { cidade?: any }[] }>(
+    cliente: T,
+    usuario?: UsuarioLogado,
+  ) {
+    return usuario?.papel === PapelUsuario.REVENDEDOR
+      ? clienteParaRevendedor(cliente, usuario.id)
+      : cliente;
+  }
+
   async create(dto: CreateClienteDto, usuario?: UsuarioLogado) {
     const { endereco, ...dadosCliente } = dto as any;
 
@@ -95,43 +105,57 @@ export class ClientesService {
     });
 
     return Promise.all(
-      clientes.map(async (cliente) => ({
-        ...this.semPlaceholderDoc(cliente),
-        enderecos: await this.enderecosService.findByEntidade(
-          TipoEntidadeEndereco.CLIENTE,
-          cliente.id,
+      clientes.map(async (cliente) =>
+        this.visivelPara(
+          {
+            ...this.semPlaceholderDoc(cliente),
+            enderecos: await this.enderecosService.findByEntidade(
+              TipoEntidadeEndereco.CLIENTE,
+              cliente.id,
+            ),
+          },
+          usuario,
         ),
-      })),
+      ),
     );
   }
 
   async search(termo: string, usuario?: UsuarioLogado) {
     const clientes = await this.prisma.cliente.findMany({
       where: {
-        ...filtroDono(usuario),
+        AND: [filtroDono(usuario)],
         ativo: true,
         OR: [
           { razaoSocialOuNome: { contains: termo, mode: 'insensitive' } },
           { nomeFantasia: { contains: termo, mode: 'insensitive' } },
-          { cnpjCpf: { contains: termo } },
-          { telefone: { contains: termo } },
+          // Documento e telefone do cliente da Flórida não podem ser testados pela busca
+          {
+            ...(usuario?.papel === PapelUsuario.REVENDEDOR ? { revendedorId: usuario.id } : {}),
+            OR: [{ cnpjCpf: { contains: termo } }, { telefone: { contains: termo } }],
+          },
         ],
       },
     });
 
     return Promise.all(
-      clientes.map(async (cliente) => ({
-        ...this.semPlaceholderDoc(cliente),
-        enderecos: await this.enderecosService.findByEntidade(
-          TipoEntidadeEndereco.CLIENTE,
-          cliente.id,
+      clientes.map(async (cliente) =>
+        this.visivelPara(
+          {
+            ...this.semPlaceholderDoc(cliente),
+            enderecos: await this.enderecosService.findByEntidade(
+              TipoEntidadeEndereco.CLIENTE,
+              cliente.id,
+            ),
+          },
+          usuario,
         ),
-      })),
+      ),
     );
   }
 
-  // Revendedor só abre/edita cliente dele; a equipe da Flórida não mexe nos do revendedor
-  async garantirAcesso(id: string, usuario: UsuarioLogado) {
+  // Revendedor abre os clientes da Flórida, mas só edita os dele;
+  // a equipe da Flórida não mexe nos do revendedor
+  async garantirAcesso(id: string, usuario: UsuarioLogado, opts: { leitura?: boolean } = {}) {
     const cliente = await this.prisma.cliente.findUnique({
       where: { id },
       select: { revendedorId: true },
@@ -139,7 +163,7 @@ export class ClientesService {
     if (!cliente) throw new NotFoundException('Cliente não encontrado');
     const permitido =
       usuario.papel === PapelUsuario.REVENDEDOR
-        ? cliente.revendedorId === usuario.id
+        ? cliente.revendedorId === usuario.id || (!!opts.leitura && cliente.revendedorId === null)
         : cliente.revendedorId === null;
     if (!permitido) throw new ForbiddenException('Você não tem acesso a este cliente');
   }

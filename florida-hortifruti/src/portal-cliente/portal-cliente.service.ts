@@ -4,7 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { FormaPagamento, OrigemPedido, TipoEntidadeEndereco } from '@prisma/client';
+import {
+  FormaPagamento,
+  OrigemPedido,
+  PapelUsuario,
+  Prisma,
+  TipoEntidadeEndereco,
+} from '@prisma/client';
 import { FORMAS_PAGAMENTO_ATIVAS } from '../common/formas-pagamento';
 import { PrismaService } from '../prisma.service';
 import { PedidosService } from '../pedidos/pedidos.service';
@@ -13,6 +19,11 @@ import { EnderecosService } from '../enderecos/enderecos.service';
 import { ClientesService } from '../clientes/clientes.service';
 import { CriarPedidoPortalDto } from '../pedidos/dto/pedido.dto';
 import { UpdateClienteDto } from '../clientes/dto/cliente.dto';
+
+// Pedido do revendedor traz o preço da Flórida para ele: o cliente não pode ver no portal
+const FORA_DA_REVENDA: Prisma.PedidoWhereInput = {
+  OR: [{ vendedorId: null }, { vendedor: { papel: { not: PapelUsuario.REVENDEDOR } } }],
+};
 
 @Injectable()
 export class PortalClienteService {
@@ -130,7 +141,7 @@ export class PortalClienteService {
   async listarPedidos(usuarioId: string) {
     const cliente = await this.resolverCliente(usuarioId);
     const pedidos = await this.prisma.pedido.findMany({
-      where: { clienteId: cliente.id },
+      where: { clienteId: cliente.id, ...FORA_DA_REVENDA },
       include: {
         itens: { include: { produto: { select: { nome: true, unidadeVenda: true } } } },
       },
@@ -141,8 +152,8 @@ export class PortalClienteService {
 
   async detalhe(id: string, usuarioId: string) {
     const cliente = await this.resolverCliente(usuarioId);
-    const pedido = await this.prisma.pedido.findUnique({
-      where: { id },
+    const pedido = await this.prisma.pedido.findFirst({
+      where: { id, ...FORA_DA_REVENDA },
       include: {
         itens: { include: { produto: { select: { id: true, nome: true, unidadeVenda: true } } } },
         comprovanteEntrega: {
@@ -160,7 +171,7 @@ export class PortalClienteService {
 
   async atualizarPedido(id: string, usuarioId: string, dto: CriarPedidoPortalDto) {
     const cliente = await this.resolverCliente(usuarioId);
-    const pedido = await this.prisma.pedido.findUnique({ where: { id } });
+    const pedido = await this.prisma.pedido.findFirst({ where: { id, ...FORA_DA_REVENDA } });
     if (!pedido) throw new NotFoundException('Pedido não encontrado');
     if (pedido.clienteId !== cliente.id) {
       throw new ForbiddenException('Você não tem acesso a este pedido');

@@ -299,6 +299,7 @@ function EtapaCliente({
   onNovo: () => void
 }) {
   const [busca, setBusca] = useState('')
+  const revendedor = useAuth().usuario?.papel === 'REVENDEDOR'
 
   const { data: clientes = [], isFetching } = useQuery({
     queryKey: ['clientes-busca', busca],
@@ -316,7 +317,9 @@ function EtapaCliente({
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             autoFocus
-            placeholder="Buscar por nome, CNPJ ou telefone..."
+            placeholder={
+              revendedor ? 'Buscar pelo nome...' : 'Buscar por nome, CNPJ ou telefone...'
+            }
             className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-green-500"
           />
         </div>
@@ -343,10 +346,12 @@ function EtapaCliente({
             <p className="font-semibold text-gray-900 text-sm">{c.razaoSocialOuNome}</p>
             {c.nomeFantasia && <p className="text-xs text-gray-400">{c.nomeFantasia}</p>}
             <p className="text-xs text-gray-500 mt-0.5">
-              {!c.cnpjCpf || c.cnpjCpf.startsWith('SEM-DOC-')
-                ? 'CPF/CNPJ não informado'
-                : c.cnpjCpf}
-              {c.cidade ? ` • ${c.cidade}` : ''}
+              {/* Cliente da Flórida para o revendedor: só nome e cidade */}
+              {c.cnpjCpf === undefined
+                ? (c.cidade ?? 'Cidade não informada')
+                : !c.cnpjCpf || c.cnpjCpf.startsWith('SEM-DOC-')
+                  ? 'CPF/CNPJ não informado'
+                  : c.cnpjCpf}
             </p>
           </button>
         ))}
