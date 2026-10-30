@@ -3,52 +3,41 @@
 
 export type TipoAvisoCobranca = 'COMPRA_A_PRAZO' | 'VENCE_EM_3_DIAS' | 'VENCIMENTO_HOJE';
 
+const CHAVE_PIX = '11 91205-0672';
+
 const formatarBRL = (valor: number) =>
   valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-// Fecho de todos os avisos, logo depois da data de vencimento
-export const FECHO_AVISO = 'Qualquer coisa ficamos à disposição,\nFlorida Supply Hortifruti ;)';
-
-// dataVencimento é gravada como meia-noite UTC do dia escolhido
-const formatarData = (data: Date) => data.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+// A data do pedido é um instante: o dia da compra é o de Brasília
+const formatarData = (data: Date) =>
+  data.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
 // "Hoje" no fuso de Brasília, como meia-noite UTC (mesma base da dataVencimento)
 export function hojeBrasilia() {
   return new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }));
 }
 
+const TITULOS: Record<TipoAvisoCobranca, string> = {
+  COMPRA_A_PRAZO: 'Compra registrada',
+  VENCE_EM_3_DIAS: 'Pagamento vence em 3 dias',
+  VENCIMENTO_HOJE: 'Pagamento vence hoje',
+};
+
 export function montarAvisoCobranca(
   tipo: TipoAvisoCobranca,
-  dados: { numeroPedido: number; valor: number; vencimento: Date; vencido?: boolean },
+  dados: { cliente: string; dataCompra: Date; valor: number; vencido?: boolean },
 ) {
-  const valor = formatarBRL(dados.valor);
-  const data = formatarData(dados.vencimento);
-  const pedido = `pedido nº ${dados.numeroPedido}`;
-
-  const comFecho = (texto: string) => `${texto}\n\n${FECHO_AVISO}`;
-
-  if (tipo === 'COMPRA_A_PRAZO') {
-    return {
-      titulo: 'Compra registrada',
-      mensagem: comFecho(
-        `Sua compra do ${pedido} foi registrada. Você tem ${valor} para pagar conosco até ${data}.`,
-      ),
-    };
-  }
-  if (tipo === 'VENCE_EM_3_DIAS') {
-    return {
-      titulo: 'Pagamento vence em 3 dias',
-      mensagem: comFecho(
-        `Lembrete: o pagamento do ${pedido}, no valor de ${valor}, vence em ${data}.`,
-      ),
-    };
-  }
   return {
-    titulo: dados.vencido ? 'Pagamento vencido' : 'Pagamento vence hoje',
-    mensagem: comFecho(
-      dados.vencido
-        ? `O pagamento do ${pedido} venceu em ${data} e ainda consta em aberto: ${valor}. Se já pagou, desconsidere.`
-        : `O pagamento do ${pedido}, no valor de ${valor}, vence hoje (${data}). Se já pagou, desconsidere.`,
-    ),
+    titulo: dados.vencido ? 'Pagamento vencido' : TITULOS[tipo],
+    mensagem: [
+      `Olá, ${dados.cliente}! 🍓`,
+      `Passando para lembrar que temos um valor em aberto referente à compra do dia ${formatarData(dados.dataCompra)}, no valor de ${formatarBRL(dados.valor)}.`,
+      '',
+      'Se já realizaram o pagamento, podem nos enviar o comprovante, por gentileza?',
+      `Chave Pix: ${CHAVE_PIX}`,
+      '',
+      'Qualquer coisa, ficamos à disposição! ❤️',
+      'Flórida Supply Hortifruti Ltda 🍓',
+    ].join('\n'),
   };
 }

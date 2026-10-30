@@ -353,6 +353,7 @@ export class FinanceiroService {
       },
       include: {
         cliente: { select: { id: true, razaoSocialOuNome: true } },
+        vendedor: { select: { papel: true } },
         pagamentos: { select: { valor: true } },
       },
       orderBy: { dataVencimento: 'asc' },
@@ -362,6 +363,8 @@ export class FinanceiroService {
 
     for (const pedido of pedidos) {
       if (!pedido.cliente || !pedido.dataVencimento) continue;
+      // No pedido do revendedor, quem deve à Flórida é ele, não o cliente
+      if (pedido.vendedor?.papel === PapelUsuario.REVENDEDOR) continue;
 
       // Pagamento parcial já identificado: notifica apenas sobre o saldo restante
       const { saldoDevedor } = this.calcularSaldo(pedido);
@@ -385,9 +388,9 @@ export class FinanceiroService {
       if (existente) continue;
 
       const { titulo, mensagem } = montarAvisoCobranca(tipo, {
-        numeroPedido: pedido.numero,
+        cliente: pedido.cliente.razaoSocialOuNome,
+        dataCompra: pedido.data,
         valor: saldoDevedor,
-        vencimento,
         vencido: diffDias < 0,
       });
 

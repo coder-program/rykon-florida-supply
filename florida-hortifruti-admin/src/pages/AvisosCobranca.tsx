@@ -91,7 +91,10 @@ export function AvisosCobranca() {
           const fecho = String(aviso.mensagem).includes('Florida Supply Hortifruti')
             ? ''
             : `\n\n${FECHO_AVISO}`
-          const texto = `Olá, ${aviso.cliente?.razaoSocialOuNome ?? ''}! ${aviso.mensagem}${fecho}`
+          // O modelo novo já vem completo, com a saudação
+          const texto = String(aviso.mensagem).startsWith('Olá')
+            ? aviso.mensagem
+            : `Olá, ${aviso.cliente?.razaoSocialOuNome ?? ''}! ${aviso.mensagem}${fecho}`
           const link = linkWhatsApp(telefone, texto)
           const config = STATUS_CONFIG[aviso.status] ?? STATUS_CONFIG.PENDENTE
           return (
