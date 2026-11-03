@@ -13,6 +13,7 @@ import {
   FileCode2,
   ChevronDown,
   Check,
+  ListOrdered,
 } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -25,7 +26,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Input, Select } from '../components/ui/Input'
 import { useAuth } from '../contexts/useAuth'
 
-type Aba = 'vendas' | 'estoque' | 'produto' | 'vendedor' | 'financeiro'
+type Aba = 'vendas' | 'itens' | 'estoque' | 'produto' | 'vendedor' | 'financeiro'
 type Formato = 'excel' | 'pdf' | 'csv' | 'json' | 'xml'
 
 const STATUS_PAGAMENTO_LABEL: Record<string, string> = {
@@ -49,6 +50,7 @@ const statusPagamentoOptions = ['TODOS', 'PAGO', 'EM_ABERTO', 'VENCIDO']
 
 const ABAS: { key: Aba; label: string; icon: LucideIcon }[] = [
   { key: 'vendas', label: 'Pedidos/Vendas', icon: BarChart3 },
+  { key: 'itens', label: 'Itens vendidos', icon: ListOrdered },
   { key: 'estoque', label: 'Estoque', icon: Package },
   { key: 'produto', label: 'Por Produto', icon: Package },
   { key: 'vendedor', label: 'Por Vendedor', icon: Users },
@@ -342,8 +344,30 @@ export function RelatoriosPage() {
   const { data: vendas = [], isLoading: loadVendas } = useQuery({
     queryKey: ['rel-vendas', params],
     queryFn: () => api.get('/relatorios/vendas', { params }).then((r) => r.data),
-    enabled: aba === 'vendas',
+    enabled: aba === 'vendas' || aba === 'itens',
   })
+
+  // Uma linha por produto de cada pedido: quantidade, tipo e valor cobrado
+  const itensVendidos = useMemo(
+    () =>
+      (vendas as any[]).flatMap((v) =>
+        (v.itens ?? [])
+          .filter((i: any) => !produtoId || i.produtoId === produtoId)
+          .map((i: any) => ({
+            id: i.id,
+            numero: `#${String(v.numero).padStart(6, '0')}`,
+            data: v.data,
+            cliente: v.cliente?.razaoSocialOuNome ?? '',
+            produto: i.produto?.nome ?? '',
+            quantidade: Number(i.quantidade ?? 0),
+            valorUnitario: Number(i.valorUnitario ?? 0),
+            valorTotal: Number(i.valorTotal ?? 0),
+          })),
+      ),
+    [vendas, produtoId],
+  )
+  const totalCaixas = itensVendidos.reduce((s, i) => s + i.quantidade, 0)
+  const totalItens = itensVendidos.reduce((s, i) => s + i.valorTotal, 0)
 
   const { data: estoque = [], isLoading: loadEstoque } = useQuery({
     queryKey: ['rel-estoque', params],
@@ -389,6 +413,34 @@ export function RelatoriosPage() {
   }, [dataInicio, dataFim, status, statusPagamento, nomeVendedor, nomeProduto])
 
   const visao = useMemo<Visao>(() => {
+    if (aba === 'itens') {
+      return {
+        titulo: 'Itens vendidos',
+        slug: 'itens-vendidos',
+        contagem: itensVendidos.length,
+        carregando: loadVendas,
+        headers: ['Nº', 'Data', 'Cliente', 'Produto', 'Qtd', 'Valor unit.', 'Total'],
+        excelRows: itensVendidos.map((i) => ({
+          Nº: i.numero,
+          Data: formatDate(i.data),
+          Cliente: i.cliente,
+          Produto: i.produto,
+          Qtd: i.quantidade,
+          'Valor unit.': i.valorUnitario,
+          Total: i.valorTotal,
+        })),
+        pdfRows: itensVendidos.map((i) => [
+          i.numero,
+          formatDate(i.data),
+          i.cliente,
+          i.produto,
+          `${i.quantidade.toFixed(0)} cx`,
+          formatBRL(i.valorUnitario),
+          formatBRL(i.valorTotal),
+        ]),
+      }
+    }
+
     if (aba === 'estoque') {
       return {
         titulo: 'Estoque',
@@ -512,6 +564,7 @@ export function RelatoriosPage() {
   }, [
     aba,
     vendas,
+    itensVendidos,
     estoque,
     porProduto,
     porVendedor,
@@ -683,6 +736,72 @@ export function RelatoriosPage() {
                   </tr>
                 )}
               </tbody>
+            </table>
+          </div>
+        )}
+
+        {aba === 'itens' && (
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="border-b border-gray-200 bg-gray-50">
+                <tr>
+                  {['Nº', 'Data', 'Cliente', 'Produto'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                      {h}
+                    </th>
+                  ))}
+                  {['Qtd', 'Valor unit.', 'Total'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-right text-xs font-medium text-gray-500">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {loadVendas && (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-gray-400">
+                      Carregando...
+                    </td>
+                  </tr>
+                )}
+                {itensVendidos.map((i) => (
+                  <tr key={i.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-mono text-gray-600">{i.numero}</td>
+                    <td className="px-4 py-3 text-gray-600">{formatDate(i.data)}</td>
+                    <td className="px-4 py-3 text-gray-700">{i.cliente}</td>
+                    <td className="px-4 py-3 text-gray-700">{i.produto}</td>
+                    <td className="px-4 py-3 text-right text-gray-700">
+                      {i.quantidade.toFixed(0)} cx
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-600">
+                      {formatBRL(i.valorUnitario)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                      {formatBRL(i.valorTotal)}
+                    </td>
+                  </tr>
+                ))}
+                {!loadVendas && itensVendidos.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-gray-400">
+                      Nenhum dado no período
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              {itensVendidos.length > 0 && (
+                <tfoot className="border-t border-gray-200 bg-gray-50 font-semibold text-gray-900">
+                  <tr>
+                    <td colSpan={4} className="px-4 py-3">
+                      Total
+                    </td>
+                    <td className="px-4 py-3 text-right">{totalCaixas.toFixed(0)} cx</td>
+                    <td />
+                    <td className="px-4 py-3 text-right">{formatBRL(totalItens)}</td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         )}
