@@ -266,6 +266,8 @@ export class EstoqueService {
                   take: 1,
                   orderBy: { data: 'asc' },
                   select: {
+                    id: true,
+                    saldoAntes: true,
                     lote: {
                       select: {
                         id: true,
@@ -339,7 +341,7 @@ export class EstoqueService {
       valorFrete?: number;
       valorComissao?: number;
       observacao?: string;
-      itens?: Array<{ id: string; valorProduto?: number }>;
+      itens?: Array<{ id: string; valorProduto?: number; quantidade?: number; produtoId?: string }>;
     },
     usuarioId: string,
   ) {
@@ -363,7 +365,7 @@ export class EstoqueService {
     const observacao =
       dados.observacao !== undefined ? dados.observacao.trim() || null : compra.observacao;
 
-    const editados = new Map((dados.itens ?? []).map((item) => [item.id, item.valorProduto]));
+    const editados = new Map((dados.itens ?? []).map((item) => [item.id, item]));
     for (const itemId of editados.keys()) {
       if (!compra.itens.some((item) => item.id === itemId)) {
         throw new BadRequestException('Item não pertence a esta entrada');
@@ -371,21 +373,62 @@ export class EstoqueService {
     }
 
     const entrada: ItemEntrada[] = compra.itens.map((item) => {
-      const quantidade = Number(item.quantidade);
+      const quantidadeAntiga = Number(item.quantidade);
       const editado = editados.get(item.id);
       return {
-        produtoId: item.produtoId,
-        quantidade,
+        produtoId: editado?.produtoId || item.produtoId,
+        quantidade: editado?.quantidade ?? quantidadeAntiga,
         valorProduto:
-          editado !== undefined && editado !== null
-            ? Number(editado)
-            : quantidade > 0
-              ? Number(item.valorProdutoInformado) / quantidade
+          editado?.valorProduto !== undefined && editado.valorProduto !== null
+            ? Number(editado.valorProduto)
+            : quantidadeAntiga > 0
+              ? Number(item.valorProdutoInformado) / quantidadeAntiga
               : 0,
       };
     });
     if (entrada.some((item) => !(item.valorProduto >= 0))) {
       throw new BadRequestException('Valor do produto inválido');
+    }
+
+    // Quantidade e produto mexem no lote: a quantidade não fica abaixo do que já saiu dele,
+    // e o produto só troca enquanto nenhuma caixa saiu
+    for (const [index, item] of compra.itens.entries()) {
+      const novo = entrada[index];
+      const lote = item.movimentacao?.lotes[0]?.lote;
+      const saiu = lote ? Number(lote.quantidadeInicial) - Number(lote.quantidadeDisponivel) : 0;
+      if (!(novo.quantidade > 0)) {
+        throw new BadRequestException(`Quantidade inválida para ${item.produto.nome}`);
+      }
+      if (novo.quantidade < saiu) {
+        throw new BadRequestException(
+          `${item.produto.nome}: já saíram ${saiu} cx do lote, a quantidade não pode ser menor`,
+        );
+      }
+      if (novo.produtoId === item.produtoId) continue;
+      if (saiu > 0) {
+        throw new BadRequestException(
+          `${item.produto.nome}: já saíram caixas do lote, não dá para trocar o produto`,
+        );
+      }
+      const produto = await this.prisma.produto.findUnique({ where: { id: novo.produtoId } });
+      if (!produto) throw new BadRequestException('Produto não encontrado');
+      if (lote) {
+        const { inicio, fim } = this.diaLote(
+          lote.dataEntrada.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }),
+        );
+        const repetido = await this.prisma.loteProduto.findFirst({
+          where: {
+            produtoId: novo.produtoId,
+            numero: lote.numero,
+            dataEntrada: { gte: inicio, lt: fim },
+          },
+        });
+        if (repetido) {
+          throw new BadRequestException(
+            `Já existe o lote ${lote.numero} de ${produto.nome} nesse dia`,
+          );
+        }
+      }
     }
     const rateados = this.calcularRateio(entrada, valorFrete, valorComissao);
 
@@ -395,6 +438,7 @@ export class EstoqueService {
       valorComissao: Number(compra.valorComissao),
       itens: compra.itens.map((item) => ({
         produto: item.produto.nome,
+        quantidade: Number(item.quantidade),
         valorProduto: Number(item.valorProdutoInformado),
         custoUnitarioFinal: Number(item.custoUnitarioFinal),
       })),
@@ -408,9 +452,12 @@ export class EstoqueService {
 
       for (const [index, item] of compra.itens.entries()) {
         const novo = rateados[index];
+        const delta = novo.quantidade - Number(item.quantidade);
         await tx.itemCompraEstoque.update({
           where: { id: item.id },
           data: {
+            produtoId: novo.produtoId,
+            quantidade: novo.quantidade,
             valorProdutoInformado: novo.valorProdutoInformado,
             rateioFrete: novo.rateioFrete,
             rateioComissao: novo.rateioComissao,
@@ -422,6 +469,8 @@ export class EstoqueService {
         await tx.movimentacaoEstoque.update({
           where: { id: item.movimentacaoId },
           data: {
+            produtoId: novo.produtoId,
+            quantidade: novo.quantidade,
             fornecedor,
             origem: `Compra - ${fornecedor}`,
             custoTotal: novo.custoTotalItem,
@@ -430,29 +479,43 @@ export class EstoqueService {
           },
         });
 
-        const lote = item.movimentacao?.lotes[0]?.lote;
-        if (lote) {
+        const movLote = item.movimentacao?.lotes[0];
+        if (movLote) {
           await tx.loteProduto.update({
-            where: { id: lote.id },
-            data: { valorUnitario: novo.custoUnitarioFinal },
+            where: { id: movLote.lote.id },
+            data: {
+              produtoId: novo.produtoId,
+              valorUnitario: novo.custoUnitarioFinal,
+              quantidadeInicial: novo.quantidade,
+              quantidadeDisponivel: { increment: delta },
+            },
           });
+          if (delta !== 0) {
+            await tx.movimentacaoEstoqueLote.update({
+              where: { id: movLote.id },
+              data: {
+                quantidade: novo.quantidade,
+                saldoDepois: Number(movLote.saldoAntes ?? 0) + novo.quantidade,
+              },
+            });
+          }
         }
 
-        // Custo do produto = custo da entrada mais recente (mesma regra do "Custo caixa")
-        const ultimaEntrada = await tx.movimentacaoEstoque.findFirst({
-          where: {
-            produtoId: item.produtoId,
-            tipo: TipoMovimentacao.ENTRADA,
-            custoUnitario: { not: null },
-          },
-          orderBy: { data: 'desc' },
-          select: { id: true },
-        });
-        if (ultimaEntrada?.id === item.movimentacaoId) {
-          await tx.produto.update({
-            where: { id: item.produtoId },
-            data: { custo: novo.custoUnitarioFinal },
+        // Custo do produto = custo da entrada mais recente (mesma regra do "Custo caixa");
+        // na troca de produto, o antigo volta ao custo da entrada anterior dele
+        for (const produtoId of new Set([item.produtoId, novo.produtoId])) {
+          const ultimaEntrada = await tx.movimentacaoEstoque.findFirst({
+            where: { produtoId, tipo: TipoMovimentacao.ENTRADA, custoUnitario: { not: null } },
+            orderBy: { data: 'desc' },
+            select: { id: true, custoUnitario: true },
           });
+          const mexeu = produtoId !== novo.produtoId || ultimaEntrada?.id === item.movimentacaoId;
+          if (ultimaEntrada && mexeu) {
+            await tx.produto.update({
+              where: { id: produtoId },
+              data: { custo: ultimaEntrada.custoUnitario },
+            });
+          }
         }
       }
 
@@ -469,7 +532,8 @@ export class EstoqueService {
               valorFrete,
               valorComissao,
               itens: compra.itens.map((item, index) => ({
-                produto: item.produto.nome,
+                produtoId: rateados[index].produtoId,
+                quantidade: rateados[index].quantidade,
                 valorProduto: rateados[index].valorProdutoInformado,
                 custoUnitarioFinal: rateados[index].custoUnitarioFinal,
               })),

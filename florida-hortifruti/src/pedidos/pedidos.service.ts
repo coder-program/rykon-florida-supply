@@ -1037,9 +1037,11 @@ export class PedidosService implements OnApplicationBootstrap {
         'Há uma solicitação de alteração pendente. Aprove ou negue antes de continuar.',
       );
     }
-    // Cancelar pedido que já baixou estoque (e ainda não foi entregue) devolve as caixas ao lote de origem
+    // Cancelar pedido que já baixou estoque devolve as caixas ao lote de origem
     const devolverEstoque =
-      novoStatus === StatusPedido.CANCELADO && this.statusPodeEntregar.includes(pedidoAtual.status);
+      novoStatus === StatusPedido.CANCELADO &&
+      (this.statusPodeEntregar.includes(pedidoAtual.status) ||
+        pedidoAtual.status === StatusPedido.ENTREGUE);
     // Pendente: devolve só o que saiu do lote no lançamento (pedido sem lote não tirou nada)
     const devolverLancamento =
       novoStatus === StatusPedido.CANCELADO &&
@@ -1095,7 +1097,7 @@ export class PedidosService implements OnApplicationBootstrap {
     return this.atualizarStatus(id, StatusPedido.CANCELADO, usuarioId);
   }
 
-  // Exclusão definitiva: só pedido CANCELADO (o estoque já voltou ao lote no cancelamento).
+  // Exclusão definitiva: pedido não cancelado é cancelado antes (as caixas voltam ao lote).
   async excluir(id: string, usuarioId: string) {
     const pedido = await this.prisma.pedido.findUnique({
       where: { id },
@@ -1105,9 +1107,10 @@ export class PedidosService implements OnApplicationBootstrap {
       },
     });
     if (!pedido) throw new NotFoundException('Pedido não encontrado');
-    // Entregue não sai: as caixas já estão com o cliente
+    // Entregue também sai (pedido lançado errado); rejeitado não tem o que devolver
     const cancelavel =
       pedido.status === StatusPedido.AGUARDANDO_APROVACAO ||
+      pedido.status === StatusPedido.ENTREGUE ||
       this.statusPodeEntregar.includes(pedido.status);
     if (pedido.status !== StatusPedido.CANCELADO && !cancelavel) {
       throw new BadRequestException('Este pedido não pode ser excluído neste status.');
@@ -1115,6 +1118,14 @@ export class PedidosService implements OnApplicationBootstrap {
     if (pedido._count.pagamentos > 0) {
       throw new BadRequestException(
         'Este pedido tem pagamentos registrados. Remova os pagamentos antes de excluir.',
+      );
+    }
+    const devolucoes = await this.prisma.logAuditoria.count({
+      where: { acao: 'REGISTRAR_DEVOLUCAO', entidadeId: id },
+    });
+    if (devolucoes > 0) {
+      throw new BadRequestException(
+        'Este pedido tem devolução registrada e não pode ser excluído.',
       );
     }
     // Cancela antes para as caixas voltarem aos lotes de origem

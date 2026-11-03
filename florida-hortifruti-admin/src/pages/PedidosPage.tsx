@@ -88,8 +88,8 @@ const STATUS_EDITAVEL = [
   'PRONTO_PARA_ENTREGA',
   'EM_ENTREGA',
 ]
-// Excluir: cancelado, ou ainda não entregue (a API cancela antes e devolve as caixas)
-const STATUS_EXCLUIVEL = ['CANCELADO', ...STATUS_EDITAVEL]
+// Excluir: a API cancela antes e devolve as caixas ao lote (inclusive de pedido entregue)
+const STATUS_EXCLUIVEL = ['CANCELADO', 'ENTREGUE', ...STATUS_EDITAVEL]
 // Pedido que já saiu do estoque e ainda não foi entregue
 const STATUS_ENTREGAVEL = ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA', 'EM_ENTREGA']
 

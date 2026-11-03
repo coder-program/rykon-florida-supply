@@ -5,7 +5,7 @@ import { formatBRL, formatDate } from '../lib/utils'
 import { previewRateio } from '../lib/rateio'
 import { Modal } from './ui/Modal'
 import { Button } from './ui/Button'
-import { Input, MoneyInput } from './ui/Input'
+import { Input, MoneyInput, Select } from './ui/Input'
 import { FornecedorSelect } from './FornecedorSelect'
 
 type Compra = {
@@ -43,8 +43,16 @@ export function EditarEntradaModal({
     valorComissao: 0,
     observacao: '',
     valores: {} as Record<string, number>,
+    quantidades: {} as Record<string, string>,
+    produtos: {} as Record<string, string>,
   })
   const [erro, setErro] = useState('')
+
+  const { data: produtos = [] } = useQuery({
+    queryKey: ['produtos'],
+    queryFn: () => api.get('/produtos').then((r) => r.data),
+    enabled: !!compraId,
+  })
 
   const { data: compra, isLoading } = useQuery<Compra>({
     queryKey: ['compra-estoque', compraId],
@@ -62,21 +70,28 @@ export function EditarEntradaModal({
       valorComissao: compra.valorComissao,
       observacao: compra.observacao ?? '',
       valores: Object.fromEntries(compra.itens.map((item) => [item.id, item.valorUnitario])),
+      quantidades: Object.fromEntries(
+        compra.itens.map((item) => [item.id, String(item.quantidade)]),
+      ),
+      produtos: Object.fromEntries(compra.itens.map((item) => [item.id, item.produto.id])),
     })
   }, [compra])
+
+  const quantidadeDe = (item: Compra['itens'][number]) =>
+    Number(form.quantidades[item.id] ?? item.quantidade)
 
   const rateio = useMemo(
     () =>
       previewRateio(
         (compra?.itens ?? []).map((item) => ({
-          produtoId: item.produto.id,
-          quantidade: item.quantidade,
+          produtoId: form.produtos[item.id] ?? item.produto.id,
+          quantidade: Number(form.quantidades[item.id] ?? item.quantidade),
           valorProduto: form.valores[item.id] ?? item.valorUnitario,
         })),
         form.valorFrete,
         form.valorComissao,
       ),
-    [compra, form.valores, form.valorFrete, form.valorComissao],
+    [compra, form],
   )
 
   const salvar = useMutation({
@@ -92,6 +107,8 @@ export function EditarEntradaModal({
         itens: (compra?.itens ?? []).map((item) => ({
           id: item.id,
           valorProduto: Number(form.valores[item.id] ?? item.valorUnitario),
+          quantidade: quantidadeDe(item),
+          produtoId: form.produtos[item.id] ?? item.produto.id,
         })),
       }),
     onSuccess: () => {
@@ -140,7 +157,8 @@ export function EditarEntradaModal({
             Entrada de {formatDate(compra.data)}. Ao salvar, o custo da caixa de cada lote é
             recalculado com o novo frete e a nova comissão
             {algumVendido ? ', inclusive das caixas que já foram vendidas' : ''}. A quantidade não
-            muda aqui; para isso use o Ajuste.
+            pode ficar abaixo do que já saiu do lote, e o produto só pode ser trocado enquanto
+            nenhuma caixa saiu.
           </p>
           <FornecedorSelect
             fornecedorId={form.fornecedorId}
@@ -169,6 +187,7 @@ export function EditarEntradaModal({
             {compra.itens.map((item, index) => {
               const novo = rateio[index]
               const mudou = novo && Math.abs(novo.custoCaixa - item.custoUnitarioFinal) >= 0.005
+              const vendidas = item.lote?.quantidadeVendida ?? 0
               return (
                 <div key={item.id} className="rounded-xl border border-gray-200 p-3 space-y-2">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -183,14 +202,50 @@ export function EditarEntradaModal({
                         : ''}
                     </p>
                   </div>
-                  <MoneyInput
-                    label="Valor do produto (por caixa) *"
-                    required
-                    value={form.valores[item.id] ?? item.valorUnitario}
-                    onValueChange={(valor) =>
-                      setForm((f) => ({ ...f, valores: { ...f.valores, [item.id]: valor } }))
-                    }
-                  />
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <Select
+                      label="Produto"
+                      value={form.produtos[item.id] ?? item.produto.id}
+                      disabled={vendidas > 0}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          produtos: { ...f.produtos, [item.id]: e.target.value },
+                        }))
+                      }
+                    >
+                      {!(produtos as any[]).some((p) => p.id === item.produto.id) && (
+                        <option value={item.produto.id}>{item.produto.nome}</option>
+                      )}
+                      {(produtos as any[]).map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nome}
+                        </option>
+                      ))}
+                    </Select>
+                    <Input
+                      type="number"
+                      min={Math.max(1, vendidas)}
+                      step="1"
+                      required
+                      label="Quantidade (cx) *"
+                      value={form.quantidades[item.id] ?? String(item.quantidade)}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          quantidades: { ...f.quantidades, [item.id]: e.target.value },
+                        }))
+                      }
+                    />
+                    <MoneyInput
+                      label="Valor do produto (por caixa) *"
+                      required
+                      value={form.valores[item.id] ?? item.valorUnitario}
+                      onValueChange={(valor) =>
+                        setForm((f) => ({ ...f, valores: { ...f.valores, [item.id]: valor } }))
+                      }
+                    />
+                  </div>
                   {novo && (
                     <p className="text-xs text-gray-600">
                       Custo da caixa: {formatBRL(item.custoUnitarioFinal)}
