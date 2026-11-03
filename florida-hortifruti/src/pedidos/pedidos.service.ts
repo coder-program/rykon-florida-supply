@@ -53,14 +53,6 @@ export class PedidosService implements OnApplicationBootstrap {
     private notificacoes: NotificacoesService,
   ) {}
 
-  private readonly statusAposAprovacao: StatusPedido[] = [
-    StatusPedido.APROVADO,
-    StatusPedido.EM_SEPARACAO,
-    StatusPedido.PRONTO_PARA_ENTREGA,
-    StatusPedido.EM_ENTREGA,
-    StatusPedido.ENTREGUE,
-  ];
-
   private readonly statusPodeSolicitar: StatusPedido[] = [
     StatusPedido.APROVADO,
     StatusPedido.EM_SEPARACAO,
@@ -416,10 +408,6 @@ export class PedidosService implements OnApplicationBootstrap {
     );
   }
 
-  private estoqueJaBaixado(status: StatusPedido) {
-    return this.statusAposAprovacao.includes(status);
-  }
-
   // Edições que não informam o lote mantêm o lote anterior, quando o produto tinha um só lote
   private manterLotes<T extends { produtoId: string; loteId?: string | null }>(
     antigos: { produtoId: string; loteId: string | null }[],
@@ -531,14 +519,6 @@ export class PedidosService implements OnApplicationBootstrap {
       pedidoId: params.pedidoId,
       valorUnitario: params.valorUnitario,
     });
-  }
-
-  private somarPorProduto(itens: { produtoId: string; quantidade: number }[]) {
-    const mapa = new Map<string, number>();
-    for (const item of itens) {
-      mapa.set(item.produtoId, (mapa.get(item.produtoId) ?? 0) + Number(item.quantidade));
-    }
-    return mapa;
   }
 
   // O que o pedido já tirou de cada lote (ItemPedidoLote) comparado ao que os itens pedem agora.
@@ -695,16 +675,6 @@ export class PedidosService implements OnApplicationBootstrap {
       throw new ForbiddenException('Para alterar a quantidade, envie uma solicitação de alteração');
     }
 
-    if (dto.itens && this.estoqueJaBaixado(pedido.status)) {
-      throw new BadRequestException(
-        'Após a aprovação, alterações de quantidade passam pela aba Solicitações de Alteração',
-      );
-    }
-
-    const itensAntigos = pedido.itens.map((i) => ({
-      produtoId: i.produtoId,
-      quantidade: Number(i.quantidade),
-    }));
     const itens = this.manterLotes(
       pedido.itens,
       dto.itens ??
@@ -723,23 +693,11 @@ export class PedidosService implements OnApplicationBootstrap {
       throw new BadRequestException('A quantidade de cada produto deve ser maior que zero');
     }
 
-    const jaBaixou = this.estoqueJaBaixado(pedido.status);
     if (dto.itens) {
-      if (jaBaixou) {
-        const antigo = this.somarPorProduto(itensAntigos);
-        const novo = this.somarPorProduto(itens);
-        const extras: { produtoId: string; quantidade: number }[] = [];
-        for (const [produtoId, quantidade] of novo) {
-          const extra = quantidade - (antigo.get(produtoId) ?? 0);
-          if (extra > 0) extras.push({ produtoId, quantidade: extra });
-        }
-        if (extras.length > 0) await this.validarEstoque(extras);
-      } else {
-        // Antes da aprovação o pedido já tirou caixas dos lotes: confere só a diferença
-        await this.validarDeltas(await this.deltasDeLote(this.prisma, id, itens));
-        const semLote = itens.filter((i) => !i.loteId);
-        if (semLote.length > 0) await this.validarEstoque(semLote);
-      }
+      // O pedido já tirou caixas dos lotes (no lançamento ou na aprovação): confere só a diferença
+      await this.validarDeltas(await this.deltasDeLote(this.prisma, id, itens));
+      const semLote = itens.filter((i) => !i.loteId);
+      if (semLote.length > 0) await this.validarEstoque(semLote);
     }
 
     const itensCalculados = itens.map((i) => ({
@@ -762,33 +720,13 @@ export class PedidosService implements OnApplicationBootstrap {
           data: itensCalculados.map((i) => ({ pedidoId: id, ...i })),
         });
 
-        if (jaBaixou) {
-          const antigo = this.somarPorProduto(itensAntigos);
-          const novo = this.somarPorProduto(itens);
-          const ids = new Set([...antigo.keys(), ...novo.keys()]);
-          for (const produtoId of ids) {
-            const delta = (novo.get(produtoId) ?? 0) - (antigo.get(produtoId) ?? 0);
-            if (delta === 0) continue;
-            await tx.movimentacaoEstoque.create({
-              data: {
-                produtoId,
-                tipo: delta > 0 ? TipoMovimentacao.SAIDA : TipoMovimentacao.ENTRADA,
-                quantidade: delta > 0 ? -delta : Math.abs(delta),
-                origem: `Ajuste pedido ${pedido.numero}`,
-                pedidoId: id,
-                usuarioId,
-              },
-            });
-          }
-        } else {
-          await this.sincronizarLotesEmTx(
-            tx,
-            pedido,
-            itens.map((i) => ({ ...i, loteId: i.loteId ?? null })),
-            usuarioId,
-            `Pedido ${pedido.numero}`,
-          );
-        }
+        await this.sincronizarLotesEmTx(
+          tx,
+          pedido,
+          itens.map((i) => ({ ...i, loteId: i.loteId ?? null })),
+          usuarioId,
+          `Pedido ${pedido.numero}`,
+        );
       }
 
       const pedidoAtualizado = await tx.pedido.update({
@@ -1167,14 +1105,20 @@ export class PedidosService implements OnApplicationBootstrap {
       },
     });
     if (!pedido) throw new NotFoundException('Pedido não encontrado');
-    if (pedido.status !== StatusPedido.CANCELADO) {
-      throw new BadRequestException('Só é possível excluir pedidos cancelados.');
+    // Entregue não sai: as caixas já estão com o cliente
+    const cancelavel =
+      pedido.status === StatusPedido.AGUARDANDO_APROVACAO ||
+      this.statusPodeEntregar.includes(pedido.status);
+    if (pedido.status !== StatusPedido.CANCELADO && !cancelavel) {
+      throw new BadRequestException('Este pedido não pode ser excluído neste status.');
     }
     if (pedido._count.pagamentos > 0) {
       throw new BadRequestException(
         'Este pedido tem pagamentos registrados. Remova os pagamentos antes de excluir.',
       );
     }
+    // Cancela antes para as caixas voltarem aos lotes de origem
+    if (cancelavel) await this.atualizarStatus(id, StatusPedido.CANCELADO, usuarioId);
 
     await this.prisma.$transaction(async (tx) => {
       // Histórico de estoque fica (saída + devolução), só perde o vínculo com o pedido

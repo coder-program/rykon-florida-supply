@@ -160,9 +160,9 @@ export class PedidosController {
     return this.pedidosService.cancelar(id, req.user.id);
   }
 
-  // Exclusão definitiva, só de pedido cancelado
+  // Exclusão definitiva; pedido não entregue é cancelado antes (caixas voltam ao lote)
   @Delete(':id')
-  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO)
+  @Roles(...EQUIPE)
   excluir(@Param('id') id: string, @Request() req: any) {
     return this.pedidosService.excluir(id, req.user.id);
   }

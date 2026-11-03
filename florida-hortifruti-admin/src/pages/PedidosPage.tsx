@@ -80,7 +80,16 @@ const STATUS_ACOES: Record<string, { label: string; next: string }[]> = {
   ],
 }
 
-const STATUS_EDITAVEL = ['AGUARDANDO_APROVACAO']
+// Editável até sair como entregue; a API ajusta as caixas nos lotes pela diferença
+const STATUS_EDITAVEL = [
+  'AGUARDANDO_APROVACAO',
+  'APROVADO',
+  'EM_SEPARACAO',
+  'PRONTO_PARA_ENTREGA',
+  'EM_ENTREGA',
+]
+// Excluir: cancelado, ou ainda não entregue (a API cancela antes e devolve as caixas)
+const STATUS_EXCLUIVEL = ['CANCELADO', ...STATUS_EDITAVEL]
 // Pedido que já saiu do estoque e ainda não foi entregue
 const STATUS_ENTREGAVEL = ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA', 'EM_ENTREGA']
 
@@ -149,11 +158,10 @@ export function PedidosPage() {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const { usuario } = useAuth()
-  const podeExcluirPedido =
-    usuario?.papel === 'ADMINISTRADOR' || usuario?.papel === 'ADMINISTRATIVO'
   // Admin/administrativo confirmam entrega sem foto; supervisor (que às vezes entrega) com foto
-  const entregaSemFoto = podeExcluirPedido
-  const podeMarcarEntregue = podeExcluirPedido || usuario?.papel === 'SUPERVISOR'
+  const entregaSemFoto = usuario?.papel === 'ADMINISTRADOR' || usuario?.papel === 'ADMINISTRATIVO'
+  const podeMarcarEntregue = entregaSemFoto || usuario?.papel === 'SUPERVISOR'
+  const podeExcluirPedido = podeMarcarEntregue
   const [entregando, setEntregando] = useState<{ id: string; numero: number } | null>(null)
   const acoesLote = (Object.keys(ACOES_LOTE) as AcaoLote[]).filter((a) =>
     ACOES_LOTE[a].papeis.includes(usuario?.papel ?? ''),
@@ -204,10 +212,10 @@ export function PedidosPage() {
     enabled: editando,
   })
 
-  // Pedido pendente já tirou do lote as caixas dele (a baixa é no lançamento): na edição,
+  // O pedido já tirou do lote as caixas dele (a baixa é no lançamento): na edição,
   // essas caixas contam como disponíveis para o próprio pedido
   function baixadoPeloPedido(loteId: string) {
-    if (!loteId || pedidoSelecionado?.status !== 'AGUARDANDO_APROVACAO') return 0
+    if (!loteId || !STATUS_EDITAVEL.includes(pedidoSelecionado?.status)) return 0
     return (pedidoSelecionado.itens ?? [])
       .filter((i: any) => i.loteId === loteId)
       .reduce((acc: number, i: any) => acc + Number(i.quantidade), 0)
@@ -1071,7 +1079,7 @@ export function PedidosPage() {
                 </p>
               )}
 
-            {/* Edição antes de aprovar */}
+            {/* Edição até sair como entregue */}
             {STATUS_EDITAVEL.includes(pedidoSelecionado.status) && !editando && (
               <div className="pt-2 border-t border-gray-100">
                 <Button variant="secondary" onClick={() => abrirEdicao(pedidoSelecionado)}>
@@ -1105,9 +1113,6 @@ export function PedidosPage() {
                 className="pt-2 border-t border-gray-100 space-y-3"
               >
                 <p className="text-xs font-semibold text-gray-500 uppercase">Editar Pedido</p>
-                <p className="text-xs text-gray-500">
-                  Depois da aprovação, mudanças de quantidade entram em Solicitações de Alteração.
-                </p>
                 <div className="space-y-2 rounded-lg border border-gray-200 p-3">
                   <p className="text-xs font-medium text-gray-600">Lote e quantidade (caixas)</p>
                   {formEdit.itens.map((item, index) => {
@@ -1502,7 +1507,7 @@ export function PedidosPage() {
                 )}
               </div>
             )}
-            {pedidoSelecionado.status === 'CANCELADO' && podeExcluirPedido && (
+            {STATUS_EXCLUIVEL.includes(pedidoSelecionado.status) && podeExcluirPedido && (
               <div className="space-y-2 border-t border-gray-100 pt-2">
                 {excluirPedido.isError && (
                   <p className="text-xs text-red-600">
@@ -1518,7 +1523,7 @@ export function PedidosPage() {
                     const numero = String(pedidoSelecionado.numero).padStart(6, '0')
                     if (
                       !window.confirm(
-                        `Excluir definitivamente o pedido #${numero}? Essa ação não pode ser desfeita.`,
+                        `Você realmente deseja excluir esse pedido (#${numero})? As caixas voltam para os lotes e essa ação não pode ser desfeita.`,
                       )
                     )
                       return
