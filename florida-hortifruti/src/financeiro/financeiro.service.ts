@@ -176,14 +176,30 @@ export class FinanceiroService {
     });
   }
 
+  // Reabrir estorna os pagamentos: sem isso o saldo continuaria quitado e um novo
+  // pagamento seria somado em dobro. Os valores estornados ficam na auditoria.
   async reabrir(pedidoId: string, usuarioId: string) {
+    const pagamentos = await this.prisma.pagamentoPedido.findMany({ where: { pedidoId } });
     const [pedido] = await this.prisma.$transaction([
       this.prisma.pedido.update({
         where: { id: pedidoId },
         data: { statusPagamento: StatusPagamento.EM_ABERTO },
       }),
+      this.prisma.pagamentoPedido.deleteMany({ where: { pedidoId } }),
       this.prisma.logAuditoria.create({
-        data: { usuarioId, acao: 'REABRIR_PAGAMENTO', entidade: 'Pedido', entidadeId: pedidoId },
+        data: {
+          usuarioId,
+          acao: 'REABRIR_PAGAMENTO',
+          entidade: 'Pedido',
+          entidadeId: pedidoId,
+          detalhes: {
+            pagamentosEstornados: pagamentos.map((p) => ({
+              valor: Number(p.valor),
+              data: p.data,
+              formaPagamento: p.formaPagamento,
+            })),
+          },
+        },
       }),
     ]);
     return pedido;

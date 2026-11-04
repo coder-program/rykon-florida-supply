@@ -1103,7 +1103,7 @@ export class PedidosService implements OnApplicationBootstrap {
       where: { id },
       include: {
         cliente: { select: { razaoSocialOuNome: true } },
-        _count: { select: { pagamentos: true } },
+        pagamentos: { select: { valor: true } },
       },
     });
     if (!pedido) throw new NotFoundException('Pedido não encontrado');
@@ -1115,9 +1115,10 @@ export class PedidosService implements OnApplicationBootstrap {
     if (pedido.status !== StatusPedido.CANCELADO && !cancelavel) {
       throw new BadRequestException('Este pedido não pode ser excluído neste status.');
     }
-    if (pedido._count.pagamentos > 0) {
+    // Pago não sai sem estorno; pagamento parcial de conta em aberto sai junto (fica na auditoria)
+    if (pedido.statusPagamento === StatusPagamento.PAGO) {
       throw new BadRequestException(
-        'Este pedido tem pagamentos registrados. Remova os pagamentos antes de excluir.',
+        'Este pedido está pago. Reabra o pagamento no Financeiro antes de excluir.',
       );
     }
     const devolucoes = await this.prisma.logAuditoria.count({
@@ -1153,6 +1154,7 @@ export class PedidosService implements OnApplicationBootstrap {
             numero: pedido.numero,
             cliente: pedido.cliente?.razaoSocialOuNome ?? null,
             totalFinal: Number(pedido.totalFinal),
+            pagamentosRemovidos: pedido.pagamentos.map((p) => Number(p.valor)),
           },
         },
       });
