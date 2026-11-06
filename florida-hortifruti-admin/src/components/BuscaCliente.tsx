@@ -19,7 +19,7 @@ export function BuscaCliente({
   clientes: ClienteOpcao[]
   clienteId: string
   onChange: (id: string) => void
-  onCadastrar: () => void
+  onCadastrar?: () => void
 }) {
   const [busca, setBusca] = useState('')
   const [aberto, setAberto] = useState(false)
@@ -83,16 +83,18 @@ export function BuscaCliente({
           className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
           onMouseDown={(e) => e.preventDefault()}
         >
-          <button
-            type="button"
-            onClick={() => {
-              setAberto(false)
-              onCadastrar()
-            }}
-            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm font-medium text-green-700 hover:bg-green-50"
-          >
-            <Plus className="h-4 w-4" /> Cadastrar cliente
-          </button>
+          {onCadastrar && (
+            <button
+              type="button"
+              onClick={() => {
+                setAberto(false)
+                onCadastrar()
+              }}
+              className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm font-medium text-green-700 hover:bg-green-50"
+            >
+              <Plus className="h-4 w-4" /> Cadastrar cliente
+            </button>
+          )}
           {filtrados.map((c) => (
             <button
               key={c.id}

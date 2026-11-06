@@ -28,7 +28,7 @@ import {
   TipoMovimentacao,
 } from '@prisma/client';
 import { StorageService } from '../common/storage.service';
-import { clienteParaRevendedor, vendeSoOSeu } from '../common/papeis';
+import { clienteParaRevendedor, PAPEIS_VENDEDOR, vendeSoOSeu } from '../common/papeis';
 import { dataEfetiva } from '../common/data-efetiva';
 import { registrarHistoricoStatus } from './historico-status.util';
 import { montarAvisoCobranca } from '../financeiro/avisos-cobranca.util';
@@ -675,6 +675,30 @@ export class PedidosService implements OnApplicationBootstrap {
       throw new ForbiddenException('Para alterar a quantidade, envie uma solicitação de alteração');
     }
 
+    const trocaCliente = !!dto.clienteId && dto.clienteId !== pedido.clienteId;
+    const trocaVendedor = !!dto.vendedorId && dto.vendedorId !== pedido.vendedorId;
+    if (trocaCliente || trocaVendedor) {
+      const vendedorId = dto.vendedorId ?? pedido.vendedorId;
+      const vendedor = vendedorId
+        ? await this.prisma.usuario.findUnique({
+            where: { id: vendedorId },
+            select: { papel: true, ativo: true },
+          })
+        : null;
+      if (trocaVendedor && (!vendedor?.ativo || !PAPEIS_VENDEDOR.includes(vendedor.papel))) {
+        throw new BadRequestException('Vendedor inválido');
+      }
+      // Pedido de revendedor tem preço de revenda: não vira pedido da Flórida (nem o contrário)
+      const eraRevenda = pedido.vendedor?.papel === PapelUsuario.REVENDEDOR;
+      const revendedor = vendedor?.papel === PapelUsuario.REVENDEDOR;
+      if (trocaVendedor && eraRevenda !== revendedor) {
+        throw new BadRequestException(
+          'Não é possível trocar entre vendedor da Flórida e revendedor',
+        );
+      }
+      await this.validarDonoDoCliente(dto.clienteId ?? pedido.clienteId, vendedorId, revendedor);
+    }
+
     const itens = this.manterLotes(
       pedido.itens,
       dto.itens ??
@@ -733,6 +757,7 @@ export class PedidosService implements OnApplicationBootstrap {
         where: { id },
         data: {
           ...(dto.clienteId ? { clienteId: dto.clienteId } : {}),
+          ...(dto.vendedorId ? { vendedorId: dto.vendedorId } : {}),
           ...(dto.data ? { data: dataEfetiva(dto.data, 'Data do pedido') } : {}),
           subtotal,
           valorFrete: frete,
@@ -760,7 +785,15 @@ export class PedidosService implements OnApplicationBootstrap {
           acao: 'EDITAR_PEDIDO',
           entidade: 'Pedido',
           entidadeId: id,
-          detalhes: dto.itens ? { itens: itensCalculados } : undefined,
+          detalhes: {
+            ...(dto.itens ? { itens: itensCalculados } : {}),
+            ...(trocaCliente
+              ? { clienteAntes: pedido.clienteId, clienteDepois: dto.clienteId }
+              : {}),
+            ...(trocaVendedor
+              ? { vendedorAntes: pedido.vendedorId, vendedorDepois: dto.vendedorId }
+              : {}),
+          },
         },
       });
 

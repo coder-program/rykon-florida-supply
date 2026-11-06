@@ -5,6 +5,15 @@ export function vendeSoOSeu(papel?: PapelUsuario) {
   return papel === PapelUsuario.VENDEDOR || papel === PapelUsuario.REVENDEDOR;
 }
 
+// Quem pode constar como vendedor de um pedido
+export const PAPEIS_VENDEDOR: PapelUsuario[] = [
+  PapelUsuario.VENDEDOR,
+  PapelUsuario.SUPERVISOR,
+  PapelUsuario.ADMINISTRATIVO,
+  PapelUsuario.ADMINISTRADOR,
+  PapelUsuario.REVENDEDOR,
+];
+
 type EnderecoComCidade = { cidade?: { nome?: string } | null };
 
 // Revendedor usa os clientes da Flórida nos pedidos, mas só vê o nome e a cidade deles

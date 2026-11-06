@@ -19,7 +19,7 @@ import { formatBRL, formatDate, FORMA_PAGAMENTO_LABEL, FORMAS_PAGAMENTO } from '
 import { PageHeader } from '../components/ui/PageHeader'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
-import { Select } from '../components/ui/Input'
+import { Input, Select } from '../components/ui/Input'
 import { AvisosCobranca } from './AvisosCobranca'
 import {
   RegistrarPagamentoModal,
@@ -93,6 +93,10 @@ export function FinanceiroPage() {
   const [periodo, setPeriodo] = useState('mes')
   const [filtroSituacao, setFiltroSituacao] = useState('')
   const [filtroForma, setFiltroForma] = useState('')
+  const [busca, setBusca] = useState('')
+  const [filtroVendedor, setFiltroVendedor] = useState('')
+  const [vencDe, setVencDe] = useState('')
+  const [vencAte, setVencAte] = useState('')
   const [expandido, setExpandido] = useState<string | null>(null)
   const datas = getPeriodoDates(periodo)
 
@@ -101,7 +105,7 @@ export function FinanceiroPage() {
     queryFn: () => api.get('/financeiro/resumo', { params: datas }).then((r) => r.data),
   })
 
-  const { data: contas = [], isLoading: loadingContas } = useQuery({
+  const { data: todasContas = [], isLoading: loadingContas } = useQuery({
     queryKey: ['contas-a-receber', filtroSituacao, filtroForma],
     queryFn: () =>
       api
@@ -112,6 +116,27 @@ export function FinanceiroPage() {
           },
         })
         .then((r) => r.data),
+  })
+
+  // Busca e filtros extras na lista já carregada (a API devolve todas as contas)
+  const vendedoresContas = [
+    ...new Set((todasContas as any[]).map((c) => c.vendedor?.nome).filter(Boolean)),
+  ].sort() as string[]
+  const termo = busca.trim().toLowerCase()
+  const contas = (todasContas as any[]).filter((c) => {
+    if (filtroVendedor && c.vendedor?.nome !== filtroVendedor) return false
+    // Mesmo dia que a tela mostra (formatDate usa o fuso do navegador)
+    const venc = c.dataVencimento ? new Date(c.dataVencimento).toLocaleDateString('en-CA') : ''
+    if (vencDe && (!venc || venc < vencDe)) return false
+    if (vencAte && (!venc || venc > vencAte)) return false
+    if (!termo) return true
+    return [
+      c.cliente?.razaoSocialOuNome,
+      c.cliente?.nomeFantasia,
+      c.vendedor?.nome,
+      String(c.numero ?? ''),
+      String(c.numero ?? '').padStart(6, '0'),
+    ].some((v) => v && String(v).toLowerCase().includes(termo))
   })
 
   // Conta aberta no modal de pagamento (pede a data em que o cliente pagou)
@@ -266,7 +291,44 @@ export function FinanceiroPage() {
         )}
 
         {/* Filtros */}
-        <div className="flex gap-3 flex-wrap">
+        <div className="flex gap-3 flex-wrap items-end">
+          <div className="w-full sm:w-72">
+            <Input
+              type="search"
+              aria-label="Pesquisar"
+              placeholder="Pesquisar cliente, nº do pedido ou vendedor"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-48">
+            <Select value={filtroVendedor} onChange={(e) => setFiltroVendedor(e.target.value)}>
+              <option value="">Todos os vendedores</option>
+              {vendedoresContas.map((nome) => (
+                <option key={nome} value={nome}>
+                  {nome}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="w-full sm:w-40">
+            <Input
+              type="date"
+              aria-label="Vencimento de"
+              title="Vencimento de"
+              value={vencDe}
+              onChange={(e) => setVencDe(e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-40">
+            <Input
+              type="date"
+              aria-label="Vencimento até"
+              title="Vencimento até"
+              value={vencAte}
+              onChange={(e) => setVencAte(e.target.value)}
+            />
+          </div>
           <div className="w-full sm:w-48">
             <Select value={filtroSituacao} onChange={(e) => setFiltroSituacao(e.target.value)}>
               <option value="">Todas as situações</option>

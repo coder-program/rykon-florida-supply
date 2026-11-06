@@ -25,6 +25,13 @@ export class UsuariosController {
     return this.usuariosService.motoristas();
   }
 
+  // Edição de pedido (trocar o vendedor): só id/nome
+  @Get('vendedores')
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.SUPERVISOR)
+  vendedores() {
+    return this.usuariosService.vendedores();
+  }
+
   @Get()
   findAll() {
     return this.usuariosService.findAll();

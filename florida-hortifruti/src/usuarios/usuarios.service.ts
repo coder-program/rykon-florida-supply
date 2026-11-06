@@ -7,6 +7,7 @@ import {
 import { PapelUsuario, Prisma, TipoEntidadeEndereco } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma.service';
+import { PAPEIS_VENDEDOR } from '../common/papeis';
 import { EnderecosService } from '../enderecos/enderecos.service';
 import { CreateUsuarioDto, UpdateUsuarioDto } from './dto/usuario.dto';
 
@@ -174,6 +175,15 @@ export class UsuariosService {
     return this.prisma.usuario.findMany({
       where: { papel: { in: [PapelUsuario.MOTORISTA, PapelUsuario.SUPERVISOR] }, ativo: true },
       select: { id: true, nome: true, papel: true, ativo: true },
+      orderBy: { nome: 'asc' },
+    });
+  }
+
+  // Quem pode constar como vendedor de um pedido
+  vendedores() {
+    return this.prisma.usuario.findMany({
+      where: { papel: { in: PAPEIS_VENDEDOR }, ativo: true },
+      select: { id: true, nome: true, papel: true },
       orderBy: { nome: 'asc' },
     });
   }

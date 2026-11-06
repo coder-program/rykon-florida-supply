@@ -86,6 +86,10 @@ export class UpdatePedidoDto {
   @IsString()
   clienteId?: string;
 
+  @IsOptional()
+  @IsString()
+  vendedorId?: string;
+
   // Dia da venda (YYYY-MM-DD), para corrigir pedido cadastrado com a data errada
   @IsOptional()
   @IsString()

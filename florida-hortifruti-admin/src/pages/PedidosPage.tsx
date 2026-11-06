@@ -31,6 +31,7 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { TableScroll } from '../components/ui/TableScroll'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
+import { BuscaCliente } from '../components/BuscaCliente'
 import { Select } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
 import { NovoPedidoModal } from './NovoPedidoModal'
@@ -189,6 +190,8 @@ export function PedidosPage() {
   const [entregadorId, setEntregadorId] = useState('')
   const [editando, setEditando] = useState(false)
   const [formEdit, setFormEdit] = useState({
+    clienteId: '',
+    vendedorId: '',
     dataPedido: '',
     valorFrete: '',
     descontoValor: '',
@@ -209,6 +212,17 @@ export function PedidosPage() {
   const { data: lotesDisponiveis = [] } = useQuery<LoteDisponivel[]>({
     queryKey: ['lotes-disponiveis'],
     queryFn: () => api.get('/estoque/lotes/disponiveis').then((r) => r.data),
+    enabled: editando,
+  })
+
+  const { data: clientesEdicao = [] } = useQuery({
+    queryKey: ['clientes'],
+    queryFn: () => api.get('/clientes').then((r) => (Array.isArray(r.data) ? r.data : [])),
+    enabled: editando,
+  })
+  const { data: vendedoresEdicao = [] } = useQuery({
+    queryKey: ['usuarios-vendedores'],
+    queryFn: () => api.get('/usuarios/vendedores').then((r) => r.data),
     enabled: editando,
   })
 
@@ -318,6 +332,8 @@ export function PedidosPage() {
 
   function abrirEdicao(p: any) {
     setFormEdit({
+      clienteId: p.clienteId ?? p.cliente?.id ?? '',
+      vendedorId: p.vendedorId ?? p.vendedor?.id ?? '',
       dataPedido: diaISO(p.data),
       valorFrete: String(Number(p.valorFrete) || ''),
       descontoValor: String(Number(p.descontoValor) || ''),
@@ -1092,9 +1108,18 @@ export function PedidosPage() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault()
-                  const { dataPedido, ...resto } = formEdit
+                  const { dataPedido, clienteId, vendedorId, ...resto } = formEdit
                   editarPedido.mutate({
                     ...resto,
+                    // Só manda cliente e vendedor quando mudaram
+                    clienteId:
+                      clienteId && clienteId !== pedidoSelecionado.clienteId
+                        ? clienteId
+                        : undefined,
+                    vendedorId:
+                      vendedorId && vendedorId !== pedidoSelecionado.vendedorId
+                        ? vendedorId
+                        : undefined,
                     // Só manda a data quando mudou, para não mexer no horário do pedido
                     data:
                       dataPedido && dataPedido !== diaISO(pedidoSelecionado.data)
@@ -1113,6 +1138,35 @@ export function PedidosPage() {
                 className="pt-2 border-t border-gray-100 space-y-3"
               >
                 <p className="text-xs font-semibold text-gray-500 uppercase">Editar Pedido</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <BuscaCliente
+                    clientes={clientesEdicao as any[]}
+                    clienteId={formEdit.clienteId}
+                    onChange={(clienteId) => setFormEdit((f) => ({ ...f, clienteId }))}
+                  />
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Vendedor</label>
+                    <select
+                      value={formEdit.vendedorId}
+                      onChange={(e) => setFormEdit((f) => ({ ...f, vendedorId: e.target.value }))}
+                      className="min-h-11 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      {pedidoSelecionado.vendedor &&
+                        !(vendedoresEdicao as any[]).some(
+                          (v) => v.id === pedidoSelecionado.vendedorId,
+                        ) && (
+                          <option value={pedidoSelecionado.vendedorId}>
+                            {pedidoSelecionado.vendedor.nome}
+                          </option>
+                        )}
+                      {(vendedoresEdicao as any[]).map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
                 <div className="space-y-2 rounded-lg border border-gray-200 p-3">
                   <p className="text-xs font-medium text-gray-600">Lote e quantidade (caixas)</p>
                   {formEdit.itens.map((item, index) => {
