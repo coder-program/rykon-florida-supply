@@ -11,6 +11,7 @@ import {
   Copy,
   Check,
   MessageCircle,
+  PhoneCall,
 } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -23,6 +24,8 @@ import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Input } from '../components/ui/Input'
 import { ClienteFormModal, type Cliente } from '../components/ClienteFormModal'
+import { ContatosClienteModal } from '../components/ContatosClienteModal'
+import { formatDate, hojeISO } from '../lib/utils'
 
 export function ClientesPage() {
   const qc = useQueryClient()
@@ -36,14 +39,55 @@ export function ClientesPage() {
   const [linkConvite, setLinkConvite] = useState('')
   const [emailConvite, setEmailConvite] = useState('')
   const [linkCopiado, setLinkCopiado] = useState(false)
+  const [contatosDe, setContatosDe] = useState<Cliente | null>(null)
+  const [soPendentes, setSoPendentes] = useState(false)
 
-  const { data: clientes = [], isLoading } = useQuery<Cliente[]>({
+  const { data: todosClientes = [], isLoading } = useQuery<Cliente[]>({
     queryKey: ['clientes', busca],
     queryFn: () =>
       api
         .get('/clientes', { params: busca ? { busca } : { incluirInativos: true } })
         .then((r) => r.data),
   })
+
+  // Último contato de cada cliente (gestão de contato)
+  const { data: ultimosContatos = [] } = useQuery<
+    { clienteId: string; data: string; proximoContato: string | null }[]
+  >({
+    queryKey: ['contatos-ultimos'],
+    queryFn: () => api.get('/clientes/contatos/ultimos').then((r) => r.data),
+    retry: false,
+  })
+  const contatoPorCliente = new Map(ultimosContatos.map((c) => [c.clienteId, c]))
+  const hoje = hojeISO()
+  const contatoPendente = (id: string) => {
+    const proximo = contatoPorCliente.get(id)?.proximoContato
+    return !!proximo && new Date(proximo).toLocaleDateString('en-CA') <= hoje
+  }
+  const clientes = soPendentes
+    ? todosClientes.filter((c: any) => c.ativo !== false && contatoPendente(c.id))
+    : todosClientes
+
+  function resumoContato(id: string) {
+    const ultimo = contatoPorCliente.get(id)
+    if (!ultimo) return null
+    return (
+      <p
+        className={`text-xs ${contatoPendente(id) ? 'font-medium text-red-600' : 'text-gray-400'}`}
+      >
+        Contato {formatDate(ultimo.data).slice(0, 5)}
+        {ultimo.proximoContato ? ` · próximo ${formatDate(ultimo.proximoContato).slice(0, 5)}` : ''}
+      </p>
+    )
+  }
+
+  function botaoContatos(c: Cliente) {
+    return (
+      <Button size="sm" variant="ghost" onClick={() => setContatosDe(c)} title="Contatos">
+        <PhoneCall className="w-3.5 h-3.5" />
+      </Button>
+    )
+  }
 
   const excluir = useMutation({
     mutationFn: (id: string) => api.delete(`/clientes/${id}`),
@@ -208,14 +252,24 @@ export function ClientesPage() {
       />
 
       <div className="space-y-4 p-4 md:p-6">
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por nome, CNPJ ou telefone..."
-            className="w-full min-h-11 pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative w-full max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar por nome, CNPJ ou telefone..."
+              className="w-full min-h-11 pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={soPendentes}
+              onChange={(e) => setSoPendentes(e.target.checked)}
+            />
+            Só com contato pendente
+          </label>
         </div>
 
         <div className="space-y-3 md:hidden">
@@ -242,6 +296,7 @@ export function ClientesPage() {
                   {cidade}
                   {estado ? `/${estado}` : ''} · {c.formaPagamentoUsual ?? '—'}
                 </p>
+                {resumoContato(c.id)}
                 <div className="mt-3 flex items-center justify-between">
                   <span
                     className={`text-xs font-medium ${c.ativo === false ? 'text-red-600' : 'text-green-600'}`}
@@ -261,6 +316,7 @@ export function ClientesPage() {
                         <circle cx="12" cy="12" r="3" />
                       </svg>
                     </Button>
+                    {botaoContatos(c)}
                     <Button size="sm" variant="ghost" onClick={() => abrirEditar(c)}>
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
@@ -355,6 +411,7 @@ export function ClientesPage() {
                             {c.nomeFantasia}
                           </p>
                         )}
+                        {resumoContato(c.id)}
                       </td>
                       <td className="truncate px-4 py-3 text-gray-600">{c.cnpjCpf}</td>
                       <td className="truncate px-4 py-3 text-gray-600">
@@ -392,6 +449,7 @@ export function ClientesPage() {
                               <circle cx="12" cy="12" r="3" />
                             </svg>
                           </Button>
+                          {botaoContatos(c)}
                           <Button size="sm" variant="ghost" onClick={() => abrirEditar(c)}>
                             <Pencil className="w-3.5 h-3.5" />
                           </Button>
@@ -426,6 +484,7 @@ export function ClientesPage() {
       </div>
 
       <ClienteFormModal open={modal} cliente={editando} onClose={fecharModal} />
+      <ContatosClienteModal cliente={contatosDe} onClose={() => setContatosDe(null)} />
 
       <Modal
         open={!!clienteParaExcluir}

@@ -113,7 +113,7 @@ export class FinanceiroService {
     vendedorId?: string;
     clienteId?: string;
     formaPagamento?: FormaPagamento;
-    situacao?: 'EM_ABERTO' | 'VENCIDO' | 'PAGO' | 'A_VENCER';
+    situacao?: 'EM_ABERTO' | 'VENCIDO' | 'PAGO' | 'A_VENCER' | 'PAGO_PARCIAL';
     dataInicio?: string;
     dataFim?: string;
   }) {
@@ -148,6 +148,9 @@ export class FinanceiroService {
       where.dataVencimento = { gte: new Date(), lte: proximos7 };
     } else if (filtros.situacao === 'EM_ABERTO') {
       where.statusPagamento = StatusPagamento.EM_ABERTO;
+    } else if (filtros.situacao === 'PAGO_PARCIAL') {
+      where.statusPagamento = StatusPagamento.EM_ABERTO;
+      where.pagamentos = { some: { valor: { gt: 0 } } };
     }
 
     const pedidos = await this.prisma.pedido.findMany({

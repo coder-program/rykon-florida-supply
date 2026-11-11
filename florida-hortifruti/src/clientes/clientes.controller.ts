@@ -16,7 +16,12 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ClientesService } from './clientes.service';
 import { ProdutosService } from '../produtos/produtos.service';
-import { AtivarAcessoDto, CreateClienteDto, UpdateClienteDto } from './dto/cliente.dto';
+import {
+  AtivarAcessoDto,
+  CreateClienteDto,
+  CreateContatoClienteDto,
+  UpdateClienteDto,
+} from './dto/cliente.dto';
 import { UpsertPrecoClienteDto } from '../produtos/dto/produto.dto';
 
 @Controller('clientes')
@@ -47,6 +52,31 @@ export class ClientesController {
   ) {
     if (busca) return this.clientesService.search(busca, req.user);
     return this.clientesService.findAll(incluirInativos === 'true', req.user);
+  }
+
+  // Gestão de contato (supervisor e escritório)
+  @Get('contatos/ultimos')
+  @Roles(PapelUsuario.SUPERVISOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  ultimosContatos() {
+    return this.clientesService.ultimosContatos();
+  }
+
+  @Get(':id/contatos')
+  @Roles(PapelUsuario.SUPERVISOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  async contatos(@Param('id') id: string, @Request() req: any) {
+    await this.clientesService.garantirAcesso(id, req.user, { leitura: true });
+    return this.clientesService.listarContatos(id);
+  }
+
+  @Post(':id/contatos')
+  @Roles(PapelUsuario.SUPERVISOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  async registrarContato(
+    @Param('id') id: string,
+    @Body() dto: CreateContatoClienteDto,
+    @Request() req: any,
+  ) {
+    await this.clientesService.garantirAcesso(id, req.user, { leitura: true });
+    return this.clientesService.registrarContato(id, dto, req.user.id);
   }
 
   @Get(':id')

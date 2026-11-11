@@ -761,6 +761,92 @@ export class EstoqueService {
     });
   }
 
+  // Lote lançado errado: só sai enquanto nenhuma caixa saiu dele. Apaga a entrada no estoque
+  // e o item da compra; se a compra tinha outros produtos, refaz o rateio de frete/comissão
+  async excluirLote(id: string, usuarioId: string) {
+    const lote = await this.prisma.loteProduto.findUnique({
+      where: { id },
+      include: {
+        produto: { select: { nome: true } },
+        movimentacoesLote: {
+          select: {
+            id: true,
+            movimentacaoId: true,
+            movimentacao: { select: { itemCompra: { select: { id: true, compraId: true } } } },
+          },
+        },
+        _count: { select: { itensPedido: true, itensSelecionados: true, perdas: true } },
+      },
+    });
+    if (!lote) throw new NotFoundException('Lote não encontrado');
+    const usado =
+      Number(lote.quantidadeDisponivel) !== Number(lote.quantidadeInicial) ||
+      lote.movimentacoesLote.length > 1 ||
+      lote._count.itensPedido + lote._count.itensSelecionados + lote._count.perdas > 0;
+    if (usado) {
+      throw new BadRequestException(
+        'Este lote já teve venda, devolução ou ajuste. Para corrigir, edite a entrada.',
+      );
+    }
+
+    const entrada = lote.movimentacoesLote[0];
+    const itemCompra = entrada?.movimentacao.itemCompra ?? null;
+
+    const compraRestante = await this.prisma.$transaction(async (tx) => {
+      if (entrada) await tx.movimentacaoEstoqueLote.delete({ where: { id: entrada.id } });
+      if (itemCompra) await tx.itemCompraEstoque.delete({ where: { id: itemCompra.id } });
+      if (entrada) await tx.movimentacaoEstoque.delete({ where: { id: entrada.movimentacaoId } });
+      await tx.loteProduto.delete({ where: { id } });
+
+      // Custo do produto volta ao da entrada mais recente que sobrou
+      const ultimaEntrada = await tx.movimentacaoEstoque.findFirst({
+        where: {
+          produtoId: lote.produtoId,
+          tipo: TipoMovimentacao.ENTRADA,
+          custoUnitario: { not: null },
+        },
+        orderBy: { data: 'desc' },
+        select: { custoUnitario: true },
+      });
+      if (ultimaEntrada) {
+        await tx.produto.update({
+          where: { id: lote.produtoId },
+          data: { custo: ultimaEntrada.custoUnitario },
+        });
+      }
+
+      await tx.logAuditoria.create({
+        data: {
+          usuarioId,
+          acao: 'EXCLUIR_LOTE',
+          entidade: 'LoteProduto',
+          entidadeId: id,
+          detalhes: {
+            produto: lote.produto.nome,
+            numero: lote.numero,
+            dataEntrada: lote.dataEntrada,
+            quantidade: Number(lote.quantidadeInicial),
+            valorUnitario: Number(lote.valorUnitario),
+            compraId: itemCompra?.compraId ?? null,
+          },
+        },
+      });
+
+      if (!itemCompra) return null;
+      const restantes = await tx.itemCompraEstoque.count({
+        where: { compraId: itemCompra.compraId },
+      });
+      if (restantes === 0) {
+        await tx.compraEstoque.delete({ where: { id: itemCompra.compraId } });
+        return null;
+      }
+      return itemCompra.compraId;
+    });
+
+    if (compraRestante) await this.atualizarCompra(compraRestante, {}, usuarioId);
+    return { ok: true };
+  }
+
   private rotuloLote(lote: { numero: string; dataEntrada: Date }) {
     const data = lote.dataEntrada.toLocaleDateString('pt-BR', {
       timeZone: 'America/Sao_Paulo',

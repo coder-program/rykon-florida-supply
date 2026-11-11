@@ -10,7 +10,8 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { EnderecosService } from '../enderecos/enderecos.service';
 import { clienteParaRevendedor } from '../common/papeis';
-import { CreateClienteDto, UpdateClienteDto } from './dto/cliente.dto';
+import { CreateClienteDto, CreateContatoClienteDto, UpdateClienteDto } from './dto/cliente.dto';
+import { dataEfetiva } from '../common/data-efetiva';
 
 type UsuarioLogado = { id: string; papel: PapelUsuario };
 
@@ -203,6 +204,39 @@ export class ClientesService {
     }
 
     return this.findOne(clienteAtualizado.id);
+  }
+
+  listarContatos(clienteId: string) {
+    return this.prisma.contatoCliente.findMany({
+      where: { clienteId },
+      include: { usuario: { select: { nome: true } } },
+      orderBy: [{ data: 'desc' }, { criadoEm: 'desc' }],
+    });
+  }
+
+  registrarContato(clienteId: string, dto: CreateContatoClienteDto, usuarioId: string) {
+    return this.prisma.contatoCliente.create({
+      data: {
+        clienteId,
+        usuarioId,
+        tipo: dto.tipo,
+        resumo: dto.resumo.trim(),
+        ...(dto.data ? { data: dataEfetiva(dto.data, 'Data do contato') } : {}),
+        proximoContato: dto.proximoContato
+          ? new Date(`${dto.proximoContato}T12:00:00-03:00`)
+          : null,
+      },
+      include: { usuario: { select: { nome: true } } },
+    });
+  }
+
+  // Último contato de cada cliente: a lista mostra quando foi e quando é o próximo
+  ultimosContatos() {
+    return this.prisma.contatoCliente.findMany({
+      distinct: ['clienteId'],
+      orderBy: [{ clienteId: 'asc' }, { data: 'desc' }, { criadoEm: 'desc' }],
+      select: { clienteId: true, data: true, tipo: true, proximoContato: true },
+    });
   }
 
   async remove(id: string) {

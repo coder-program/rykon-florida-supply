@@ -101,3 +101,12 @@ export const STATUS_PAGAMENTO_COLOR: Record<string, string> = {
   EM_ABERTO: 'bg-yellow-100 text-yellow-700',
   VENCIDO: 'bg-red-100 text-red-700',
 }
+
+// Em aberto com algum pagamento registrado: mostra "Pago parcialmente" ao lado da situação
+export const PAGO_PARCIAL_COLOR = 'bg-orange-100 text-orange-700'
+export function pagoParcialmente(p: {
+  statusPagamento?: string
+  pagamentos?: { valor: number | string }[]
+}) {
+  return p.statusPagamento !== 'PAGO' && (p.pagamentos ?? []).some((x) => Number(x.valor) > 0)
+}

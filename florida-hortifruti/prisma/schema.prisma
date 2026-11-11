@@ -58,6 +58,7 @@ model Usuario {
   solicitacoesRespondidas     SolicitacaoAlteracaoPedido[] @relation("ResponsavelAlteracao")
   comprovantesEntrega         ComprovanteEntrega[]
   pagamentosPedidoRegistrados PagamentoPedido[]
+  contatosCliente             ContatoCliente[]
 
   investimentos          Investimento[]
   devolucoesInvestimento DevolucaoInvestimento[]
@@ -165,9 +166,28 @@ model Cliente {
   precos          PrecoCliente[]
   historicoPrecos HistoricoPreco[]
   notificacoes    NotificacaoCliente[]
+  contatos        ContatoCliente[]
 
   @@index([revendedorId])
   @@map("clientes")
+}
+
+// Gestão de contato: cada ligação/visita/mensagem ao cliente e quando voltar a falar com ele
+model ContatoCliente {
+  id             String    @id @default(uuid())
+  clienteId      String
+  cliente        Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  usuarioId      String
+  usuario        Usuario   @relation(fields: [usuarioId], references: [id])
+  data           DateTime  @default(now())
+  // LIGACAO, WHATSAPP, VISITA, OUTRO
+  tipo           String
+  resumo         String
+  proximoContato DateTime?
+  criadoEm       DateTime  @default(now())
+
+  @@index([clienteId, data])
+  @@map("contatos_cliente")
 }
 
 // ==========================================
@@ -303,15 +323,15 @@ model Pedido {
   necessitaNF Boolean @default(false)
   observacoes String?
 
-  entregueEm        DateTime?
-  recebidoPor       String?
-  observacaoEntrega String?
-  fotoEntrega       String?   @db.Text
+  entregueEm          DateTime?
+  recebidoPor         String?
+  observacaoEntrega   String?
+  fotoEntrega         String?   @db.Text
   // Pedido de revendedor: preço que ele cobra do cliente dele, por produto ({ produtoId: valor }).
   // Só para o controle dele; os itens levam o preço da Flórida para ele
-  precosRevenda     Json?
+  precosRevenda       Json?
   // Posição na rota do entregador, definida pelo supervisor; nulo = ordem em que ficou pronto
-  ordemRota         Int?
+  ordemRota           Int?
   // Meia-noite UTC do dia previsto (mesma base da dataVencimento)
   dataPrevistaEntrega DateTime?
   // Imprevisto na entrega; preenchido = "Entrega com problema" até ser resolvido ou entregue

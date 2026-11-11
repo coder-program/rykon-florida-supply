@@ -15,7 +15,14 @@ import autoTable from 'jspdf-autotable'
 import ExcelJS from 'exceljs'
 import { api } from '../lib/api'
 import { useAuth } from '../contexts/useAuth'
-import { formatBRL, formatDate, FORMA_PAGAMENTO_LABEL, FORMAS_PAGAMENTO } from '../lib/utils'
+import {
+  formatBRL,
+  formatDate,
+  FORMA_PAGAMENTO_LABEL,
+  FORMAS_PAGAMENTO,
+  PAGO_PARCIAL_COLOR,
+  pagoParcialmente,
+} from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -31,6 +38,11 @@ const SITUACAO_CONFIG: Record<string, { label: string; badge: string; row: strin
   EM_ABERTO: { label: 'Em aberto', badge: 'bg-blue-100 text-blue-700', row: '' },
   A_VENCER: { label: 'A vencer (7d)', badge: 'bg-yellow-100 text-yellow-800', row: 'bg-yellow-50' },
   VENCIDO: { label: 'Vencido', badge: 'bg-red-100 text-red-700', row: 'bg-red-50' },
+}
+
+function situacaoTexto(c: any) {
+  const label = SITUACAO_CONFIG[c.situacaoCalculada]?.label ?? c.situacaoCalculada
+  return pagoParcialmente(c) ? `${label} (pago parcialmente)` : label
 }
 
 function KpiCard({
@@ -161,7 +173,7 @@ export function FinanceiroPage() {
       Vendedor: c.vendedor?.nome ?? '',
       Forma: FORMA_PAGAMENTO_LABEL[c.formaPagamento] ?? c.formaPagamento,
       Vencimento: c.dataVencimento ? formatDate(c.dataVencimento) : '',
-      Situacao: SITUACAO_CONFIG[c.situacaoCalculada]?.label ?? c.situacaoCalculada,
+      Situacao: situacaoTexto(c),
       Valor: Number(c.totalFinal ?? 0),
     }))
 
@@ -206,7 +218,7 @@ export function FinanceiroPage() {
         c.vendedor?.nome ?? '',
         FORMA_PAGAMENTO_LABEL[c.formaPagamento] ?? c.formaPagamento,
         c.dataVencimento ? formatDate(c.dataVencimento) : '',
-        SITUACAO_CONFIG[c.situacaoCalculada]?.label ?? c.situacaoCalculada,
+        situacaoTexto(c),
         formatBRL(c.totalFinal),
       ]),
       styles: { fontSize: 8, cellPadding: 2 },
@@ -335,6 +347,7 @@ export function FinanceiroPage() {
               <option value="VENCIDO">Vencidos</option>
               <option value="A_VENCER">A vencer (7d)</option>
               <option value="EM_ABERTO">Em aberto</option>
+              <option value="PAGO_PARCIAL">Pago parcialmente</option>
               <option value="PAGO">Pagos</option>
             </Select>
           </div>
@@ -376,6 +389,9 @@ export function FinanceiroPage() {
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <Badge className={sit.badge}>{sit.label}</Badge>
+                  {pagoParcialmente(c) && (
+                    <Badge className={PAGO_PARCIAL_COLOR}>Pago parcialmente</Badge>
+                  )}
                   <span className="text-xs text-gray-500">
                     {FORMA_PAGAMENTO_LABEL[c.formaPagamento] ?? c.formaPagamento}
                   </span>
@@ -485,6 +501,9 @@ export function FinanceiroPage() {
                         </td>
                         <td className="px-4 py-3">
                           <Badge className={sit.badge}>{sit.label}</Badge>
+                          {pagoParcialmente(c) && (
+                            <Badge className={PAGO_PARCIAL_COLOR}>Pago parcialmente</Badge>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right font-semibold text-gray-900">
                           {formatBRL(c.totalFinal)}

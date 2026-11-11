@@ -41,7 +41,15 @@ export class RelatoriosService {
       ...(statusValue
         ? { status: statusValue as StatusPedido }
         : { status: { notIn: [StatusPedido.CANCELADO, StatusPedido.REJEITADO] } }),
-      ...(pagamentoValue ? { statusPagamento: pagamentoValue as StatusPagamento } : {}),
+      // Pago parcialmente = em aberto com algum pagamento registrado
+      ...(pagamentoValue === 'PAGO_PARCIAL'
+        ? {
+            statusPagamento: StatusPagamento.EM_ABERTO,
+            pagamentos: { some: { valor: { gt: 0 } } },
+          }
+        : pagamentoValue
+          ? { statusPagamento: pagamentoValue as StatusPagamento }
+          : {}),
       ...(vendedorId ? { vendedorId } : {}),
       ...(data ? { data } : {}),
     };

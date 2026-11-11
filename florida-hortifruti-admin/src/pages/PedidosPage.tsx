@@ -23,6 +23,8 @@ import {
   hojeISO,
   STATUS_PEDIDO_LABEL,
   STATUS_PAGAMENTO_COLOR,
+  PAGO_PARCIAL_COLOR,
+  pagoParcialmente,
   statusPedidoVisivel,
   FORMA_PAGAMENTO_LABEL,
   FORMAS_PAGAMENTO,
@@ -91,6 +93,8 @@ const STATUS_EDITAVEL = [
 ]
 // Excluir: a API cancela antes e devolve as caixas ao lote (inclusive de pedido entregue)
 const STATUS_EXCLUIVEL = ['CANCELADO', 'ENTREGUE', ...STATUS_EDITAVEL]
+// Entregue também edita: os dados direto, os produtos por solicitação de alteração
+const STATUS_COM_EDICAO = [...STATUS_EDITAVEL, 'ENTREGUE']
 // Pedido que já saiu do estoque e ainda não foi entregue
 const STATUS_ENTREGAVEL = ['APROVADO', 'EM_SEPARACAO', 'PRONTO_PARA_ENTREGA', 'EM_ENTREGA']
 
@@ -229,7 +233,7 @@ export function PedidosPage() {
   // O pedido já tirou do lote as caixas dele (a baixa é no lançamento): na edição,
   // essas caixas contam como disponíveis para o próprio pedido
   function baixadoPeloPedido(loteId: string) {
-    if (!loteId || !STATUS_EDITAVEL.includes(pedidoSelecionado?.status)) return 0
+    if (!loteId || !STATUS_COM_EDICAO.includes(pedidoSelecionado?.status)) return 0
     return (pedidoSelecionado.itens ?? [])
       .filter((i: any) => i.loteId === loteId)
       .reduce((acc: number, i: any) => acc + Number(i.quantidade), 0)
@@ -322,9 +326,20 @@ export function PedidosPage() {
   })
 
   const editarPedido = useMutation({
-    mutationFn: (d: any) => api.patch(`/pedidos/${pedidoSelecionado.id}`, d),
+    // Pedido entregue: a troca de quantidade vira solicitação de alteração
+    mutationFn: async ({ solicitacao, ...d }: any) => {
+      const res = await api.patch(`/pedidos/${pedidoSelecionado.id}`, d)
+      if (solicitacao?.length) {
+        await api.post(`/pedidos/${pedidoSelecionado.id}/solicitacoes-alteracao`, {
+          itens: solicitacao,
+          observacao: 'Alteração de pedido entregue',
+        })
+      }
+      return res
+    },
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['pedidos'] })
+      qc.invalidateQueries({ queryKey: ['solicitacoes-alteracao'] })
       setEditando(false)
       setPedidoSelecionado(res.data)
     },
@@ -694,6 +709,9 @@ export function PedidosPage() {
                   <Badge className={STATUS_PAGAMENTO_COLOR[p.statusPagamento]}>
                     {p.statusPagamento?.replace('_', ' ')}
                   </Badge>
+                  {pagoParcialmente(p) && (
+                    <Badge className={PAGO_PARCIAL_COLOR}>PAGO PARCIALMENTE</Badge>
+                  )}
                   <Badge
                     className={
                       p.necessitaNF ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'
@@ -799,6 +817,9 @@ export function PedidosPage() {
                       <Badge className={`mt-0.5 ${STATUS_PAGAMENTO_COLOR[p.statusPagamento]}`}>
                         {p.statusPagamento?.replace('_', ' ')}
                       </Badge>
+                      {pagoParcialmente(p) && (
+                        <Badge className={`mt-0.5 ${PAGO_PARCIAL_COLOR}`}>PAGO PARCIALMENTE</Badge>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <Badge
@@ -897,6 +918,9 @@ export function PedidosPage() {
                 <Badge className={STATUS_PAGAMENTO_COLOR[pedidoSelecionado.statusPagamento]}>
                   {pedidoSelecionado.statusPagamento?.replace('_', ' ')}
                 </Badge>
+                {pagoParcialmente(pedidoSelecionado) && (
+                  <Badge className={PAGO_PARCIAL_COLOR}>PAGO PARCIALMENTE</Badge>
+                )}
                 {pedidoSelecionado.statusPagamento === 'PAGO' &&
                   pedidoSelecionado.pagamentos?.length > 0 && (
                     <span className="text-xs text-gray-500">
@@ -1096,7 +1120,7 @@ export function PedidosPage() {
               )}
 
             {/* Edição até sair como entregue */}
-            {STATUS_EDITAVEL.includes(pedidoSelecionado.status) && !editando && (
+            {STATUS_COM_EDICAO.includes(pedidoSelecionado.status) && !editando && (
               <div className="pt-2 border-t border-gray-100">
                 <Button variant="secondary" onClick={() => abrirEdicao(pedidoSelecionado)}>
                   <Pencil className="w-3.5 h-3.5" /> Editar Pedido
@@ -1109,7 +1133,23 @@ export function PedidosPage() {
                 onSubmit={(e) => {
                   e.preventDefault()
                   const { dataPedido, clienteId, vendedorId, ...resto } = formEdit
+                  const entregue = pedidoSelecionado.status === 'ENTREGUE'
+                  // No entregue não há dividir/remover: as linhas seguem a ordem do pedido
+                  const solicitacao = entregue
+                    ? formEdit.itens
+                        .filter(
+                          (i, idx) =>
+                            i.quantidade !==
+                            Math.round(Number(pedidoSelecionado.itens[idx]?.quantidade)),
+                        )
+                        .map((i) => ({
+                          produtoId: i.produtoId,
+                          loteId: i.loteId || undefined,
+                          quantidade: i.quantidade,
+                        }))
+                    : undefined
                   editarPedido.mutate({
+                    solicitacao,
                     ...resto,
                     // Só manda cliente e vendedor quando mudaram
                     clienteId:
@@ -1127,12 +1167,14 @@ export function PedidosPage() {
                         : undefined,
                     valorFrete: Number(formEdit.valorFrete),
                     descontoValor: Number(formEdit.descontoValor),
-                    itens: formEdit.itens.map((i) => ({
-                      produtoId: i.produtoId,
-                      loteId: i.loteId || null,
-                      quantidade: i.quantidade,
-                      valorUnitario: i.valorUnitario,
-                    })),
+                    itens: entregue
+                      ? undefined
+                      : formEdit.itens.map((i) => ({
+                          produtoId: i.produtoId,
+                          loteId: i.loteId || null,
+                          quantidade: i.quantidade,
+                          valorUnitario: i.valorUnitario,
+                        })),
                   })
                 }}
                 className="pt-2 border-t border-gray-100 space-y-3"
@@ -1168,7 +1210,11 @@ export function PedidosPage() {
                   </div>
                 </div>
                 <div className="space-y-2 rounded-lg border border-gray-200 p-3">
-                  <p className="text-xs font-medium text-gray-600">Lote e quantidade (caixas)</p>
+                  <p className="text-xs font-medium text-gray-600">
+                    {pedidoSelecionado.status === 'ENTREGUE'
+                      ? 'Quantidade (caixas): a mudança vai para Solicitações de alteração'
+                      : 'Lote e quantidade (caixas)'}
+                  </p>
                   {formEdit.itens.map((item, index) => {
                     const linhasProduto = formEdit.itens.filter(
                       (i) => i.produtoId === item.produtoId,
@@ -1218,7 +1264,9 @@ export function PedidosPage() {
                             </Button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div
+                          className={`flex items-center gap-2 ${pedidoSelecionado.status === 'ENTREGUE' ? 'hidden' : ''}`}
+                        >
                           <select
                             value={item.loteId}
                             onChange={(e) => alterarItem(index, { loteId: e.target.value })}

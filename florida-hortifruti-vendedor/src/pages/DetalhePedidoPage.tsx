@@ -321,7 +321,9 @@ export function DetalhePedidoPage() {
                 ? `Pago${p.pagamentos?.length ? ` em ${formatDate(p.pagamentos.at(-1).data)}` : ''}`
                 : p.statusPagamento === 'VENCIDO'
                   ? 'Vencido'
-                  : 'Em aberto'
+                  : p.pagamentos?.some((x: any) => Number(x.valor) > 0)
+                    ? 'Em aberto · pago parcialmente'
+                    : 'Em aberto'
             }
           />
           {p.statusPagamento !== 'PAGO' &&

@@ -667,12 +667,21 @@ export class PedidosService implements OnApplicationBootstrap {
   async atualizar(id: string, dto: UpdatePedidoDto, usuarioId: string, papel?: PapelUsuario) {
     const pedido = await this.findOne(id, usuarioId, papel);
 
-    if (this.statusBloqueadoParaEdicao(pedido.status)) {
+    // Entregue: dados do pedido (cliente, vendedor, data...) mudam direto; os produtos,
+    // por solicitação de alteração, que mexe no lote só depois de aprovada
+    const entregue = pedido.status === StatusPedido.ENTREGUE;
+    if (this.statusBloqueadoParaEdicao(pedido.status) && !entregue) {
       throw new BadRequestException('Não é possível editar pedido neste status');
     }
 
     if (vendeSoOSeu(papel)) {
       throw new ForbiddenException('Para alterar a quantidade, envie uma solicitação de alteração');
+    }
+
+    if (entregue && dto.itens) {
+      throw new BadRequestException(
+        'Pedido entregue: altere os produtos por uma solicitação de alteração',
+      );
     }
 
     const trocaCliente = !!dto.clienteId && dto.clienteId !== pedido.clienteId;
@@ -1204,7 +1213,9 @@ export class PedidosService implements OnApplicationBootstrap {
   ) {
     const pedido = await this.findOne(pedidoId, usuarioId, papel);
 
-    if (!this.statusPodeSolicitar.includes(pedido.status)) {
+    // Pedido entregue: só a equipe (supervisor, administrativo, administrador) pede alteração
+    const entregueEquipe = pedido.status === StatusPedido.ENTREGUE && !vendeSoOSeu(papel);
+    if (!this.statusPodeSolicitar.includes(pedido.status) && !entregueEquipe) {
       throw new BadRequestException(
         'Não é possível solicitar alteração depois que o pedido saiu para entrega',
       );

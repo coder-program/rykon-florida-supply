@@ -4,6 +4,8 @@ import {
   IsOptional,
   IsBoolean,
   IsEmail,
+  IsIn,
+  IsNotEmpty,
   IsPhoneNumber,
   Length,
   Matches,
@@ -225,4 +227,25 @@ export class UpdateClienteDto {
   @IsOptional()
   @IsString()
   observacoes?: string;
+}
+
+export const TIPOS_CONTATO = ['LIGACAO', 'WHATSAPP', 'VISITA', 'OUTRO'];
+
+export class CreateContatoClienteDto {
+  @IsIn(TIPOS_CONTATO, { message: 'Tipo de contato inválido' })
+  tipo: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Descreva o contato' })
+  resumo: string;
+
+  // Dia do contato (YYYY-MM-DD); vazio = agora
+  @IsOptional()
+  @IsString()
+  data?: string;
+
+  // Quando voltar a falar com o cliente (YYYY-MM-DD)
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Próximo contato inválido' })
+  proximoContato?: string;
 }

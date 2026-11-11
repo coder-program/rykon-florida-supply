@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -129,6 +130,11 @@ export class EstoqueController {
   @Patch('lotes/:id')
   atualizarLote(@Param('id') id: string, @Body() dto: AtualizarLoteDto) {
     return this.estoqueService.atualizarLote(id, dto);
+  }
+
+  @Delete('lotes/:id')
+  excluirLote(@Param('id') id: string, @Request() req: any) {
+    return this.estoqueService.excluirLote(id, req.user.id);
   }
 
   // Extrato do lote: entrada, vendas, devoluções e ajustes com saldo antes/depois

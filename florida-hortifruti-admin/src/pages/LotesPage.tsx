@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, ListTree, Receipt } from 'lucide-react'
+import { Plus, Pencil, ListTree, Receipt, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatBRL, formatDate, formatDateTime } from '../lib/utils'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -161,6 +161,17 @@ export function LotesPage() {
     onError: (erro) => setErroEdicao(mensagemErro(erro, 'Não foi possível salvar o lote.')),
   })
 
+  const excluir = useMutation({
+    mutationFn: (id: string) => api.delete(`/estoque/lotes/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['lotes'] })
+      qc.invalidateQueries({ queryKey: ['estoque-saldos'] })
+      qc.invalidateQueries({ queryKey: ['produtos'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+    onError: (erro) => alert(mensagemErro(erro, 'Não foi possível remover o lote.')),
+  })
+
   const totalDisponivel = lotes.reduce((acc, l) => acc + l.quantidadeDisponivel, 0)
   const totalVendido = lotes.reduce((acc, l) => acc + l.quantidadeVendida, 0)
 
@@ -266,9 +277,27 @@ export function LotesPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => setCompraEditando(lote.compraId)}
-                          title="Editar entrada: frete, comissão e valor (recalcula o custo da caixa)"
+                          title="Editar entrada: produto, quantidade, valor, frete e comissão (recalcula o custo da caixa)"
                         >
-                          <Receipt className="w-3.5 h-3.5" /> Frete/comissão
+                          <Receipt className="w-3.5 h-3.5" /> Editar entrada
+                        </Button>
+                      )}
+                      {lote.quantidadeVendida === 0 && lote.vendas.length === 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={excluir.isPending}
+                          onClick={() => {
+                            if (
+                              confirm(
+                                `Remover o lote ${lote.numero} de ${lote.produto.nome}? As ${lote.quantidadeInicial.toFixed(0)} cx saem do estoque.`,
+                              )
+                            )
+                              excluir.mutate(lote.id)
+                          }}
+                          title="Remover lote lançado errado (só enquanto nada saiu dele)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-red-600" />
                         </Button>
                       )}
                       <Button
@@ -434,7 +463,7 @@ export function LotesPage() {
             }
           />
           <p className="text-xs text-gray-500">
-            Quantidades mudam por entrada de estoque ou pelas vendas, não por aqui.
+            Para trocar produto, quantidade ou valor, use "Editar entrada" na linha do lote.
           </p>
           {erroEdicao && <p className="text-sm text-red-600">{erroEdicao}</p>}
           <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">

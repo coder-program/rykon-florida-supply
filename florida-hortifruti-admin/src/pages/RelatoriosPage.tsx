@@ -32,6 +32,7 @@ type Formato = 'excel' | 'pdf' | 'csv' | 'json' | 'xml'
 const STATUS_PAGAMENTO_LABEL: Record<string, string> = {
   PAGO: 'Pago',
   EM_ABERTO: 'Em aberto',
+  PAGO_PARCIAL: 'Pago parcialmente',
   VENCIDO: 'Vencido',
 }
 
@@ -46,7 +47,7 @@ const statusPedidoOptions = [
   'ENTREGUE',
   'CANCELADO',
 ]
-const statusPagamentoOptions = ['TODOS', 'PAGO', 'EM_ABERTO', 'VENCIDO']
+const statusPagamentoOptions = ['TODOS', 'PAGO', 'EM_ABERTO', 'PAGO_PARCIAL', 'VENCIDO']
 
 const ABAS: { key: Aba; label: string; icon: LucideIcon }[] = [
   { key: 'vendas', label: 'Pedidos/Vendas', icon: BarChart3 },

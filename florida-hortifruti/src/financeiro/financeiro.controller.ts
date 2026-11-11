@@ -22,7 +22,7 @@ export class FinanceiroController {
     @Query('vendedorId') vendedorId?: string,
     @Query('clienteId') clienteId?: string,
     @Query('formaPagamento') formaPagamento?: FormaPagamento,
-    @Query('situacao') situacao?: 'EM_ABERTO' | 'VENCIDO' | 'PAGO' | 'A_VENCER',
+    @Query('situacao') situacao?: 'EM_ABERTO' | 'VENCIDO' | 'PAGO' | 'A_VENCER' | 'PAGO_PARCIAL',
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
   ) {
