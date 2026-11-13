@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PapelUsuario, StatusPedido } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { calcularMetasDoMes, diasDoMes } from './metas.calc';
-import { DefinirValorMetaDto, MarcarDiaSemMetaDto } from './dto/meta.dto';
+import { AbaterMetaDto, DefinirValorMetaDto, MarcarDiaSemMetaDto } from './dto/meta.dto';
 
 // O dia da meta é o dia de Brasília (o servidor roda em UTC).
 const FUSO = 'America/Sao_Paulo';
@@ -70,7 +70,7 @@ export class MetasService {
 
     const inicio = dias[0];
     const fim = dias[dias.length - 1];
-    const [valores, semMeta, lucroPorDia] = await Promise.all([
+    const [valores, semMeta, lucroPorDia, abatimentos] = await Promise.all([
       this.prisma.metaValor.findMany({
         where: { vigenteDesde: { lte: paraColunaData(fim) } },
         orderBy: [{ vigenteDesde: 'asc' }, { criadoEm: 'asc' }],
@@ -79,7 +79,11 @@ export class MetasService {
         where: { data: { gte: paraColunaData(inicio), lte: paraColunaData(fim) } },
       }),
       this.lucroPorDia(inicio, fim),
+      this.prisma.metaAbatimento.findMany({
+        where: { data: { gte: paraColunaData(inicio), lte: paraColunaData(fim) } },
+      }),
     ]);
+    const abatimentoPorDia = new Map(abatimentos.map((a) => [dataDoBanco(a.data), a]));
 
     const resultado = calcularMetasDoMes({
       dias,
@@ -90,6 +94,9 @@ export class MetasService {
       })),
       diasSemMeta: new Set(semMeta.map((d) => dataDoBanco(d.data))),
       lucroPorDia,
+      abatimentos: new Map(
+        abatimentos.map((a) => [dataDoBanco(a.data), { batida: a.batida, valor: Number(a.valor) }]),
+      ),
     });
 
     const motivos = new Map(semMeta.map((d) => [dataDoBanco(d.data), d.motivo]));
@@ -98,7 +105,11 @@ export class MetasService {
     return {
       mes,
       hoje,
-      dias: resultado.map((d) => ({ ...d, motivo: motivos.get(d.data) ?? null })),
+      dias: resultado.map((d) => ({
+        ...d,
+        motivo: motivos.get(d.data) ?? null,
+        motivoAbatimento: abatimentoPorDia.get(d.data)?.motivo ?? null,
+      })),
       resumo: {
         diasComMeta: diasComMeta.length,
         diasAtingidos: diasComMeta.filter((d) => d.atingida).length,
@@ -185,6 +196,51 @@ export class MetasService {
       update: { motivo: dto.motivo ?? null },
       create: { data, motivo: dto.motivo ?? null },
     });
+    return { ok: true };
+  }
+
+  async abater(dto: AbaterMetaDto, usuarioId: string) {
+    if (dto.data > dataEmBrasilia(new Date())) {
+      throw new BadRequestException('Não dá para abater a meta de um dia futuro');
+    }
+    const batida = !!dto.batida;
+    const valor = batida ? 0 : Number(dto.valor ?? 0);
+    if (!batida && !(valor > 0)) {
+      throw new BadRequestException('Marque como batida ou informe o valor a abater');
+    }
+    const data = paraColunaData(dto.data);
+    const dados = { batida, valor, motivo: dto.motivo.trim(), criadoPorId: usuarioId };
+    await this.prisma.$transaction([
+      this.prisma.metaAbatimento.upsert({
+        where: { data },
+        update: dados,
+        create: { data, ...dados },
+      }),
+      this.prisma.logAuditoria.create({
+        data: {
+          usuarioId,
+          acao: 'ABATER_META',
+          entidade: 'MetaAbatimento',
+          entidadeId: dto.data,
+          detalhes: { batida, valor, motivo: dados.motivo },
+        },
+      }),
+    ]);
+    return { ok: true };
+  }
+
+  async removerAbatimento(data: string, usuarioId: string) {
+    await this.prisma.$transaction([
+      this.prisma.metaAbatimento.deleteMany({ where: { data: paraColunaData(data) } }),
+      this.prisma.logAuditoria.create({
+        data: {
+          usuarioId,
+          acao: 'REMOVER_ABATIMENTO_META',
+          entidade: 'MetaAbatimento',
+          entidadeId: data,
+        },
+      }),
+    ]);
     return { ok: true };
   }
 

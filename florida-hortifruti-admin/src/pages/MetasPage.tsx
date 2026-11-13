@@ -9,6 +9,7 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input, MoneyInput } from '../components/ui/Input'
+import { Modal } from '../components/ui/Modal'
 
 type DiaMeta = {
   data: string
@@ -22,6 +23,9 @@ type DiaMeta = {
   falta: number
   atingida: boolean
   emAndamento: boolean
+  abatimento: number
+  marcadaBatida: boolean
+  motivoAbatimento?: string | null
 }
 
 type MesResponse = {
@@ -65,9 +69,11 @@ const MOTIVO_SEM_META: Record<string, string> = {
 
 export function MetasPage() {
   const qc = useQueryClient()
-  const { isAdmin, isSupervisor } = useAuth()
-  // Supervisor também lança o valor da meta diária e os dias sem meta
-  const podeEditarMeta = isAdmin || isSupervisor
+  const { isAdmin, isSupervisor, isFinanceiro } = useAuth()
+  // Supervisor e financeiro também lançam o valor da meta diária e os dias sem meta
+  const podeEditarMeta = isAdmin || isSupervisor || isFinanceiro
+  // Abater a meta (marcar como batida ou abater um valor): só administrador e financeiro
+  const podeAbater = isFinanceiro
 
   const { data: hoje, isLoading: carregandoHoje } = useQuery<HojeResponse>({
     queryKey: ['metas-hoje'],
@@ -141,6 +147,41 @@ export function MetasPage() {
   const desmarcarDia = useMutation({
     mutationFn: (data: string) => api.delete(`/metas/dias-sem-meta/${data}`),
     onSuccess: atualizar,
+  })
+
+  // ---------- abatimento ----------
+  const [abatendo, setAbatendo] = useState<DiaMeta | null>(null)
+  const [formAbate, setFormAbate] = useState({ batida: false, valor: 0 as number | '', motivo: '' })
+
+  function abrirAbatimento(d: DiaMeta) {
+    setFormAbate({
+      batida: d.marcadaBatida,
+      valor: d.abatimento > 0 ? d.abatimento : d.falta,
+      motivo: d.motivoAbatimento ?? '',
+    })
+    setAbatendo(d)
+  }
+
+  const abater = useMutation({
+    mutationFn: () =>
+      api.post('/metas/abatimentos', {
+        data: abatendo!.data,
+        batida: formAbate.batida,
+        valor: formAbate.batida ? undefined : Number(formAbate.valor || 0),
+        motivo: formAbate.motivo,
+      }),
+    onSuccess: () => {
+      setAbatendo(null)
+      atualizar()
+    },
+  })
+
+  const removerAbatimento = useMutation({
+    mutationFn: (data: string) => api.delete(`/metas/abatimentos/${data}`),
+    onSuccess: () => {
+      setAbatendo(null)
+      atualizar()
+    },
   })
 
   function submitValor(e: FormEvent) {
@@ -290,7 +331,7 @@ export function MetasPage() {
                 </form>
               ) : (
                 <p className="text-sm text-gray-500">
-                  Somente o administrador ou o supervisor altera a meta.
+                  Somente o administrador, o financeiro ou o supervisor altera a meta.
                 </p>
               )}
 
@@ -496,23 +537,42 @@ export function MetasPage() {
                           {formatBRL(d.lucro)}
                         </td>
                         <td className="px-5 py-3">
-                          {!d.temMeta ? (
-                            <span className="text-xs">
-                              {MOTIVO_SEM_META[d.motivoSemMeta ?? '']}
-                              {d.motivo ? ` — ${d.motivo}` : ''}
-                            </span>
-                          ) : d.atingida ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700">
-                              <CheckCircle2 className="h-4 w-4" /> Batida
-                            </span>
-                          ) : d.emAndamento ? (
-                            <span className="text-xs text-gray-600">
-                              Faltam {formatBRL(d.falta)}
-                            </span>
-                          ) : (
-                            <span className="text-xs font-semibold text-red-600">
-                              Faltou {formatBRL(d.falta)}
-                            </span>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            {!d.temMeta ? (
+                              <span className="text-xs">
+                                {MOTIVO_SEM_META[d.motivoSemMeta ?? '']}
+                                {d.motivo ? ` — ${d.motivo}` : ''}
+                              </span>
+                            ) : d.atingida ? (
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700">
+                                <CheckCircle2 className="h-4 w-4" /> Batida
+                              </span>
+                            ) : d.emAndamento ? (
+                              <span className="text-xs text-gray-600">
+                                Faltam {formatBRL(d.falta)}
+                              </span>
+                            ) : (
+                              <span className="text-xs font-semibold text-red-600">
+                                Faltou {formatBRL(d.falta)}
+                              </span>
+                            )}
+                            {podeAbater && d.temMeta && (d.falta > 0 || !!d.motivoAbatimento) && (
+                              <button
+                                type="button"
+                                onClick={() => abrirAbatimento(d)}
+                                className="text-xs font-medium text-green-700 hover:underline"
+                              >
+                                {d.motivoAbatimento ? 'Editar abatimento' : 'Abater'}
+                              </button>
+                            )}
+                          </div>
+                          {d.motivoAbatimento && (
+                            <p className="mt-0.5 text-[11px] text-gray-500">
+                              {d.marcadaBatida
+                                ? 'Marcada como batida'
+                                : `Abatido ${formatBRL(d.abatimento)}`}{' '}
+                              — {d.motivoAbatimento}
+                            </p>
                           )}
                         </td>
                       </tr>
@@ -524,6 +584,77 @@ export function MetasPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Modal
+        open={!!abatendo}
+        onClose={() => setAbatendo(null)}
+        title={abatendo ? `Abater meta — ${dataCurta(abatendo.data)}` : ''}
+        size="sm"
+      >
+        {abatendo && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              abater.mutate()
+            }}
+            className="space-y-3"
+          >
+            <p className="text-sm text-gray-600">
+              Meta {formatBRL(abatendo.meta)} · lucro {formatBRL(abatendo.lucro)}
+            </p>
+            <label className="flex items-center gap-2 text-sm text-gray-800">
+              <input
+                type="checkbox"
+                checked={formAbate.batida}
+                onChange={(e) => setFormAbate((f) => ({ ...f, batida: e.target.checked }))}
+              />
+              Marcar como batida
+            </label>
+            {!formAbate.batida && (
+              <MoneyInput
+                label="Valor a abater (R$)"
+                value={formAbate.valor}
+                onValueChange={(valor) => setFormAbate((f) => ({ ...f, valor }))}
+                required
+              />
+            )}
+            <Input
+              label="Motivo *"
+              required
+              maxLength={200}
+              placeholder="Ex.: Aporte do Marcelo"
+              value={formAbate.motivo}
+              onChange={(e) => setFormAbate((f) => ({ ...f, motivo: e.target.value }))}
+            />
+            <p className="text-xs text-gray-500">
+              O abatimento vale só para a meta: o que deixar de faltar não passa para o dia
+              seguinte. O lucro dos relatórios não muda.
+            </p>
+            {abater.isError && (
+              <p className="text-xs text-red-600">
+                {(abater.error as any)?.response?.data?.message ?? 'Não foi possível salvar.'}
+              </p>
+            )}
+            <div className="flex justify-between gap-2 border-t border-gray-100 pt-3">
+              {abatendo.motivoAbatimento ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={removerAbatimento.isPending}
+                  onClick={() => removerAbatimento.mutate(abatendo.data)}
+                >
+                  Remover abatimento
+                </Button>
+              ) : (
+                <span />
+              )}
+              <Button type="submit" disabled={abater.isPending}>
+                {abater.isPending ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   )
 }

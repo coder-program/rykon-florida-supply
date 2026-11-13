@@ -3,6 +3,8 @@
 // - Lucro acima da meta NÃO abate a meta do dia seguinte.
 // - O acumulado zera todo mês (o cálculo sempre começa no dia 1º).
 // - Domingos e dias marcados como "sem meta" (feriados) não têm meta e não mexem no acumulado.
+// - Abatimento (admin/financeiro): o dia marcado como batido não deixa falta; o valor abatido
+//   conta como lucro só para a meta.
 
 export type ValorVigente = { valor: number; vigenteDesde: string }; // vigenteDesde: 'YYYY-MM-DD'
 
@@ -17,7 +19,11 @@ export type DiaMeta = {
   falta: number; // quanto falta (hoje) ou faltou (dias passados) para bater a meta
   atingida: boolean;
   emAndamento: boolean; // é hoje
+  abatimento: number; // valor abatido à mão
+  marcadaBatida: boolean;
 };
+
+export type Abatimento = { batida: boolean; valor: number };
 
 export function diaDaSemana(data: string) {
   const [y, m, d] = data.split('-').map(Number);
@@ -52,8 +58,9 @@ export function calcularMetasDoMes(params: {
   valores: ValorVigente[];
   diasSemMeta: Set<string>;
   lucroPorDia: Map<string, number>;
+  abatimentos?: Map<string, Abatimento>;
 }): DiaMeta[] {
-  const { dias, hoje, valores, diasSemMeta, lucroPorDia } = params;
+  const { dias, hoje, valores, diasSemMeta, lucroPorDia, abatimentos = new Map() } = params;
   let acumulado = 0;
 
   return dias.map((data) => {
@@ -82,11 +89,16 @@ export function calcularMetasDoMes(params: {
         falta: 0,
         atingida: false,
         emAndamento,
+        abatimento: 0,
+        marcadaBatida: false,
       };
     }
 
     const meta = centavos(base! + acumulado);
-    const falta = centavos(Math.max(0, meta - lucro));
+    const abatido = abatimentos.get(data);
+    const abatimento = centavos(abatido?.valor ?? 0);
+    const marcadaBatida = !!abatido?.batida;
+    const falta = marcadaBatida ? 0 : centavos(Math.max(0, meta - lucro - abatimento));
     const dia: DiaMeta = {
       data,
       lucro,
@@ -97,6 +109,8 @@ export function calcularMetasDoMes(params: {
       falta,
       atingida: falta === 0,
       emAndamento,
+      abatimento,
+      marcadaBatida,
     };
     acumulado = falta; // o que faltou vai para o próximo dia com meta (sobra não abate)
     return dia;

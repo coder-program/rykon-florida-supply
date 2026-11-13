@@ -187,7 +187,7 @@
 
   /* Listas, tabelas e grades aparecem em sequência */
   .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > * {
-    animation: brand-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: brand-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
   .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(2) { animation-delay: 40ms; }
   .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(3) { animation-delay: 80ms; }

@@ -14,7 +14,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { MetasService } from './metas.service';
-import { DefinirValorMetaDto, MarcarDiaSemMetaDto } from './dto/meta.dto';
+import { AbaterMetaDto, DefinirValorMetaDto, MarcarDiaSemMetaDto } from './dto/meta.dto';
 
 @Controller('metas')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -57,13 +57,13 @@ export class MetasController {
   }
 
   @Post('valores')
-  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.SUPERVISOR)
   definirValor(@Body() dto: DefinirValorMetaDto, @Request() req: any) {
     return this.service.definirValor(dto, req.user.id);
   }
 
   @Delete('valores/:id')
-  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.SUPERVISOR)
   removerValor(@Param('id') id: string) {
     return this.service.removerValor(id);
   }
@@ -80,14 +80,27 @@ export class MetasController {
   }
 
   @Post('dias-sem-meta')
-  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.SUPERVISOR)
   marcarDiaSemMeta(@Body() dto: MarcarDiaSemMetaDto) {
     return this.service.marcarDiaSemMeta(dto);
   }
 
   @Delete('dias-sem-meta/:data')
-  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO, PapelUsuario.SUPERVISOR)
   desmarcarDiaSemMeta(@Param('data') data: string) {
     return this.service.desmarcarDiaSemMeta(data);
+  }
+
+  // Abatimento (marcar como batida ou abater um valor): só administrador e financeiro
+  @Post('abatimentos')
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO)
+  abater(@Body() dto: AbaterMetaDto, @Request() req: any) {
+    return this.service.abater(dto, req.user.id);
+  }
+
+  @Delete('abatimentos/:data')
+  @Roles(PapelUsuario.ADMINISTRADOR, PapelUsuario.ADMINISTRATIVO)
+  removerAbatimento(@Param('data') data: string, @Request() req: any) {
+    return this.service.removerAbatimento(data, req.user.id);
   }
 }

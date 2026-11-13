@@ -186,8 +186,10 @@
   }
 
   /* Listas, tabelas e grades aparecem em sequência */
+  /* backwards (não both): terminada a animação, o item não fica numa camada própria;
+     com both, os campos de baixo cobriam listas suspensas (ex.: busca de cliente) */
   .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > * {
-    animation: brand-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: brand-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
   .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(2) {
     animation-delay: 40ms;

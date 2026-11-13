@@ -702,6 +702,21 @@ model MetaValor {
 }
 
 // Dias sem meta (feriados, dias sem operação). Domingos já são ignorados automaticamente.
+// Meta do dia abatida à mão (ex.: aporte de um sócio): marcada como batida ou com um valor
+// que conta como lucro só para a meta
+model MetaAbatimento {
+  id           String   @id @default(uuid())
+  data         DateTime @unique @db.Date
+  batida       Boolean  @default(false)
+  valor        Decimal  @default(0) @db.Decimal(10, 2)
+  motivo       String
+  criadoPorId  String?
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@map("metas_abatimentos")
+}
+
 model MetaDiaSemMeta {
   id       String   @id @default(uuid())
   data     DateTime @unique @db.Date
