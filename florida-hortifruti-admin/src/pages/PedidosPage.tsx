@@ -34,7 +34,7 @@ import { TableScroll } from '../components/ui/TableScroll'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { BuscaCliente } from '../components/BuscaCliente'
-import { Select } from '../components/ui/Input'
+import { MoneyInput, Select } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
 import { NovoPedidoModal } from './NovoPedidoModal'
 import { MarcarEntregueModal } from '../components/MarcarEntregueModal'
@@ -266,6 +266,8 @@ export function PedidosPage() {
   }, [pedidoDaUrl])
 
   async function abrirPedido(p: any) {
+    // A edição aberta é do pedido anterior: não pode aparecer neste
+    setEditando(false)
     setPedidoSelecionado(p)
     setEntregadorId(p.entregadorId ?? p.entregador?.id ?? '')
     setCarregandoPedidoDetalhe(true)
@@ -1148,8 +1150,20 @@ export function PedidosPage() {
                           quantidade: i.quantidade,
                         }))
                     : undefined
+                  // Entregue: o preço muda direto (a quantidade, por solicitação)
+                  const precos = entregue
+                    ? formEdit.itens
+                        .map((i, idx) => ({
+                          itemId: pedidoSelecionado.itens[idx]?.id,
+                          valorUnitario: i.valorUnitario,
+                          antes: Number(pedidoSelecionado.itens[idx]?.valorUnitario),
+                        }))
+                        .filter((p) => p.itemId && p.valorUnitario !== p.antes)
+                        .map(({ itemId, valorUnitario }) => ({ itemId, valorUnitario }))
+                    : undefined
                   editarPedido.mutate({
                     solicitacao,
+                    precos: precos?.length ? precos : undefined,
                     ...resto,
                     // Só manda cliente e vendedor quando mudaram
                     clienteId:
@@ -1212,8 +1226,8 @@ export function PedidosPage() {
                 <div className="space-y-2 rounded-lg border border-gray-200 p-3">
                   <p className="text-xs font-medium text-gray-600">
                     {pedidoSelecionado.status === 'ENTREGUE'
-                      ? 'Quantidade (caixas): a mudança vai para Solicitações de alteração'
-                      : 'Lote e quantidade (caixas)'}
+                      ? 'Quantidade (caixas): a mudança vai para Solicitações de alteração. O preço muda direto.'
+                      : 'Lote, quantidade (caixas) e preço'}
                   </p>
                   {formEdit.itens.map((item, index) => {
                     const linhasProduto = formEdit.itens.filter(
@@ -1263,6 +1277,19 @@ export function PedidosPage() {
                               +
                             </Button>
                           </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="shrink-0 text-xs text-gray-500">Preço por caixa R$</span>
+                          <div className="w-32">
+                            <MoneyInput
+                              value={item.valorUnitario}
+                              onValueChange={(v) => alterarItem(index, { valorUnitario: v })}
+                              required
+                            />
+                          </div>
+                          <span className="ml-auto text-xs text-gray-500">
+                            {formatBRL(item.valorUnitario * item.quantidade)}
+                          </span>
                         </div>
                         <div
                           className={`flex items-center gap-2 ${pedidoSelecionado.status === 'ENTREGUE' ? 'hidden' : ''}`}

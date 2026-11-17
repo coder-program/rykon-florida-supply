@@ -708,13 +708,30 @@ export class PedidosService implements OnApplicationBootstrap {
       await this.validarDonoDoCliente(dto.clienteId ?? pedido.clienteId, vendedorId, revendedor);
     }
 
+    if (dto.itens && dto.precos) {
+      throw new BadRequestException('Envie os produtos ou os preços, não os dois');
+    }
+    const precoPorItem = new Map((dto.precos ?? []).map((p) => [p.itemId, p.valorUnitario]));
+    if ([...precoPorItem.keys()].some((itemId) => !pedido.itens.some((i) => i.id === itemId))) {
+      throw new BadRequestException('Produto não pertence ao pedido');
+    }
+    const precosAlterados = pedido.itens
+      .filter((i) => precoPorItem.has(i.id) && precoPorItem.get(i.id) !== Number(i.valorUnitario))
+      .map((i) => ({
+        itemId: i.id,
+        produto: i.produto.nome,
+        antes: Number(i.valorUnitario),
+        depois: precoPorItem.get(i.id)!,
+      }));
+
     const itens = this.manterLotes(
       pedido.itens,
       dto.itens ??
         pedido.itens.map((i) => ({
           produtoId: i.produtoId,
+          loteId: i.loteId ?? undefined,
           quantidade: Number(i.quantidade),
-          valorUnitario: Number(i.valorUnitario),
+          valorUnitario: precoPorItem.get(i.id) ?? Number(i.valorUnitario),
         })),
     );
 
@@ -762,6 +779,14 @@ export class PedidosService implements OnApplicationBootstrap {
         );
       }
 
+      for (const p of precosAlterados) {
+        const item = pedido.itens.find((i) => i.id === p.itemId)!;
+        await tx.itemPedido.update({
+          where: { id: p.itemId },
+          data: { valorUnitario: p.depois, valorTotal: Number(item.quantidade) * p.depois },
+        });
+      }
+
       const pedidoAtualizado = await tx.pedido.update({
         where: { id },
         data: {
@@ -796,6 +821,7 @@ export class PedidosService implements OnApplicationBootstrap {
           entidadeId: id,
           detalhes: {
             ...(dto.itens ? { itens: itensCalculados } : {}),
+            ...(precosAlterados.length ? { precos: precosAlterados } : {}),
             ...(trocaCliente
               ? { clienteAntes: pedido.clienteId, clienteDepois: dto.clienteId }
               : {}),

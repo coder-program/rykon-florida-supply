@@ -80,6 +80,15 @@ export class CreatePedidoDto {
   observacoes?: string;
 }
 
+class PrecoItemPedidoDto {
+  @IsString()
+  itemId: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  valorUnitario: number;
+}
+
 // Seção 3.2: administrativo pode editar pedido antes de aprovar
 export class UpdatePedidoDto {
   @IsOptional()
@@ -100,6 +109,13 @@ export class UpdatePedidoDto {
   @ValidateNested({ each: true })
   @Type(() => ItemPedidoDto)
   itens?: ItemPedidoDto[];
+
+  // Só o preço das linhas do pedido (vale também para pedido entregue)
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PrecoItemPedidoDto)
+  precos?: PrecoItemPedidoDto[];
 
   @IsOptional()
   @IsNumber()
