@@ -7,6 +7,8 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
+  // Express 5 lê a query no modo "simple"; os filtros (ex.: status[]=...) contam com o "extended"
+  app.set('query parser', 'extended');
   app.use(json({ limit: '6mb' }));
   app.use(urlencoded({ extended: true, limit: '6mb' }));
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });

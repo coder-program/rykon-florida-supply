@@ -189,13 +189,27 @@
   .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > * {
     animation: brand-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
-  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(2) { animation-delay: 40ms; }
-  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(3) { animation-delay: 80ms; }
-  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(4) { animation-delay: 120ms; }
-  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(5) { animation-delay: 160ms; }
-  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(6) { animation-delay: 200ms; }
-  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(7) { animation-delay: 240ms; }
-  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(n + 8) { animation-delay: 280ms; }
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(2) {
+    animation-delay: 40ms;
+  }
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(3) {
+    animation-delay: 80ms;
+  }
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(4) {
+    animation-delay: 120ms;
+  }
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(5) {
+    animation-delay: 160ms;
+  }
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(6) {
+    animation-delay: 200ms;
+  }
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(7) {
+    animation-delay: 240ms;
+  }
+  .brand-page :is(ul, ol, tbody, .grid, .space-y-2, .space-y-3) > :nth-child(n + 8) {
+    animation-delay: 280ms;
+  }
 
   /* Cartões clicáveis sobem um pouco no hover */
   .brand-page :is(a, button):is([class*='rounded-2xl'], [class*='rounded-3xl']):not(:disabled) {
@@ -207,7 +221,8 @@
       color 0.2s ease;
   }
   @media (hover: hover) {
-    .brand-page :is(a, button):is([class*='rounded-2xl'], [class*='rounded-3xl']):not(:disabled):hover {
+    .brand-page
+      :is(a, button):is([class*='rounded-2xl'], [class*='rounded-3xl']):not(:disabled):hover {
       translate: 0 -2px;
       box-shadow: 0 14px 30px -18px rgba(11, 42, 30, 0.45);
     }
@@ -228,7 +243,12 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.28) 50%, transparent 70%);
+    background: linear-gradient(
+      100deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.28) 50%,
+      transparent 70%
+    );
     translate: -120% 0;
   }
   @media (hover: hover) {

@@ -1,28 +1,12 @@
 import { execSync } from 'node:child_process'
+import { APPS } from './apps.mjs'
 
 const staged = execSync('git diff --cached --name-only', { encoding: 'utf8' })
   .split(/\r?\n/)
   .filter(Boolean)
 
-const packages = []
-if (staged.some((file) => file.startsWith('florida-hortifruti-pwa/'))) {
-  packages.push('florida-hortifruti-pwa')
-}
-if (staged.some((file) => file.startsWith('florida-hortifruti-pwa-cliente/'))) {
-  packages.push('florida-hortifruti-pwa-cliente')
-}
-if (staged.some((file) => file.startsWith('florida-hortifruti-pwa-motorista/'))) {
-  packages.push('florida-hortifruti-pwa-motorista')
-}
-if (staged.some((file) => file.startsWith('florida-hortifruti-admin/'))) {
-  packages.push('florida-hortifruti-admin')
-}
-if (staged.some((file) => file.startsWith('florida-hortifruti/'))) {
-  packages.push('florida-hortifruti')
-}
-
-if (packages.length === 0) process.exit(0)
-
-for (const dir of packages) {
+// Só os apps com arquivo no commit: typecheck e testes
+for (const dir of APPS.filter((app) => staged.some((file) => file.startsWith(`${app}/`)))) {
   execSync(`npm run typecheck --prefix ${dir}`, { stdio: 'inherit' })
+  execSync(`npm test --prefix ${dir}`, { stdio: 'inherit' })
 }

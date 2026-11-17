@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APPS: florida-hortifruti florida-hortifruti-admin florida-hortifruti-vendedor florida-hortifruti-cliente florida-hortifruti-motorista florida-hortifruti-site
+
+jobs:
+  qualidade:
+    name: Prettier, lint, typecheck e testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: '**/package-lock.json'
+      - name: Instalar
+        run: |
+          npm ci
+          for app in $APPS; do npm ci --prefix $app; done
+          npx --prefix florida-hortifruti prisma generate --schema florida-hortifruti/prisma/schema.prisma
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  audit:
+    name: Vulnerabilidades (npm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # O que vai para produção: qualquer vulnerabilidade reprova
+      - name: Dependências de produção
+        run: npm run audit:prod
+      # Ferramentas de build/teste: mostra, mas não trava enquanto não houver correção publicada
+      # (o Dependabot abre o PR quando sair)
+      - name: Todas as dependências (informativo)
+        run: npm run audit
+        continue-on-error: true
+
+  e2e:
+    name: Teste de ponta a ponta (API + Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: teste
+          POSTGRES_DB: florida_teste
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:teste@127.0.0.1:5432/florida_teste
+    defaults:
+      run:
+        working-directory: florida-hortifruti
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: florida-hortifruti/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run build
+      - run: npm run test:e2e

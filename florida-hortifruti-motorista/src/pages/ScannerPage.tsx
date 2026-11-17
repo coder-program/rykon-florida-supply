@@ -13,7 +13,8 @@ export function ScannerPage() {
   const [sucesso, setSucesso] = useState<{ numero: number } | null>(null)
 
   const escanear = useMutation({
-    mutationFn: (token: string) => api.post('/motorista/entregas/scan', { token }).then((r) => r.data),
+    mutationFn: (token: string) =>
+      api.post('/motorista/entregas/scan', { token }).then((r) => r.data),
     onSuccess: (pedido) => {
       controlsRef.current?.stop()
       setSucesso({ numero: pedido.numero })
@@ -98,9 +99,7 @@ export function ScannerPage() {
         </section>
       )}
 
-      {erro && (
-        <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{erro}</p>
-      )}
+      {erro && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{erro}</p>}
     </div>
   )
 }

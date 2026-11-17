@@ -45,7 +45,9 @@ export async function ativarPush(): Promise<EstadoPush> {
   const permissao = await Notification.requestPermission()
   if (permissao !== 'granted') return permissao === 'denied' ? 'bloqueado' : 'desativado'
 
-  const { data } = await api.get<{ chavePublica: string | null }>('/portal-cliente/push/chave-publica')
+  const { data } = await api.get<{ chavePublica: string | null }>(
+    '/portal-cliente/push/chave-publica',
+  )
   if (!data.chavePublica) throw new Error('Notificações ainda não estão configuradas no servidor')
 
   const registro = await navigator.serviceWorker.ready

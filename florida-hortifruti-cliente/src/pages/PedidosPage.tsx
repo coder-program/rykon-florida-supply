@@ -28,7 +28,9 @@ export function PedidosPage() {
   }, [listaPedidos])
 
   if (isLoading)
-    return <p className="brand-loading px-4 py-10 text-center text-sm text-gray-500">Carregando...</p>
+    return (
+      <p className="brand-loading px-4 py-10 text-center text-sm text-gray-500">Carregando...</p>
+    )
 
   return (
     <div className="space-y-4 px-4 py-4">
