@@ -320,8 +320,10 @@ model Pedido {
   condicaoNegociada String?
   statusPagamento   StatusPagamento @default(EM_ABERTO)
 
-  necessitaNF Boolean @default(false)
-  observacoes String?
+  necessitaNF     Boolean @default(false)
+  // Cliente recebe recibo de venda (PDF gerado no admin)
+  necessitaRecibo Boolean @default(false)
+  observacoes     String?
 
   entregueEm          DateTime?
   recebidoPor         String?

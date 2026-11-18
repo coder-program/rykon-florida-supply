@@ -350,6 +350,7 @@ export function DetalhePedidoPage() {
             label="Nota fiscal"
             value={typeof p.necessitaNF === 'boolean' ? (p.necessitaNF ? 'Sim' : 'Não') : undefined}
           />
+          {p.necessitaRecibo && <Row label="Recibo de venda" value="Sim" />}
           {p.dataVencimento && <Row label="Vencimento" value={formatDate(p.dataVencimento)} />}
           {p.observacoes && (
             <div className="pt-2 border-t border-gray-100">

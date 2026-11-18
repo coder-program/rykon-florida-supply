@@ -122,6 +122,7 @@ export class PedidosService implements OnApplicationBootstrap {
           dataVencimento: dto.dataVencimento ? new Date(dto.dataVencimento) : undefined,
           condicaoNegociada: dto.condicaoNegociada,
           necessitaNF: dto.necessitaNF ?? false,
+          necessitaRecibo: dto.necessitaRecibo ?? false,
           observacoes: dto.observacoes,
           itens: {
             create: itensCalculados.map((i) => ({
@@ -803,6 +804,7 @@ export class PedidosService implements OnApplicationBootstrap {
           dataVencimento: dto.dataVencimento ? new Date(dto.dataVencimento) : pedido.dataVencimento,
           condicaoNegociada: dto.condicaoNegociada ?? pedido.condicaoNegociada,
           necessitaNF: dto.necessitaNF ?? pedido.necessitaNF,
+          necessitaRecibo: dto.necessitaRecibo ?? pedido.necessitaRecibo,
           observacoes: dto.observacoes ?? pedido.observacoes,
         },
         include: {

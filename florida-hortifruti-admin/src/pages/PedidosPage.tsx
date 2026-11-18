@@ -43,6 +43,7 @@ import {
   type PedidoPagamento,
 } from '../components/RegistrarPagamentoModal'
 import { RastreioLotesPedido } from './RastreioLotesPedido'
+import { baixarReciboVenda } from '../lib/recibo'
 import { useAuth } from '../contexts/useAuth'
 
 type LoteDisponivel = {
@@ -202,6 +203,7 @@ export function PedidosPage() {
     formaPagamento: '',
     dataVencimento: '',
     necessitaNF: false,
+    necessitaRecibo: false,
     observacoes: '',
     itens: [] as {
       produtoId: string
@@ -359,6 +361,7 @@ export function PedidosPage() {
         ? new Date(p.dataVencimento).toISOString().split('T')[0]
         : '',
       necessitaNF: p.necessitaNF,
+      necessitaRecibo: p.necessitaRecibo ?? false,
       observacoes: p.observacoes ?? '',
       itens: (p.itens ?? []).map((i: any) => ({
         produtoId: i.produtoId,
@@ -476,6 +479,7 @@ export function PedidosPage() {
       Status: STATUS_PEDIDO_LABEL[p.status] ?? p.status,
       Pagamento: FORMA_PAGAMENTO_LABEL[p.formaPagamento] ?? p.formaPagamento,
       'Necessita NF': p.necessitaNF ? 'Sim' : 'Não',
+      'Recibo de venda': p.necessitaRecibo ? 'Sim' : 'Não',
       Total: Number(p.totalFinal ?? 0),
     }))
 
@@ -489,6 +493,7 @@ export function PedidosPage() {
       { header: 'Status', key: 'Status', width: 22 },
       { header: 'Pagamento', key: 'Pagamento', width: 18 },
       { header: 'Necessita NF', key: 'Necessita NF', width: 16 },
+      { header: 'Recibo de venda', key: 'Recibo de venda', width: 16 },
       { header: 'Total', key: 'Total', width: 16 },
     ]
     worksheet.addRows(linhas)
@@ -721,6 +726,7 @@ export function PedidosPage() {
                   >
                     {p.necessitaNF ? 'NF: Sim' : 'NF: Não'}
                   </Badge>
+                  {p.necessitaRecibo && <Badge className="bg-sky-100 text-sky-800">Recibo</Badge>}
                 </div>
               </button>
             </div>
@@ -833,6 +839,9 @@ export function PedidosPage() {
                       >
                         {p.necessitaNF ? 'Sim' : 'Não'}
                       </Badge>
+                      {p.necessitaRecibo && (
+                        <Badge className="ml-1 bg-sky-100 text-sky-800">Recibo</Badge>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-gray-900">
                       {formatBRL(p.totalFinal)}
@@ -950,6 +959,20 @@ export function PedidosPage() {
               <div>
                 <span className="text-gray-500">Nota fiscal:</span>{' '}
                 <strong>{pedidoSelecionado.necessitaNF ? 'Sim' : 'Não'}</strong>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-gray-500">Recibo de venda:</span>
+                <strong>{pedidoSelecionado.necessitaRecibo ? 'Sim' : 'Não'}</strong>
+                {/* Pedido de revendedor tem o preço da Flórida para ele: não vale como recibo do cliente dele */}
+                {pedidoSelecionado.vendedor?.papel !== 'REVENDEDOR' && (
+                  <Button
+                    size="sm"
+                    variant={pedidoSelecionado.necessitaRecibo ? 'primary' : 'secondary'}
+                    onClick={() => baixarReciboVenda(pedidoSelecionado)}
+                  >
+                    <Printer className="w-3.5 h-3.5" /> Baixar recibo
+                  </Button>
+                )}
               </div>
               {pedidoSelecionado.observacoes && (
                 <div className="col-span-2">
@@ -1452,6 +1475,17 @@ export function PedidosPage() {
                     className="accent-green-600"
                   />
                   Necessita Nota Fiscal
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={formEdit.necessitaRecibo}
+                    onChange={(e) =>
+                      setFormEdit((f) => ({ ...f, necessitaRecibo: e.target.checked }))
+                    }
+                    className="accent-green-600"
+                  />
+                  Necessita Recibo de Venda
                 </label>
                 <div className="flex gap-2">
                   <Button type="button" variant="secondary" onClick={() => setEditando(false)}>

@@ -76,6 +76,10 @@ export class CreatePedidoDto {
   necessitaNF?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  necessitaRecibo?: boolean;
+
+  @IsOptional()
   @IsString()
   observacoes?: string;
 }
@@ -148,6 +152,10 @@ export class UpdatePedidoDto {
   @IsOptional()
   @IsBoolean()
   necessitaNF?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  necessitaRecibo?: boolean;
 
   @IsOptional()
   @IsString()

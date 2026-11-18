@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { rotasPermitidas } from './permissoes'
 import { previewRateio } from './rateio'
+import { valorPorExtenso } from './recibo'
 import { formatBRLInput, pagoParcialmente, parseBRLInput, statusPedidoVisivel } from './utils'
 
 describe('valores em reais', () => {
@@ -56,6 +57,22 @@ describe('previewRateio', () => {
   })
   it('ignora linhas sem produto ou quantidade', () => {
     expect(previewRateio([{ produtoId: '', quantidade: 1, valorProduto: 1 }], 10, 0)).toEqual([])
+  })
+})
+
+describe('valorPorExtenso (recibo)', () => {
+  it('escreve reais e centavos', () => {
+    expect(valorPorExtenso(1)).toBe('um real')
+    expect(valorPorExtenso(0.01)).toBe('um centavo')
+    expect(valorPorExtenso(100)).toBe('cem reais')
+    expect(valorPorExtenso(115)).toBe('cento e quinze reais')
+    expect(valorPorExtenso(1234.5)).toBe(
+      'mil duzentos e trinta e quatro reais e cinquenta centavos',
+    )
+    expect(valorPorExtenso(2500)).toBe('dois mil e quinhentos reais')
+    expect(valorPorExtenso(1020)).toBe('mil e vinte reais')
+    expect(valorPorExtenso(1_200_000)).toBe('um milhão e duzentos mil reais')
+    expect(valorPorExtenso(2_000_000)).toBe('dois milhões de reais')
   })
 })
 

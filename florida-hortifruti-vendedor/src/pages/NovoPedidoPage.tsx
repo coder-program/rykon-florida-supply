@@ -55,6 +55,7 @@ interface DadosPedido {
   dataVencimento: string
   condicaoNegociada: string
   necessitaNF: boolean
+  necessitaRecibo: boolean
   observacoes: string
 }
 
@@ -90,6 +91,7 @@ const VAZIO: DadosPedido = {
   dataVencimento: '',
   condicaoNegociada: '',
   necessitaNF: false,
+  necessitaRecibo: false,
   observacoes: '',
 }
 
@@ -905,6 +907,15 @@ function EtapaExtras({
           />
           <span>Necessita Nota Fiscal</span>
         </label>
+        <label className="flex items-center gap-3 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={dados.necessitaRecibo}
+            onChange={(e) => onChange({ necessitaRecibo: e.target.checked })}
+            className="accent-green-600 w-5 h-5"
+          />
+          <span>Necessita Recibo de Venda</span>
+        </label>
         <div>
           <label className="text-xs text-gray-500 mb-1 block">Observações</label>
           <textarea
@@ -956,6 +967,10 @@ function EtapaConfirmar({ dados }: { dados: DadosPedido }) {
         <div className="flex justify-between">
           <span className="text-gray-500">Nota Fiscal</span>
           <span>{dados.necessitaNF ? '✅ Sim' : 'Não'}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-500">Recibo de venda</span>
+          <span>{dados.necessitaRecibo ? '✅ Sim' : 'Não'}</span>
         </div>
         {dados.observacoes && (
           <div className="flex items-start justify-between gap-4">
@@ -1018,7 +1033,10 @@ export function NovoPedidoPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [etapa, setEtapa] = useState<Etapa>('cliente')
-  const [dados, setDados] = useState<DadosPedido>(() => carregarRascunho<DadosPedido>() ?? VAZIO)
+  const [dados, setDados] = useState<DadosPedido>(() => ({
+    ...VAZIO,
+    ...carregarRascunho<DadosPedido>(),
+  }))
   const [novoCliente, setNovoCliente] = useState(false)
   const [formCliente, setFormCliente] = useState<NovoClienteForm>({
     razaoSocialOuNome: '',
@@ -1126,6 +1144,7 @@ export function NovoPedidoPage() {
         dataVencimento: dados.dataVencimento || undefined,
         condicaoNegociada: dados.condicaoNegociada || undefined,
         necessitaNF: dados.necessitaNF,
+        necessitaRecibo: dados.necessitaRecibo,
         observacoes: dados.observacoes || undefined,
       }),
     onSuccess: () => {

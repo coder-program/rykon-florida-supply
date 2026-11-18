@@ -60,6 +60,7 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
   const [formaPagamento, setFormaPagamento] = useState('PIX')
   const [dataVencimento, setDataVencimento] = useState('')
   const [necessitaNF, setNecessitaNF] = useState(false)
+  const [necessitaRecibo, setNecessitaRecibo] = useState(false)
   const [observacoes, setObservacoes] = useState('')
   const [feedback, setFeedback] = useState<{ aberto: boolean; titulo: string; mensagem: string }>({
     aberto: false,
@@ -105,6 +106,7 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
         formaPagamento,
         dataVencimento: dataVencimento || undefined,
         necessitaNF,
+        necessitaRecibo,
         observacoes: observacoes || undefined,
       }),
     onSuccess: () => {
@@ -133,6 +135,7 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
     setFormaPagamento('PIX')
     setDataVencimento('')
     setNecessitaNF(false)
+    setNecessitaRecibo(false)
     setObservacoes('')
   }
 
@@ -471,6 +474,15 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
             className="accent-green-600"
           />
           Necessita Nota Fiscal
+        </label>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={necessitaRecibo}
+            onChange={(e) => setNecessitaRecibo(e.target.checked)}
+            className="accent-green-600"
+          />
+          Necessita Recibo de Venda
         </label>
         <Input
           label="Observações"
