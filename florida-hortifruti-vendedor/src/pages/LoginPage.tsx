@@ -10,7 +10,8 @@ export function LoginPage() {
   const { login, usuario } = useAuth()
   const [params] = useSearchParams()
   const redirectRaw = params.get('redirect') || '/'
-  const redirect = redirectRaw.startsWith('/') ? redirectRaw : '/'
+  // Só caminho interno: '//site' e '/\site' levariam para outro domínio depois do login
+  const redirect = /^\/(?![/\\])/.test(redirectRaw) ? redirectRaw : '/'
   const tokenQr = redirect.match(/^\/abrir-pedido\/([^/?#]+)/)?.[1]
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')

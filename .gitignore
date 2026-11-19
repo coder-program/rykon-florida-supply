@@ -37,3 +37,6 @@ uploads/
 
 # TypeScript
 *.tsbuildinfo
+
+# Relatório de cobertura dos testes
+coverage/

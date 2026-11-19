@@ -55,8 +55,15 @@ export class RelatoriosService {
     };
   }
 
+  // Texto para dentro de tag XML: "Frutas & Cia" quebraria o arquivo sem o escape
   private sanitizeString(value?: string | null) {
-    return value ? value.toString().trim() : undefined;
+    if (!value) return undefined;
+    return value
+      .toString()
+      .trim()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
   }
 
   private csvEscape(value: unknown): string {

@@ -15,19 +15,6 @@ import { TIPO_PEDIDO_A_CAMINHO } from '../notificacoes/notificacoes.service';
 export class FinanceiroService {
   constructor(private prisma: PrismaService) {}
 
-  private get hoje() {
-    const d = new Date();
-    d.setHours(23, 59, 59, 999);
-    return d;
-  }
-
-  // Classifica se um pedido está vencido com base na dataVencimento
-  private isVencido(pedido: any): boolean {
-    if (pedido.statusPagamento === StatusPagamento.PAGO) return false;
-    if (!pedido.dataVencimento) return false;
-    return new Date(pedido.dataVencimento) < new Date();
-  }
-
   // Compra a prazo = por pedido inteiro. Saldo devedor = totalFinal - soma dos pagamentos registrados
   private calcularSaldo(pedido: { totalFinal: any; pagamentos: { valor: any }[] }) {
     const valorPago = pedido.pagamentos.reduce((acc, p) => acc + Number(p.valor), 0);
