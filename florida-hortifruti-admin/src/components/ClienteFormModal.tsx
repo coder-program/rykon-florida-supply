@@ -118,7 +118,7 @@ function validarClienteForm(form: any): FormErros {
   const nome = String(form.razaoSocialOuNome ?? '').trim()
   const telefone = String(form.telefone ?? '').trim()
   const cnpjCpf = String(form.cnpjCpf ?? '').trim()
-  const endereco = form.endereco ?? EMPTY_FORM.endereco
+  const endereco = form.endereco
 
   if (!nome) {
     erros.razaoSocialOuNome = 'Informe o nome ou razão social.'
@@ -250,10 +250,10 @@ function FormularioCliente({ cliente, onClose, onSalvo }: ClienteFormModalProps)
   })
 
   const { data: cidades = [] } = useQuery({
-    queryKey: ['localidades-cidades', form.endereco?.estadoId],
+    queryKey: ['localidades-cidades', form.endereco.estadoId],
     queryFn: () =>
-      api.get(`/localidades/estados/${form.endereco?.estadoId}/cidades`).then((r) => r.data),
-    enabled: !!form.endereco?.estadoId,
+      api.get(`/localidades/estados/${form.endereco.estadoId}/cidades`).then((r) => r.data),
+    enabled: !!form.endereco.estadoId,
   })
 
   const salvar = useMutation({
@@ -297,7 +297,7 @@ function FormularioCliente({ cliente, onClose, onSalvo }: ClienteFormModalProps)
             return
           }
 
-          const endereco = form.endereco ?? EMPTY_FORM.endereco
+          const endereco = form.endereco
           const payload = {
             ...form,
             endereco: { ...endereco, principal: true },
@@ -367,7 +367,7 @@ function FormularioCliente({ cliente, onClose, onSalvo }: ClienteFormModalProps)
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
                 label="CEP"
-                value={form.endereco?.cep ?? ''}
+                value={form.endereco.cep}
                 maxLength={9}
                 onChange={(e) => {
                   setFormErros((prev) => ({ ...prev, endereco: undefined }))
@@ -378,7 +378,7 @@ function FormularioCliente({ cliente, onClose, onSalvo }: ClienteFormModalProps)
                 <button
                   type="button"
                   onClick={async () => {
-                    const cep = form.endereco?.cep?.replace(/\D/g, '')
+                    const cep = form.endereco.cep.replace(/\D/g, '')
                     if (!cep || cep.length !== 8) return
 
                     try {
@@ -391,8 +391,8 @@ function FormularioCliente({ cliente, onClose, onSalvo }: ClienteFormModalProps)
                         (item: any) =>
                           String(item.sigla).toUpperCase() === String(data.uf ?? '').toUpperCase(),
                       )
-                      const novoEstadoId = estado?.id ?? form.endereco?.estadoId ?? ''
-                      let novoCidadeId = form.endereco?.cidadeId ?? ''
+                      const novoEstadoId = estado?.id ?? form.endereco.estadoId
+                      let novoCidadeId = form.endereco.cidadeId
 
                       if (novoEstadoId && data.localidade) {
                         const cidadesEstado = await api.get(
@@ -409,14 +409,14 @@ function FormularioCliente({ cliente, onClose, onSalvo }: ClienteFormModalProps)
                       setForm((prev: any) => ({
                         ...prev,
                         endereco: {
-                          ...(prev.endereco ?? EMPTY_FORM.endereco),
-                          cep: data.cep ?? prev.endereco?.cep ?? '',
+                          ...prev.endereco,
+                          cep: data.cep ?? prev.endereco.cep,
                           logradouro: data.logradouro ?? '',
                           bairro: data.bairro ?? '',
                           complemento: data.complemento ?? '',
                           estadoId: novoEstadoId,
                           cidadeId: novoCidadeId,
-                          pontoReferencia: prev.endereco?.pontoReferencia ?? '',
+                          pontoReferencia: prev.endereco.pontoReferencia,
                         },
                       }))
                     } catch {
@@ -433,7 +433,7 @@ function FormularioCliente({ cliente, onClose, onSalvo }: ClienteFormModalProps)
               <div className="sm:col-span-2">
                 <Input
                   label="Logradouro"
-                  value={form.endereco?.logradouro ?? ''}
+                  value={form.endereco.logradouro}
                   maxLength={200}
                   onChange={(e) => {
                     setFormErros((prev) => ({ ...prev, endereco: undefined }))
@@ -443,7 +443,7 @@ function FormularioCliente({ cliente, onClose, onSalvo }: ClienteFormModalProps)
               </div>
               <Input
                 label="Número"
-                value={form.endereco?.numero ?? ''}
+                value={form.endereco.numero}
                 maxLength={20}
                 onChange={(e) => {
                   setFormErros((prev) => ({ ...prev, endereco: undefined }))
@@ -452,13 +452,13 @@ function FormularioCliente({ cliente, onClose, onSalvo }: ClienteFormModalProps)
               />
               <Input
                 label="Complemento"
-                value={form.endereco?.complemento ?? ''}
+                value={form.endereco.complemento}
                 maxLength={80}
                 onChange={(e) => set('endereco', { ...form.endereco, complemento: e.target.value })}
               />
               <Input
                 label="Bairro"
-                value={form.endereco?.bairro ?? ''}
+                value={form.endereco.bairro}
                 maxLength={80}
                 onChange={(e) => {
                   setFormErros((prev) => ({ ...prev, endereco: undefined }))
@@ -467,7 +467,7 @@ function FormularioCliente({ cliente, onClose, onSalvo }: ClienteFormModalProps)
               />
               <Select
                 label="Estado"
-                value={form.endereco?.estadoId ?? ''}
+                value={form.endereco.estadoId}
                 onChange={(e) => {
                   setFormErros((prev) => ({ ...prev, endereco: undefined }))
                   set('endereco', { ...form.endereco, estadoId: e.target.value, cidadeId: '' })
@@ -482,12 +482,12 @@ function FormularioCliente({ cliente, onClose, onSalvo }: ClienteFormModalProps)
               </Select>
               <Select
                 label="Cidade"
-                value={form.endereco?.cidadeId ?? ''}
+                value={form.endereco.cidadeId}
                 onChange={(e) => {
                   setFormErros((prev) => ({ ...prev, endereco: undefined }))
                   set('endereco', { ...form.endereco, cidadeId: e.target.value })
                 }}
-                disabled={!form.endereco?.estadoId}
+                disabled={!form.endereco.estadoId}
               >
                 <option value="">Selecione</option>
                 {cidades.map((cidade: any) => (
@@ -499,7 +499,7 @@ function FormularioCliente({ cliente, onClose, onSalvo }: ClienteFormModalProps)
               <div className="sm:col-span-2">
                 <Input
                   label="Ponto de Referência"
-                  value={form.endereco?.pontoReferencia ?? ''}
+                  value={form.endereco.pontoReferencia}
                   maxLength={120}
                   onChange={(e) =>
                     set('endereco', { ...form.endereco, pontoReferencia: e.target.value })

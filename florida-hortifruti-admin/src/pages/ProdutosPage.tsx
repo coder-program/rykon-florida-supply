@@ -341,10 +341,22 @@ export function ProdutosPage() {
                 Estoque {Number(p.estoqueAtual ?? 0)} {p.unidadeVenda}
               </p>
               <div className="mt-3 flex justify-end gap-1">
-                <Button size="sm" variant="ghost" onClick={() => abrirEditar(p)}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  title="Editar"
+                  aria-label="Editar"
+                  onClick={() => abrirEditar(p)}
+                >
                   <Pencil className="w-3.5 h-3.5" />
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => abrirHistorico(p)}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  title="Histórico de preços"
+                  aria-label="Histórico de preços"
+                  onClick={() => abrirHistorico(p)}
+                >
                   <History className="w-3.5 h-3.5" />
                 </Button>
                 {p.ativo === false ? (
@@ -352,6 +364,8 @@ export function ProdutosPage() {
                     size="sm"
                     variant="ghost"
                     className="text-green-600"
+                    title="Reativar"
+                    aria-label="Reativar"
                     onClick={() => reativar.mutate(p.id)}
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
@@ -361,6 +375,8 @@ export function ProdutosPage() {
                     size="sm"
                     variant="ghost"
                     className="text-red-500 hover:bg-red-50"
+                    title="Desativar"
+                    aria-label="Desativar"
                     onClick={() => {
                       if (confirm(`Desativar ${p.nome}?`)) excluir.mutate(p.id)
                     }}
@@ -437,10 +453,22 @@ export function ProdutosPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1 justify-end">
-                        <Button size="sm" variant="ghost" onClick={() => abrirEditar(p)}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title="Editar"
+                          aria-label="Editar"
+                          onClick={() => abrirEditar(p)}
+                        >
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => abrirHistorico(p)}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title="Histórico de preços"
+                          aria-label="Histórico de preços"
+                          onClick={() => abrirHistorico(p)}
+                        >
                           <History className="w-3.5 h-3.5" />
                         </Button>
                         {p.ativo === false ? (
@@ -448,6 +476,8 @@ export function ProdutosPage() {
                             size="sm"
                             variant="ghost"
                             className="text-green-600"
+                            title="Reativar"
+                            aria-label="Reativar"
                             onClick={() => reativar.mutate(p.id)}
                           >
                             <RotateCcw className="w-3.5 h-3.5" />
@@ -457,6 +487,8 @@ export function ProdutosPage() {
                             size="sm"
                             variant="ghost"
                             className="text-red-500 hover:bg-red-50"
+                            title="Desativar"
+                            aria-label="Desativar"
                             onClick={() => {
                               if (
                                 confirm(

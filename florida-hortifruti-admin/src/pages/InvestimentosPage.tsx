@@ -446,6 +446,8 @@ export function InvestimentosPage() {
                       size="sm"
                       variant="ghost"
                       className="text-red-500 hover:bg-red-50"
+                      title="Excluir devolução"
+                      aria-label="Excluir devolução"
                       disabled={excluirDevolucao.isPending}
                       onClick={() => {
                         if (confirm('Excluir esta devolução?')) excluirDevolucao.mutate(d.id)

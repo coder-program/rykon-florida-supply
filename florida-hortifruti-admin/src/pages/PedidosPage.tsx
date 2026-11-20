@@ -277,6 +277,8 @@ export function PedidosPage() {
       const detalhe = await api.get(`/pedidos/${p.id}`).then((r) => r.data)
       setPedidoSelecionado(detalhe)
       setEntregadorId(detalhe.entregadorId ?? detalhe.entregador?.id ?? '')
+    } catch {
+      // Detalhe não carregou: fica o resumo da lista (antes virava erro não tratado)
     } finally {
       setCarregandoPedidoDetalhe(false)
     }
@@ -949,6 +951,8 @@ export function PedidosPage() {
                           numero: pedidoSelecionado.numero,
                           totalFinal: pedidoSelecionado.totalFinal,
                           saldoDevedor: saldoEmAberto(pedidoSelecionado),
+                          // Já vem a forma do pedido (sem isso o modal abria com a forma vazia)
+                          formaPagamento: pedidoSelecionado.formaPagamento,
                         })
                       }
                     >
@@ -1285,6 +1289,7 @@ export function PedidosPage() {
                               variant="secondary"
                               onClick={() => alterarQtdItem(index, -1)}
                               disabled={item.quantidade <= 1}
+                              aria-label="Diminuir caixas"
                             >
                               −
                             </Button>
@@ -1296,6 +1301,7 @@ export function PedidosPage() {
                               size="sm"
                               variant="secondary"
                               onClick={() => alterarQtdItem(index, 1)}
+                              aria-label="Aumentar caixas"
                             >
                               +
                             </Button>

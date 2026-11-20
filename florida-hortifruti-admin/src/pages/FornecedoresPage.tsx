@@ -92,7 +92,13 @@ export function FornecedoresPage() {
   function acoes(f: Fornecedor) {
     return (
       <div className="flex gap-1 justify-end">
-        <Button size="sm" variant="ghost" onClick={() => abrirEditar(f)}>
+        <Button
+          size="sm"
+          variant="ghost"
+          title="Editar"
+          aria-label="Editar"
+          onClick={() => abrirEditar(f)}
+        >
           <Pencil className="w-3.5 h-3.5" />
         </Button>
         {f.ativo ? (
@@ -100,6 +106,8 @@ export function FornecedoresPage() {
             size="sm"
             variant="ghost"
             className="text-red-500 hover:bg-red-50"
+            title="Desativar"
+            aria-label="Desativar"
             onClick={() => {
               if (confirm(`Desativar ${f.nome}? As compras antigas continuam no histórico.`))
                 excluir.mutate(f.id)
@@ -112,6 +120,8 @@ export function FornecedoresPage() {
             size="sm"
             variant="ghost"
             className="text-green-600"
+            title="Reativar"
+            aria-label="Reativar"
             onClick={() => reativar.mutate(f.id)}
           >
             <RotateCcw className="w-3.5 h-3.5" />

@@ -430,6 +430,8 @@ export function EstoquePage() {
                       <button
                         type="button"
                         className="mt-6 text-gray-400 hover:text-red-600"
+                        aria-label="Remover produto"
+                        title="Remover produto"
                         onClick={() =>
                           setFormEntrada((f) => ({
                             ...f,

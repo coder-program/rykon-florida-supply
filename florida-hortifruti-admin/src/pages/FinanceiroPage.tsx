@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   DollarSign,
@@ -462,8 +462,8 @@ export function FinanceiroPage() {
                   const sit = SITUACAO_CONFIG[c.situacaoCalculada] ?? SITUACAO_CONFIG['EM_ABERTO']
                   const aberto = expandido === c.id
                   return (
-                    <>
-                      <tr key={c.id} className={`hover:brightness-95 transition ${sit.row}`}>
+                    <Fragment key={c.id}>
+                      <tr className={`hover:brightness-95 transition ${sit.row}`}>
                         <td className="px-4 py-3">
                           <p className="font-mono text-xs text-gray-500">
                             #{String(c.numero).padStart(6, '0')}
@@ -529,6 +529,8 @@ export function FinanceiroPage() {
                             )}
                             <button
                               onClick={() => setExpandido(aberto ? null : c.id)}
+                              aria-label={aberto ? 'Ocultar detalhes' : 'Ver detalhes'}
+                              aria-expanded={aberto}
                               className="p-1.5 text-gray-400 hover:text-gray-700 rounded"
                             >
                               {aberto ? (
@@ -541,7 +543,7 @@ export function FinanceiroPage() {
                         </td>
                       </tr>
                       {aberto && (
-                        <tr key={`${c.id}-detail`} className={sit.row}>
+                        <tr className={sit.row}>
                           <td colSpan={8} className="px-6 pb-4 pt-1">
                             <div className="text-xs text-gray-500 space-y-1 bg-white/70 rounded-lg p-3 border border-gray-100">
                               <div className="grid grid-cols-3 gap-4">
@@ -585,7 +587,7 @@ export function FinanceiroPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   )
                 })}
               </tbody>

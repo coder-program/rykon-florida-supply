@@ -165,7 +165,7 @@ function validarUsuarioForm(form: any): FormErros {
   const telefone = String(form.telefone ?? '').trim()
   const whatsapp = String(form.whatsapp ?? '').trim()
   const dataNascimento = String(form.dataNascimento ?? '').trim()
-  const endereco = form.endereco ?? EMPTY.endereco
+  const endereco = form.endereco
   const operacional = exigePerfilCompleto(String(form.papel ?? ''))
 
   if (!nome) erros.nome = 'Informe o nome.'
@@ -232,10 +232,10 @@ export function UsuariosPage() {
   })
 
   const { data: cidades = [] } = useQuery({
-    queryKey: ['localidades-cidades-usuarios', form.endereco?.estadoId],
+    queryKey: ['localidades-cidades-usuarios', form.endereco.estadoId],
     queryFn: () =>
-      api.get(`/localidades/estados/${form.endereco?.estadoId}/cidades`).then((r) => r.data),
-    enabled: !!form.endereco?.estadoId && modal,
+      api.get(`/localidades/estados/${form.endereco.estadoId}/cidades`).then((r) => r.data),
+    enabled: !!form.endereco.estadoId && modal,
   })
 
   const erroUsuarios = (() => {
@@ -405,10 +405,22 @@ export function UsuariosPage() {
                     {u.ativo === false ? 'Inativo' : 'Ativo'}
                   </span>
                   <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => setDetalhesAbertos(u)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title="Ver detalhes"
+                      aria-label="Ver detalhes"
+                      onClick={() => setDetalhesAbertos(u)}
+                    >
                       <Eye className="h-3.5 w-3.5" />
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => abrirEditar(u)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title="Editar"
+                      aria-label="Editar"
+                      onClick={() => abrirEditar(u)}
+                    >
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     {u.ativo === false ? (
@@ -416,6 +428,8 @@ export function UsuariosPage() {
                         size="sm"
                         variant="ghost"
                         className="text-green-600"
+                        title="Reativar"
+                        aria-label="Reativar"
                         onClick={() => reativar.mutate(u.id)}
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
@@ -425,6 +439,8 @@ export function UsuariosPage() {
                         size="sm"
                         variant="ghost"
                         className="text-red-500 hover:bg-red-50"
+                        title="Desativar"
+                        aria-label="Desativar"
                         onClick={() => {
                           if (
                             confirm(
@@ -506,10 +522,22 @@ export function UsuariosPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => setDetalhesAbertos(u)}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Ver detalhes"
+                            aria-label="Ver detalhes"
+                            onClick={() => setDetalhesAbertos(u)}
+                          >
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => abrirEditar(u)}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Editar"
+                            aria-label="Editar"
+                            onClick={() => abrirEditar(u)}
+                          >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           {u.ativo === false ? (
@@ -517,6 +545,8 @@ export function UsuariosPage() {
                               size="sm"
                               variant="ghost"
                               className="text-green-600"
+                              title="Reativar"
+                              aria-label="Reativar"
                               onClick={() => reativar.mutate(u.id)}
                             >
                               <RotateCcw className="h-3.5 w-3.5" />
@@ -526,6 +556,8 @@ export function UsuariosPage() {
                               size="sm"
                               variant="ghost"
                               className="text-red-500 hover:bg-red-50"
+                              title="Desativar"
+                              aria-label="Desativar"
                               onClick={() => {
                                 if (
                                   confirm(
@@ -574,7 +606,7 @@ export function UsuariosPage() {
             }
             if (form.senha) payload.senha = form.senha
 
-            const endereco = form.endereco ?? EMPTY.endereco
+            const endereco = form.endereco
             const temAlgumEndereco = [
               endereco.cep,
               endereco.logradouro,
@@ -693,7 +725,7 @@ export function UsuariosPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
                 label="CEP"
-                value={form.endereco?.cep ?? ''}
+                value={form.endereco.cep}
                 maxLength={9}
                 onChange={(e) => {
                   setFormErros((prev) => ({ ...prev, endereco: undefined }))
@@ -704,7 +736,7 @@ export function UsuariosPage() {
                 <button
                   type="button"
                   onClick={async () => {
-                    const cep = form.endereco?.cep?.replace(/\D/g, '')
+                    const cep = form.endereco.cep.replace(/\D/g, '')
                     if (!cep || cep.length !== 8) return
 
                     try {
@@ -717,8 +749,8 @@ export function UsuariosPage() {
                         (item: any) =>
                           String(item.sigla).toUpperCase() === String(data.uf ?? '').toUpperCase(),
                       )
-                      const novoEstadoId = estado?.id ?? form.endereco?.estadoId ?? ''
-                      let novoCidadeId = form.endereco?.cidadeId ?? ''
+                      const novoEstadoId = estado?.id ?? form.endereco.estadoId
+                      let novoCidadeId = form.endereco.cidadeId
 
                       if (novoEstadoId && data.localidade) {
                         const cidadesEstado = await api.get(
@@ -735,14 +767,14 @@ export function UsuariosPage() {
                       setForm((prev: any) => ({
                         ...prev,
                         endereco: {
-                          ...(prev.endereco ?? EMPTY.endereco),
-                          cep: data.cep ?? prev.endereco?.cep ?? '',
+                          ...prev.endereco,
+                          cep: data.cep ?? prev.endereco.cep,
                           logradouro: data.logradouro ?? '',
                           bairro: data.bairro ?? '',
                           complemento: data.complemento ?? '',
                           estadoId: novoEstadoId,
                           cidadeId: novoCidadeId,
-                          pontoReferencia: prev.endereco?.pontoReferencia ?? '',
+                          pontoReferencia: prev.endereco.pontoReferencia,
                         },
                       }))
                     } catch {
@@ -757,7 +789,7 @@ export function UsuariosPage() {
               <div className="sm:col-span-2">
                 <Input
                   label="Logradouro"
-                  value={form.endereco?.logradouro ?? ''}
+                  value={form.endereco.logradouro}
                   maxLength={200}
                   onChange={(e) => {
                     setFormErros((prev) => ({ ...prev, endereco: undefined }))
@@ -767,7 +799,7 @@ export function UsuariosPage() {
               </div>
               <Input
                 label="Número"
-                value={form.endereco?.numero ?? ''}
+                value={form.endereco.numero}
                 maxLength={20}
                 onChange={(e) => {
                   setFormErros((prev) => ({ ...prev, endereco: undefined }))
@@ -776,13 +808,13 @@ export function UsuariosPage() {
               />
               <Input
                 label="Complemento"
-                value={form.endereco?.complemento ?? ''}
+                value={form.endereco.complemento}
                 maxLength={80}
                 onChange={(e) => set('endereco', { ...form.endereco, complemento: e.target.value })}
               />
               <Input
                 label="Bairro"
-                value={form.endereco?.bairro ?? ''}
+                value={form.endereco.bairro}
                 maxLength={80}
                 onChange={(e) => {
                   setFormErros((prev) => ({ ...prev, endereco: undefined }))
@@ -791,7 +823,7 @@ export function UsuariosPage() {
               />
               <Select
                 label="Estado"
-                value={form.endereco?.estadoId ?? ''}
+                value={form.endereco.estadoId}
                 onChange={(e) => {
                   setFormErros((prev) => ({ ...prev, endereco: undefined }))
                   set('endereco', { ...form.endereco, estadoId: e.target.value, cidadeId: '' })
@@ -806,12 +838,12 @@ export function UsuariosPage() {
               </Select>
               <Select
                 label="Cidade"
-                value={form.endereco?.cidadeId ?? ''}
+                value={form.endereco.cidadeId}
                 onChange={(e) => {
                   setFormErros((prev) => ({ ...prev, endereco: undefined }))
                   set('endereco', { ...form.endereco, cidadeId: e.target.value })
                 }}
-                disabled={!form.endereco?.estadoId}
+                disabled={!form.endereco.estadoId}
               >
                 <option value="">Selecione</option>
                 {cidades.map((cidade: any) => (
@@ -823,7 +855,7 @@ export function UsuariosPage() {
               <div className="sm:col-span-2">
                 <Input
                   label="Ponto de referência"
-                  value={form.endereco?.pontoReferencia ?? ''}
+                  value={form.endereco.pontoReferencia}
                   maxLength={120}
                   onChange={(e) =>
                     set('endereco', { ...form.endereco, pontoReferencia: e.target.value })

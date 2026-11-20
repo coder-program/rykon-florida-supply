@@ -304,7 +304,13 @@ export function ClientesPage() {
                     {c.ativo === false ? 'Inativo' : 'Ativo'}
                   </span>
                   <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => abrirDetalhes(c)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title="Ver detalhes"
+                      aria-label="Ver detalhes"
+                      onClick={() => abrirDetalhes(c)}
+                    >
                       <svg
                         viewBox="0 0 24 24"
                         fill="none"
@@ -317,7 +323,13 @@ export function ClientesPage() {
                       </svg>
                     </Button>
                     {botaoContatos(c)}
-                    <Button size="sm" variant="ghost" onClick={() => abrirEditar(c)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title="Editar"
+                      aria-label="Editar"
+                      onClick={() => abrirEditar(c)}
+                    >
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
                     {c.ativo === false ? (
@@ -325,6 +337,8 @@ export function ClientesPage() {
                         size="sm"
                         variant="ghost"
                         className="text-green-600"
+                        title="Reativar"
+                        aria-label="Reativar"
                         onClick={() => reativar.mutate(c.id)}
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
@@ -334,6 +348,8 @@ export function ClientesPage() {
                         size="sm"
                         variant="ghost"
                         className="text-red-500 hover:bg-red-50"
+                        title="Excluir"
+                        aria-label="Excluir"
                         onClick={() => setClienteParaExcluir(c)}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -437,7 +453,13 @@ export function ClientesPage() {
                       </td>
                       <td className="sticky right-0 bg-white px-2 py-3 group-hover:bg-gray-50">
                         <div className="flex justify-end gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => abrirDetalhes(c)}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Ver detalhes"
+                            aria-label="Ver detalhes"
+                            onClick={() => abrirDetalhes(c)}
+                          >
                             <svg
                               viewBox="0 0 24 24"
                               fill="none"
@@ -450,7 +472,13 @@ export function ClientesPage() {
                             </svg>
                           </Button>
                           {botaoContatos(c)}
-                          <Button size="sm" variant="ghost" onClick={() => abrirEditar(c)}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Editar"
+                            aria-label="Editar"
+                            onClick={() => abrirEditar(c)}
+                          >
                             <Pencil className="w-3.5 h-3.5" />
                           </Button>
                           {c.ativo === false ? (
@@ -458,6 +486,8 @@ export function ClientesPage() {
                               size="sm"
                               variant="ghost"
                               className="text-green-600"
+                              title="Reativar"
+                              aria-label="Reativar"
                               onClick={() => reativar.mutate(c.id)}
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
@@ -467,6 +497,8 @@ export function ClientesPage() {
                               size="sm"
                               variant="ghost"
                               className="text-red-500 hover:bg-red-50"
+                              title="Excluir"
+                              aria-label="Excluir"
                               onClick={() => setClienteParaExcluir(c)}
                             >
                               <Trash2 className="w-3.5 h-3.5" />

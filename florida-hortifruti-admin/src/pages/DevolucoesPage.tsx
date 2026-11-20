@@ -294,6 +294,8 @@ export function DevolucoesPage() {
                                 variant="secondary"
                                 className="cursor-pointer"
                                 onClick={() => abrirDetalhes(item)}
+                                aria-label="Ver detalhes"
+                                title="Ver detalhes"
                               >
                                 <Eye className="h-3.5 w-3.5" />
                               </Button>

@@ -312,6 +312,8 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
                         type="button"
                         onClick={() => adicionarLinha(p)}
                         disabled={semEstoque}
+                        aria-label={`Adicionar ${p.nome}`}
+                        title={`Adicionar ${p.nome}`}
                         className="w-6 h-6 cursor-pointer bg-green-100 text-green-700 rounded flex items-center justify-center disabled:cursor-not-allowed disabled:opacity-40 disabled:bg-gray-100 disabled:text-gray-400"
                       >
                         <Plus className="w-3 h-3" />
@@ -342,6 +344,7 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
                           <button
                             type="button"
                             onClick={() => mudarQuantidade(index, -1)}
+                            aria-label="Diminuir caixas"
                             className="w-6 h-6 shrink-0 cursor-pointer bg-red-100 text-red-600 rounded flex items-center justify-center"
                           >
                             <Minus className="w-3 h-3" />
@@ -361,6 +364,7 @@ export function NovoPedidoModal({ open, onClose }: { open: boolean; onClose: () 
                             type="button"
                             onClick={() => mudarQuantidade(index, 1)}
                             disabled={noLimite}
+                            aria-label="Aumentar caixas"
                             className="w-6 h-6 shrink-0 cursor-pointer bg-green-100 text-green-700 rounded flex items-center justify-center disabled:cursor-not-allowed disabled:opacity-40 disabled:bg-gray-100 disabled:text-gray-400"
                           >
                             <Plus className="w-3 h-3" />
