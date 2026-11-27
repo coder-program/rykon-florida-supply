@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsArray, IsNumber, IsOptional, IsString, Matches, Min } from 'class-validator';
+import { IsArray, IsBoolean, IsNumber, IsOptional, IsString, Matches, Min } from 'class-validator';
 
 function paraNumero(value: unknown) {
   if (value === '' || value === null || value === undefined) return undefined;
@@ -80,6 +80,16 @@ export class EntradaEstoqueDto {
 
 // Editar uma entrada já registrada: frete e comissão costumam ser pagos depois,
 // às vezes com o lote já vendido. Quantidade e produto também podem ser corrigidos.
+export class PagamentoCompraDto {
+  @IsBoolean()
+  pago!: boolean;
+
+  // AAAA-MM-DD; sem data = hoje
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  dataPagamento?: string;
+}
+
 export class AtualizarCompraDto {
   @IsOptional()
   @IsString()

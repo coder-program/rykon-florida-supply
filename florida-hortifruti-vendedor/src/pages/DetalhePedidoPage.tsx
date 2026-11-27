@@ -297,11 +297,20 @@ export function DetalhePedidoPage() {
           </div>
         </div>
         <span
-          className={`text-xs px-3 py-1 rounded-full font-medium ${statusPedidoVisivel({ status, aguardandoAlteracao: pendente || p.aguardandoAlteracao }).className}`}
+          className={`text-xs px-3 py-1 rounded-full font-medium ${
+            statusPedidoVisivel({
+              status,
+              aguardandoAlteracao: pendente || p.aguardandoAlteracao,
+              aguardandoAutorizacaoPreco: p.aguardandoAutorizacaoPreco,
+            }).className
+          }`}
         >
           {
-            statusPedidoVisivel({ status, aguardandoAlteracao: pendente || p.aguardandoAlteracao })
-              .label
+            statusPedidoVisivel({
+              status,
+              aguardandoAlteracao: pendente || p.aguardandoAlteracao,
+              aguardandoAutorizacaoPreco: p.aguardandoAutorizacaoPreco,
+            }).label
           }
         </span>
       </div>

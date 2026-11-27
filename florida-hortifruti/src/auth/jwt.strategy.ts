@@ -14,7 +14,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   // O retorno aqui vira `request.user` em todas as rotas protegidas.
-  async validate(payload: { sub: string; email: string; papel: string }) {
-    return { id: payload.sub, email: payload.email, papel: payload.papel };
+  async validate(payload: { sub: string; email: string; papel: string; motorista?: boolean }) {
+    return {
+      id: payload.sub,
+      email: payload.email,
+      papel: payload.papel,
+      motorista: !!payload.motorista,
+    };
   }
 }

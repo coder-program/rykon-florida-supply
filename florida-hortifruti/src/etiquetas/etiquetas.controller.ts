@@ -43,6 +43,12 @@ export class EtiquetasController {
     return this.etiquetasService.marcarReimpressao(id);
   }
 
+  // Rota PÚBLICA: rastreio do pedido pelo link enviado ao cliente no WhatsApp
+  @Get('p/:token/rastreio')
+  rastreio(@Param('token') token: string) {
+    return this.etiquetasService.rastreio(token);
+  }
+
   // Rota PÚBLICA — é para onde o QR Code aponta, sem necessidade de login (item 34.2)
   @Get('p/:token')
   paginaPublica(@Param('token') token: string) {

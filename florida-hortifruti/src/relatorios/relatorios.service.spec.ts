@@ -282,6 +282,83 @@ describe('RelatoriosService', () => {
     });
   });
 
+  it('compras por período: resumo, detalhe, por tipo e pago x pendente', async () => {
+    const itemCompra = (extra: object) => ({
+      id: 'i',
+      quantidade: 10,
+      valorProdutoInformado: 500,
+      rateioComissao: 20,
+      rateioFrete: 30,
+      produto: { id: 'pa', nome: 'Morango Albion' },
+      compra: {
+        id: 'c1',
+        fornecedor: 'Sítio Bom',
+        fornecedorId: 'f1',
+        data: new Date('2026-11-20T10:00:00Z'),
+        dataPagamento: null,
+      },
+      movimentacao: {
+        lotes: [{ lote: { numero: '1', dataEntrada: new Date('2026-11-19T12:00:00Z') } }],
+      },
+      ...extra,
+    });
+    prisma.itemCompraEstoque.findMany.mockResolvedValue([
+      itemCompra({}),
+      itemCompra({
+        id: 'i2',
+        quantidade: 5,
+        valorProdutoInformado: 300,
+        rateioComissao: 10,
+        rateioFrete: 15,
+        produto: { id: 'pb', nome: 'Morango San Andreas' },
+        compra: {
+          id: 'c2',
+          fornecedor: 'Fazenda Sul',
+          fornecedorId: 'f2',
+          data: new Date('2026-11-21T10:00:00Z'),
+          dataPagamento: new Date('2026-11-22T12:00:00Z'),
+        },
+        movimentacao: null,
+      }),
+    ]);
+    const r: any = await service.compras({
+      dataInicio: '2026-11-01',
+      dataFim: '2026-11-30',
+      fornecedorId: 'f1',
+      statusPagamento: 'PENDENTE',
+    });
+    const where = prisma.itemCompraEstoque.findMany.mock.calls[0][0].where;
+    expect(where.compra).toEqual({ fornecedorId: 'f1', dataPagamento: null });
+    expect(where.movimentacao.lotes.some.lote.dataEntrada.gte).toBeInstanceOf(Date);
+    expect(r.resumo).toEqual({
+      compras: 2,
+      caixas: 15,
+      mercadorias: 800,
+      comissoes: 30,
+      fretes: 45,
+      custoTotal: 875,
+      custoMedioCaixa: 58.33,
+      pago: 325,
+      pendente: 550,
+    });
+    expect(r.itens[0]).toMatchObject({
+      lote: '1',
+      valorUnitario: 50,
+      custoTotal: 550,
+      pago: false,
+    });
+    expect(r.itens[1]).toMatchObject({ lote: null, pago: true });
+    expect(r.porTipo.map((t: any) => [t.produto, t.caixas, t.custoTotal])).toEqual([
+      ['Morango Albion', 10, 550],
+      ['Morango San Andreas', 5, 325],
+    ]);
+
+    await service.compras({ statusPagamento: 'PAGO' });
+    expect(prisma.itemCompraEstoque.findMany.mock.calls[1][0].where).toEqual({
+      compra: { dataPagamento: { not: null } },
+    });
+  });
+
   it('exportações de vendas: CSV, JSON e XML', async () => {
     prisma.pedido.findMany.mockResolvedValue([
       PEDIDO,

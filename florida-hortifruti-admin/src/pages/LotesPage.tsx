@@ -11,6 +11,8 @@ import { FornecedorSelect } from '../components/FornecedorSelect'
 import { Badge } from '../components/ui/Badge'
 import { TableScroll } from '../components/ui/TableScroll'
 import { EditarEntradaModal } from '../components/EditarEntradaModal'
+import { Paginacao } from '../components/ui/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 type Lote = {
   id: string
@@ -80,6 +82,7 @@ export function LotesPage() {
         })
         .then((r) => r.data),
   })
+  const pag = usePaginado(lotes)
 
   const { data: historico } = useQuery<{
     movimentos: {
@@ -239,7 +242,7 @@ export function LotesPage() {
               </tr>
             </thead>
             <tbody>
-              {lotes.map((lote) => (
+              {pag.itens.map((lote) => (
                 <tr key={lote.id} className="border-b border-gray-100 last:border-0">
                   <td className="px-4 py-3 whitespace-nowrap">{formatDate(lote.dataEntrada)}</td>
                   <td className="px-4 py-3 font-semibold text-gray-900">Lote {lote.numero}</td>
@@ -330,6 +333,7 @@ export function LotesPage() {
             </tbody>
           </table>
         </TableScroll>
+        <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
       </div>
 
       <Modal

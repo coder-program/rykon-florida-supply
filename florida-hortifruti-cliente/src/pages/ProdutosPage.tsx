@@ -4,6 +4,8 @@ import { Search, Plus } from 'lucide-react'
 import { api } from '../lib/api'
 import { DISPONIBILIDADE, formatBRL } from '../lib/utils'
 import { lerCarrinho, salvarCarrinho, type CartItem } from '../lib/cart'
+import { Paginacao } from '../components/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 export function ProdutosPage() {
   const [busca, setBusca] = useState('')
@@ -27,6 +29,7 @@ export function ProdutosPage() {
     const okCat = !categoriaId || p.categoria?.id === categoriaId
     return okBusca && okCat
   })
+  const pag = usePaginado(filtrados)
 
   function adicionar(p: any) {
     if (p.disponibilidade === 'INDISPONIVEL') return
@@ -77,7 +80,7 @@ export function ProdutosPage() {
         ))}
       </div>
       <div className="mt-4 space-y-3">
-        {filtrados.map((p) => {
+        {pag.itens.map((p) => {
           const disp = DISPONIBILIDADE[p.disponibilidade] ?? DISPONIBILIDADE.DISPONIVEL
           return (
             <div key={p.id} className="rounded-xl border border-gray-200 bg-white p-3">
@@ -115,6 +118,7 @@ export function ProdutosPage() {
           )
         })}
       </div>
+      <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
     </div>
   )
 }

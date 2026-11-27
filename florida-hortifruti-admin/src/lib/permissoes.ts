@@ -12,6 +12,7 @@ export const ROTAS_SUPERVISOR = [
   '/fornecedores',
   '/financeiro',
   '/entregas',
+  '/relatorios',
 ]
 
 // Visão geral = TV do salão: só Dashboard e Metas, sem nenhuma ação de cadastro

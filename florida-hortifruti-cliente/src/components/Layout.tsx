@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Package, ShoppingCart, ClipboardList, User, Bell } from 'lucide-react'
+import { Package, ShoppingCart, ClipboardList, User, Bell, LayoutDashboard } from 'lucide-react'
 import { api } from '../lib/api'
 import { totalItens, lerCarrinho } from '../lib/cart'
 import { useEffect, useState } from 'react'
@@ -74,6 +74,7 @@ export function Layout({ children }: { children: ReactNode }) {
       </header>
       <div className="flex-1 pb-20">{children}</div>
       <nav className="fixed bottom-0 left-0 right-0 mx-auto flex max-w-lg border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)]">
+        {item('/painel', 'Painel', <LayoutDashboard className="h-5 w-5" />)}
         {item('/produtos', 'Produtos', <Package className="h-5 w-5" />)}
         {item('/pedidos', 'Pedidos', <ClipboardList className="h-5 w-5" />)}
         {item('/carrinho', 'Carrinho', <ShoppingCart className="h-5 w-5" />, qtd)}

@@ -122,6 +122,49 @@ describe('MetasService', () => {
     expect(prisma.metaValor.deleteMany).toHaveBeenCalledWith({ where: { id: 'v' } });
   });
 
+  it('período do relatório: cruza meses e filtra os dias', async () => {
+    await expect(service.periodo('2026-11-10', '2026-11-01')).rejects.toThrow(
+      'início antes do fim',
+    );
+    await expect(service.periodo('x', '2026-11-01')).rejects.toThrow('AAAA-MM-DD');
+    const mes = vi.spyOn(service, 'mes').mockImplementation(async (m?: string) => ({
+      mes: m!,
+      hoje: '2026-11-27',
+      dias: [
+        {
+          data: `${m}-01`,
+          temMeta: true,
+          emAndamento: false,
+          atingida: true,
+          lucro: 10,
+          meta: 5,
+          saldo: 5,
+        },
+        {
+          data: `${m}-28`,
+          temMeta: true,
+          emAndamento: false,
+          atingida: false,
+          lucro: 1,
+          meta: 5,
+          saldo: -4,
+        },
+      ] as any,
+      resumo: {} as any,
+    }));
+    const r = await service.periodo('2026-10-15', '2026-11-27');
+    expect(mes.mock.calls.map((c) => c[0])).toEqual(['2026-10', '2026-11']);
+    expect(r.dias.map((d) => d.data)).toEqual(['2026-10-28', '2026-11-01']);
+    expect(r.resumo).toMatchObject({
+      diasComMeta: 2,
+      diasAtingidos: 1,
+      sobraTotal: 5,
+      faltaTotal: 4,
+    });
+    await service.periodo('2025-12-31', '2026-01-01');
+    expect(mes.mock.calls.slice(-2).map((c) => c[0])).toEqual(['2025-12', '2026-01']);
+  });
+
   it('dias sem meta', async () => {
     await expect(service.diasSemMeta('nov')).rejects.toThrow('AAAA-MM');
     prisma.metaDiaSemMeta.findMany.mockResolvedValue([{ data: dia('2026-11-03'), motivo: 'x' }]);

@@ -53,9 +53,17 @@ export const STATUS_PEDIDO_LABEL: Record<string, string> = {
   CANCELADO: 'Cancelado',
 }
 
-export function statusPedidoVisivel(p: { status: string; aguardandoAlteracao?: boolean }) {
+export function statusPedidoVisivel(p: {
+  status: string
+  aguardandoAlteracao?: boolean
+  aguardandoAutorizacaoPreco?: boolean
+}) {
   if (p.aguardandoAlteracao) {
     return { label: 'Aguardando alteração', className: 'bg-amber-100 text-amber-800' }
+  }
+  // Revendedor vendeu abaixo do preço sugerido: só segue com a autorização do administrador
+  if (p.status === 'AGUARDANDO_APROVACAO' && p.aguardandoAutorizacaoPreco) {
+    return { label: 'Aguardando autorização', className: 'bg-orange-100 text-orange-800' }
   }
   return {
     label: STATUS_PEDIDO_LABEL[p.status] ?? p.status,

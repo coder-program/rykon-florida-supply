@@ -41,6 +41,9 @@ model Usuario {
   enderecoPrincipal   Endereco?    @relation("EnderecoPrincipalUsuario", fields: [enderecoPrincipalId], references: [id], onDelete: SetNull)
   senhaHash           String
   papel               PapelUsuario
+  // Revendedor que também é motorista (ex.: Hugo): mesmo login no app do Motorista,
+  // com as entregas atribuídas a ele, e no app do Vendedor com as regras de revendedor
+  tambemMotorista     Boolean      @default(false)
   ativo               Boolean      @default(true)
   criadoEm            DateTime     @default(now())
 
@@ -332,6 +335,9 @@ model Pedido {
   // Pedido de revendedor: preço que ele cobra do cliente dele, por produto ({ produtoId: valor }).
   // Só para o controle dele; os itens levam o preço da Flórida para ele
   precosRevenda       Json?
+  // Revendedor vendeu abaixo do preço sugerido: "Aguardando autorização" até o
+  // administrador/financeiro aprovar (a aprovação é a autorização)
+  aguardandoAutorizacaoPreco Boolean @default(false)
   // Posição na rota do entregador, definida pelo supervisor; nulo = ordem em que ficou pronto
   ordemRota           Int?
   // Meia-noite UTC do dia previsto (mesma base da dataVencimento)
@@ -574,6 +580,8 @@ model CompraEstoque {
   valorComissao Decimal             @default(0) @db.Decimal(10, 2)
   observacao    String?
   data          DateTime            @default(now())
+  // Pagamento ao fornecedor (mercadoria + frete + comissão); nulo = pendente
+  dataPagamento DateTime?
   usuarioId     String
   usuario       Usuario             @relation(fields: [usuarioId], references: [id])
   itens         ItemCompraEstoque[]

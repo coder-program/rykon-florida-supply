@@ -89,7 +89,7 @@ export function valorPorExtenso(valor: number): string {
   return partes.join(' e ')
 }
 
-function carregarImagem(src: string): Promise<HTMLImageElement | null> {
+export function carregarImagem(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image()
     img.onload = () => resolve(img)

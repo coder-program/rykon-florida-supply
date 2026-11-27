@@ -8,6 +8,8 @@ import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Input, Select } from '../components/ui/Input'
 import type { Fornecedor } from '../components/FornecedorSelect'
+import { Paginacao } from '../components/ui/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 const EMPTY = { nome: '', documento: '', telefone: '', observacao: '' }
 
@@ -37,6 +39,7 @@ export function FornecedoresPage() {
       return [f.nome, f.documento, f.telefone].some((v) => v?.toLowerCase().includes(termo))
     })
   }, [fornecedores, busca, statusFiltro])
+  const pag = usePaginado(filtrados)
 
   function atualizarListas() {
     qc.invalidateQueries({ queryKey: ['fornecedores'] })
@@ -177,7 +180,7 @@ export function FornecedoresPage() {
           {!isLoading && filtrados.length === 0 && (
             <p className="py-8 text-center text-sm text-gray-400">Nenhum fornecedor encontrado</p>
           )}
-          {filtrados.map((f) => (
+          {pag.itens.map((f) => (
             <div
               key={f.id}
               className={`rounded-xl border border-gray-200 bg-white p-4 ${f.ativo ? '' : 'opacity-60'}`}
@@ -227,7 +230,7 @@ export function FornecedoresPage() {
                     </td>
                   </tr>
                 )}
-                {filtrados.map((f) => (
+                {pag.itens.map((f) => (
                   <tr key={f.id} className={`hover:bg-gray-50 ${f.ativo ? '' : 'opacity-60'}`}>
                     <td className="px-4 py-3 font-medium text-gray-900">{f.nome}</td>
                     <td className="px-4 py-3 text-gray-600">{f.documento ?? '—'}</td>
@@ -247,6 +250,7 @@ export function FornecedoresPage() {
             </table>
           </TableScroll>
         </div>
+        <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
       </div>
 
       <Modal

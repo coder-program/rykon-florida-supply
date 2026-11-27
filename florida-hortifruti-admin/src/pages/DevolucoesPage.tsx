@@ -10,6 +10,8 @@ import { Modal } from '../components/ui/Modal'
 import { RegistrarDevolucaoModal } from '../components/RegistrarDevolucaoModal'
 import { ReembolsoDevolucaoModal } from '../components/ReembolsoDevolucaoModal'
 import { useAuth } from '../contexts/useAuth'
+import { Paginacao } from '../components/ui/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 const STATUS_LABEL: Record<string, string> = {
   PENDENTE: 'Pendente',
@@ -52,6 +54,7 @@ export function DevolucoesPage() {
     },
   })
 
+  const pag = usePaginado(devolucoes as any[])
   const pendentes = (devolucoes as any[]).filter((d) => d.status === 'PENDENTE').length
 
   function acoes(item: any) {
@@ -164,7 +167,7 @@ export function DevolucoesPage() {
             {!isLoading && (devolucoes as any[]).length > 0 && (
               <>
                 <div className="space-y-3 p-3 md:hidden">
-                  {(devolucoes as any[]).map((item) => (
+                  {pag.itens.map((item) => (
                     <article key={item.id} className="rounded-xl border border-gray-200 p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div>
@@ -246,7 +249,7 @@ export function DevolucoesPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 bg-white">
-                      {(devolucoes as any[]).map((item) => (
+                      {pag.itens.map((item) => (
                         <tr key={item.id}>
                           <td className="px-4 py-3 font-medium text-gray-800">
                             #{String(item.pedidoNumero ?? '').padStart(6, '0')}
@@ -307,6 +310,7 @@ export function DevolucoesPage() {
                     </tbody>
                   </table>
                 </div>
+                <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
               </>
             )}
           </CardContent>

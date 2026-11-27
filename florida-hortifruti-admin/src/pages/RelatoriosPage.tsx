@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Check,
   ListOrdered,
+  ShoppingCart,
 } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -25,8 +26,11 @@ import { Button } from '../components/ui/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Input, Select } from '../components/ui/Input'
 import { useAuth } from '../contexts/useAuth'
+import { RelatorioCompras } from '../components/RelatorioCompras'
+import { Paginacao } from '../components/ui/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
-type Aba = 'vendas' | 'itens' | 'estoque' | 'produto' | 'vendedor' | 'financeiro'
+type Aba = 'vendas' | 'itens' | 'estoque' | 'produto' | 'vendedor' | 'financeiro' | 'compras'
 type Formato = 'excel' | 'pdf' | 'csv' | 'json' | 'xml'
 
 const STATUS_PAGAMENTO_LABEL: Record<string, string> = {
@@ -57,6 +61,8 @@ const ABAS: { key: Aba; label: string; icon: LucideIcon }[] = [
   { key: 'vendedor', label: 'Por Vendedor', icon: Users },
   { key: 'financeiro', label: 'Financeiro', icon: DollarSign },
 ]
+// Relatório de Compras: só administrador e financeiro (diretoria)
+const ABA_COMPRAS = { key: 'compras' as Aba, label: 'Compras', icon: ShoppingCart }
 
 const FORMATOS_PRINCIPAIS: {
   id: Formato
@@ -388,6 +394,13 @@ export function RelatoriosPage() {
     enabled: aba === 'vendedor',
   })
 
+  // Só as linhas da tela são paginadas; totais e exportação usam a lista inteira
+  const pagVendas = usePaginado(vendas as any[])
+  const pagItens = usePaginado(itensVendidos)
+  const pagEstoque = usePaginado(estoque as any[])
+  const pagProduto = usePaginado(porProduto as any[])
+  const pagVendedor = usePaginado(porVendedor as any[])
+
   const { data: financeiro, isLoading: loadFinanceiro } = useQuery({
     queryKey: ['rel-financeiro', params],
     queryFn: () => api.get('/relatorios/financeiro', { params }).then((r) => r.data),
@@ -591,7 +604,9 @@ export function RelatoriosPage() {
       <PageHeader title="Relatórios" subtitle="Consulta e exportação da visualização atual" />
 
       <div className="space-y-4 p-4 md:p-6">
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <div
+          className={`rounded-xl border border-gray-200 bg-white p-4 ${aba === 'compras' ? 'hidden' : ''}`}
+        >
           <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             <Input
               label="Data início"
@@ -660,7 +675,7 @@ export function RelatoriosPage() {
         </div>
 
         <div className="-mx-4 flex gap-1 overflow-x-auto border-b border-gray-200 px-4 md:mx-0 md:px-0">
-          {ABAS.map(({ key, label, icon: Icon }) => (
+          {(isFinanceiro ? [...ABAS, ABA_COMPRAS] : ABAS).map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               type="button"
@@ -676,7 +691,11 @@ export function RelatoriosPage() {
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        {aba === 'compras' && <RelatorioCompras produtos={produtos} />}
+
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 ${aba === 'compras' ? 'hidden' : ''}`}
+        >
           <div>
             <p className="text-sm font-medium text-gray-900">{visao.titulo}</p>
             <p className="text-xs text-gray-500">
@@ -713,7 +732,7 @@ export function RelatoriosPage() {
                     </td>
                   </tr>
                 )}
-                {vendas.map((v: any) => (
+                {pagVendas.itens.map((v: any) => (
                   <tr key={v.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-gray-600">
                       #{String(v.numero).padStart(6, '0')}
@@ -738,6 +757,11 @@ export function RelatoriosPage() {
                 )}
               </tbody>
             </table>
+            <Paginacao
+              pagina={pagVendas.pagina}
+              total={pagVendas.total}
+              onChange={pagVendas.setPagina}
+            />
           </div>
         )}
 
@@ -766,7 +790,7 @@ export function RelatoriosPage() {
                     </td>
                   </tr>
                 )}
-                {itensVendidos.map((i) => (
+                {pagItens.itens.map((i) => (
                   <tr key={i.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-gray-600">{i.numero}</td>
                     <td className="px-4 py-3 text-gray-600">{formatDate(i.data)}</td>
@@ -804,6 +828,11 @@ export function RelatoriosPage() {
                 </tfoot>
               )}
             </table>
+            <Paginacao
+              pagina={pagItens.pagina}
+              total={pagItens.total}
+              onChange={pagItens.setPagina}
+            />
           </div>
         )}
 
@@ -841,7 +870,7 @@ export function RelatoriosPage() {
                       </td>
                     </tr>
                   )}
-                  {estoque.map((item: any) => (
+                  {pagEstoque.itens.map((item: any) => (
                     <tr key={item.produtoId}>
                       <td className="px-4 py-3 font-medium">{item.nome}</td>
                       <td className="px-4 py-3 text-gray-600">{item.codigoInterno}</td>
@@ -862,6 +891,11 @@ export function RelatoriosPage() {
                 </tbody>
               </table>
             </CardContent>
+            <Paginacao
+              pagina={pagEstoque.pagina}
+              total={pagEstoque.total}
+              onChange={pagEstoque.setPagina}
+            />
           </Card>
         )}
 
@@ -896,7 +930,7 @@ export function RelatoriosPage() {
                       </td>
                     </tr>
                   )}
-                  {porProduto.map((p: any) => (
+                  {pagProduto.itens.map((p: any) => (
                     <tr key={p.codigoInterno ?? p.produto}>
                       <td className="px-4 py-3 font-medium">{p.produto}</td>
                       <td className="px-4 py-3 text-right">
@@ -920,6 +954,11 @@ export function RelatoriosPage() {
                 </tbody>
               </table>
             </CardContent>
+            <Paginacao
+              pagina={pagProduto.pagina}
+              total={pagProduto.total}
+              onChange={pagProduto.setPagina}
+            />
           </Card>
         )}
 
@@ -951,7 +990,7 @@ export function RelatoriosPage() {
                       </td>
                     </tr>
                   )}
-                  {porVendedor.map((v: any, i: number) => (
+                  {pagVendedor.itens.map((v: any, i: number) => (
                     <tr key={i}>
                       <td className="px-4 py-3 font-medium">{v.vendedor}</td>
                       <td className="px-4 py-3 text-right">{v.totalPedidos}</td>
@@ -970,6 +1009,11 @@ export function RelatoriosPage() {
                 </tbody>
               </table>
             </CardContent>
+            <Paginacao
+              pagina={pagVendedor.pagina}
+              total={pagVendedor.total}
+              onChange={pagVendedor.setPagina}
+            />
           </Card>
         )}
 

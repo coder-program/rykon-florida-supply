@@ -221,6 +221,82 @@ export class EtiquetasService {
     };
   }
 
+  // Link enviado ao cliente pelo WhatsApp na aprovação: acompanha o pedido sem login
+  urlRastreio(token: string) {
+    const base = (
+      this.config.get<string>('PWA_CLIENTE_PUBLIC_URL') ||
+      this.config.get<string>('PWA_PUBLIC_URL') ||
+      'http://localhost:5201'
+    ).replace(/\/$/, '');
+    return `${base}/rastreio/${token}`;
+  }
+
+  // Página pública de rastreio: status, timeline e, com o pedido em rota, a última posição do
+  // motorista. Sem valores, telefone ou endereço por extenso (quem tem o link vê só isso)
+  async rastreio(token: string) {
+    const etiqueta = await this.prisma.etiqueta.findUnique({
+      where: { tokenPublico: token },
+      include: {
+        pedido: {
+          select: {
+            id: true,
+            numero: true,
+            status: true,
+            clienteId: true,
+            dataPrevistaEntrega: true,
+            entregueEm: true,
+            cliente: { select: { razaoSocialOuNome: true, nomeFantasia: true } },
+            entregador: {
+              select: {
+                nome: true,
+                localizacao: { select: { latitude: true, longitude: true, atualizadoEm: true } },
+              },
+            },
+            historicoStatus: {
+              orderBy: { alteradoEm: 'asc' },
+              select: { status: true, alteradoEm: true },
+            },
+          },
+        },
+      },
+    });
+    if (!etiqueta) throw new NotFoundException('Pedido não encontrado');
+    const { pedido } = etiqueta;
+    const emRota = pedido.status === StatusPedido.EM_ENTREGA;
+    const destino = emRota
+      ? await this.prisma.endereco.findFirst({
+          where: { entidadeTipo: 'CLIENTE', entidadeId: pedido.clienteId, latitude: { not: null } },
+          orderBy: [{ principal: 'desc' }, { criadoEm: 'asc' }],
+          select: { latitude: true, longitude: true },
+        })
+      : null;
+    const loc = pedido.entregador?.localizacao;
+    // Posição de mais de 30 min não ajuda o cliente (app do motorista fechado)
+    const recente = !!loc && Date.now() - loc.atualizadoEm.getTime() < 30 * 60_000;
+    return {
+      numero: pedido.numero,
+      status: pedido.status,
+      cliente: pedido.cliente.nomeFantasia || pedido.cliente.razaoSocialOuNome,
+      dataPrevistaEntrega: pedido.dataPrevistaEntrega,
+      entregueEm: pedido.entregueEm,
+      historicoStatus: pedido.historicoStatus,
+      motorista:
+        emRota && pedido.entregador
+          ? {
+              nome: pedido.entregador.nome.split(' ')[0],
+              posicao: recente
+                ? {
+                    latitude: loc!.latitude,
+                    longitude: loc!.longitude,
+                    atualizadoEm: loc!.atualizadoEm,
+                  }
+                : null,
+            }
+          : null,
+      destino: destino ? { latitude: destino.latitude!, longitude: destino.longitude! } : null,
+    };
+  }
+
   private urlDoQr(token: string) {
     const pwa = this.config.get<string>('PWA_PUBLIC_URL')?.replace(/\/$/, '');
     if (pwa) return `${pwa}/abrir-pedido/${token}`;

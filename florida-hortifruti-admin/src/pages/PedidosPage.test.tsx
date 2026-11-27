@@ -100,8 +100,11 @@ describe('lista de pedidos', () => {
     })
     expect(linhas[1]).toMatchObject({ 'Necessita NF': 'Não', 'Recibo de venda': 'Não' })
     fireEvent.click(screen.getByRole('button', { name: /Exportar PDF/ }))
-    expect(h.pdfSalvo).toHaveBeenCalledWith(
-      expect.stringMatching(/^pedidos-\d{4}-\d{2}-\d{2}\.pdf$/),
+    // Exporta todos os pedidos do filtro: busca a lista inteira antes de gerar
+    await waitFor(() =>
+      expect(h.pdfSalvo).toHaveBeenCalledWith(
+        expect.stringMatching(/^pedidos-\d{4}-\d{2}-\d{2}\.pdf$/),
+      ),
     )
     expect(h.tabela.mock.calls[0][0].body[0]).toEqual([
       '#000181',
@@ -129,7 +132,11 @@ describe('lista de pedidos', () => {
 
     fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'APROVADO' } })
     await waitFor(() =>
-      expect(fake.feitas('GET', '/pedidos').at(-1)?.params).toEqual({ status: 'APROVADO' }),
+      expect(fake.feitas('GET', '/pedidos').at(-1)?.params).toEqual({
+        status: 'APROVADO',
+        pagina: 1,
+        porPagina: 50,
+      }),
     )
   })
 
@@ -151,6 +158,7 @@ describe('lista de pedidos', () => {
       Total: 0,
     })
     fireEvent.click(screen.getByRole('button', { name: /Exportar PDF/ }))
+    await waitFor(() => expect(h.tabela).toHaveBeenCalled())
     expect(h.tabela.mock.calls[0][0].body[0].slice(0, 5)).toEqual(['#000000', '', '', 'X', 'Y'])
   })
 

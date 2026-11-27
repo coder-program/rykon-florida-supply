@@ -114,8 +114,9 @@ describe('DevolucoesService', () => {
     expect(prisma.pedido.findMany.mock.calls[1][0].where).toEqual({ status: 'ENTREGUE' });
     prisma.pedido.findMany.mockResolvedValue([pedido({ cliente: null, etiqueta: null })]);
     const [rev] = await service.listarPedidosParaDevolucao('r', 'REVENDEDOR');
+    // O que vendeu e o que entregou (revendedor que também é motorista)
     expect(prisma.pedido.findMany.mock.calls[2][0].where).toEqual({
-      vendedorId: 'r',
+      OR: [{ vendedorId: 'r' }, { entregadorId: 'r' }],
       status: 'ENTREGUE',
     });
     expect(rev).toMatchObject({ etiquetaId: null, etiquetaToken: null, cliente: null });

@@ -21,6 +21,8 @@ export class RolesGuard implements CanActivate {
     }
 
     const { user } = context.switchToHttp().getRequest();
+    // Revendedor que também é motorista passa nas rotas liberadas para motorista
+    if (user?.motorista && papeisPermitidos.includes(PapelUsuario.MOTORISTA)) return true;
     return papeisPermitidos.includes(user?.papel);
   }
 }

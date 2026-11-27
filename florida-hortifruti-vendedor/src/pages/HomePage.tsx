@@ -6,6 +6,8 @@ import { useAuth } from '../contexts/useAuth'
 import { formatBRL, formatDate, statusPedidoVisivel } from '../lib/utils'
 import { carregarRascunho } from '../lib/draft'
 import logo from '../assets/logo.png'
+import { Paginacao } from '../components/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 function garantirLista<T>(valor: unknown): T[] {
   if (Array.isArray(valor)) return valor as T[]
@@ -43,6 +45,7 @@ export function HomePage() {
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   })
+  const pag = usePaginado(pedidos as any[])
 
   const { data: devolucoes = [] } = useQuery({
     queryKey: ['devolucoes-resumo-home'],
@@ -185,6 +188,22 @@ export function HomePage() {
         </button>
       </div>
 
+      {/* Revendedor que também é motorista: as entregas ficam no app do Motorista, mesmo login */}
+      {usuario?.tambemMotorista && (
+        <div className="px-4 mt-3">
+          <a
+            href={import.meta.env.VITE_MOTORISTA_URL ?? '/motorista/'}
+            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3 text-left"
+          >
+            <span className="text-lg">🚚</span>
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Minhas entregas</p>
+              <p className="text-xs text-gray-500">Abrir o app do Motorista com o mesmo login</p>
+            </div>
+          </a>
+        </div>
+      )}
+
       {/* Rascunho pendente */}
       {temRascunho && (
         <div className="px-4 mt-3">
@@ -225,7 +244,7 @@ export function HomePage() {
           </div>
         )}
 
-        {pedidos.map((p: any) => (
+        {pag.itens.map((p: any) => (
           <button
             key={p.id}
             type="button"
@@ -253,6 +272,7 @@ export function HomePage() {
             </div>
           </button>
         ))}
+        <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
       </div>
     </div>
   )

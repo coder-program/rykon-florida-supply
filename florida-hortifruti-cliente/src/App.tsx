@@ -12,6 +12,8 @@ import { PedidosPage } from './pages/PedidosPage'
 import { PedidoDetalhePage } from './pages/PedidoDetalhePage'
 import { ContaPage } from './pages/ContaPage'
 import { AvisosPage } from './pages/AvisosPage'
+import { PainelPage } from './pages/PainelPage'
+import { RastreioPage } from './pages/RastreioPage'
 import { ROUTER_BASENAME } from './lib/session'
 import { PageTransition } from './components/PageTransition'
 
@@ -30,6 +32,18 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/definir-senha" element={<DefinirSenhaPage />} />
+        {/* Pública: link do WhatsApp para acompanhar o pedido e a rota do motorista */}
+        <Route path="/rastreio/:token" element={<RastreioPage />} />
+        <Route
+          path="/painel"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <PainelPage />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
         <Route
           path="/produtos"
           element={
@@ -90,7 +104,7 @@ function AppRoutes() {
             </PrivateRoute>
           }
         />
-        <Route path="/" element={<Navigate to="/produtos" replace />} />
+        <Route path="/" element={<Navigate to="/painel" replace />} />
         <Route path="*" element={<Navigate to="/produtos" replace />} />
       </Routes>
     </PageTransition>

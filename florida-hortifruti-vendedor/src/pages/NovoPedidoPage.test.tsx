@@ -314,6 +314,30 @@ describe('Novo pedido', () => {
     await esperarAvanco()
     expect(screen.getByText('Como você vai pagar a Flórida')).toBeTruthy()
     expect(screen.queryByText('Frete')).toBeNull()
+    // Bug relatado: tela branca depois de escolher a forma de pagamento
+    for (const forma of ['Faturado', 'Dinheiro', 'Pix']) {
+      fireEvent.click(screen.getByRole('button', { name: forma }))
+    }
+    expect(screen.getByText('Como você vai pagar a Flórida')).toBeTruthy()
+    continuar()
+    await esperarAvanco()
+    expect(screen.getByText('Enviar Pedido')).toBeTruthy()
+  })
+
+  it('revendedor: preço sugerido abaixo do campo e aviso de autorização', async () => {
+    logar({ ...USUARIO, papel: 'REVENDEDOR' })
+    salvarRascunho({ clienteId: 'c3', clienteNome: 'Doceria', itens: [] })
+    abrir()
+    continuar()
+    await esperarAvanco()
+    // Amora: lote sem preço sugerido => vale o do produto (R$ 50)
+    fireEvent.click(await screen.findByText('Amora'))
+    expect(screen.getByText('Preço sugerido: R$ 50,00/cx')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+    fireEvent.change(screen.getByDisplayValue('50'), { target: { value: '45' } })
+    expect(screen.getByRole('alert').textContent).toContain(
+      'O valor informado está abaixo do preço sugerido. Entre em contato com seu responsável',
+    )
   })
 
   describe('novo cliente', () => {

@@ -8,7 +8,8 @@ import { RelatoriosService } from './relatorios.service';
 
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+// Supervisor também abre a aba Relatórios (pedido do cliente); compras só admin/financeiro
+@Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR, PapelUsuario.SUPERVISOR)
 export class RelatoriosController {
   constructor(private relatoriosService: RelatoriosService) {}
 
@@ -77,6 +78,13 @@ export class RelatoriosController {
   )
   lucroPorLote(@Param('loteId') loteId: string) {
     return this.relatoriosService.lucroPorLote(loteId);
+  }
+
+  // Relatório de Compras por Período: administrador e financeiro (diretoria)
+  @Get('relatorios/compras')
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  compras(@Query() query: Record<string, string | undefined>) {
+    return this.relatoriosService.compras(query ?? {});
   }
 
   @Get('relatorios/financeiro')

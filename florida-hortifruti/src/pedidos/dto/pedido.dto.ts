@@ -8,6 +8,8 @@ import {
   IsIn,
   ValidateNested,
   Min,
+  Max,
+  IsInt,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { FormaPagamento, StatusPedido, StatusSolicitacaoAlteracao } from '@prisma/client';
@@ -192,6 +194,25 @@ export class FiltrosPedidoDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   necessitaNF?: boolean;
+
+  // Nº do pedido, cliente ou vendedor
+  @IsOptional()
+  @IsString()
+  busca?: string;
+
+  // Com página, a resposta vira { itens, total, pagina, porPagina }; sem, a lista inteira
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pagina?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  porPagina?: number;
 }
 
 class ItemSolicitacaoAlteracaoDto {

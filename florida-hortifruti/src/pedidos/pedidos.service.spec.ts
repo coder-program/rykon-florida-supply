@@ -59,7 +59,10 @@ describe('PedidosService', () => {
       devolverDoPedidoEmTx: vi.fn(),
       lotesUtilizadosNoPedido: vi.fn(async () => 'rastreio'),
     };
-    etiquetas = { garantirParaPedido: vi.fn(async () => ({ id: 'nova' })) };
+    etiquetas = {
+      garantirParaPedido: vi.fn(async () => ({ id: 'nova' })),
+      urlRastreio: vi.fn((t: string) => `https://cliente/rastreio/${t}`),
+    };
     storage = { salvarDataUrl: vi.fn(async () => '/uploads/f.jpg') };
     notificacoes = { pedidoACaminho: vi.fn(async () => undefined) };
     service = new PedidosService(
@@ -174,7 +177,38 @@ describe('PedidosService', () => {
       expect(p.precosRevenda).toEqual({ a: 40, b: 0, z: 1 });
       expect(p.itens.create.map((i: any) => i.valorUnitario)).toEqual([25, 0, 18, 0]);
       expect(p).toMatchObject({ valorFrete: 0, descontoValor: 0, descontoPercentual: null });
+      // b: 0 < 18 (sugerido do produto) => aguarda autorização do administrador
+      expect(p.aguardandoAutorizacaoPreco).toBe(true);
     });
+
+    it('revendedor no preço sugerido ou acima segue normalmente', async () => {
+      prisma.cliente.findUnique.mockResolvedValue({ revendedorId: 'r' });
+      prisma.loteProduto.findMany.mockResolvedValue([{ id: 'l1', precoSugeridoVenda: 25 }]);
+      prisma.produto.findMany.mockResolvedValue([]);
+      const p: any = await service.create(
+        dto({ itens: [{ produtoId: 'a', loteId: 'l1', quantidade: 2, valorUnitario: 25 }] }),
+        'r',
+        { papel: 'REVENDEDOR' },
+      );
+      expect(p.aguardandoAutorizacaoPreco).toBe(false);
+      prisma.cliente.findUnique.mockResolvedValue({ revendedorId: null });
+      const v: any = await service.create(dto(), 'v', { papel: 'VENDEDOR' });
+      expect(v.aguardandoAutorizacaoPreco).toBe(false);
+    });
+  });
+
+  it('lista paginada com busca', async () => {
+    prisma.pedido.findMany.mockResolvedValue([pedido()]);
+    prisma.pedido.count.mockResolvedValue(51);
+    const r: any = await service.findAll({ pagina: 2, porPagina: 50, busca: '#000123' } as any);
+    expect(r).toMatchObject({ total: 51, pagina: 2, porPagina: 50 });
+    expect(r.itens).toHaveLength(1);
+    const args = prisma.pedido.findMany.mock.calls[0][0];
+    expect(args).toMatchObject({ skip: 50, take: 50 });
+    expect(args.where.AND[0].OR[0]).toEqual({ numero: 123 });
+    expect(prisma.pedido.count.mock.calls[0][0].where).toBe(args.where);
+    // Sem página: a lista simples de antes (selects, menu, outros apps)
+    expect(Array.isArray(await service.findAll({ busca: 'Mercado' } as any))).toBe(true);
   });
 
   it('lista com filtros; vendedor só os dele; revendedor sem custo', async () => {
@@ -279,6 +313,8 @@ describe('PedidosService', () => {
   });
 
   it('preços de revenda e rastreio', async () => {
+    prisma.loteProduto.findMany.mockResolvedValue([]);
+    prisma.produto.findMany.mockResolvedValue([]);
     prisma.pedido.findUnique.mockResolvedValue(pedido({ precosRevenda: { a: 40 } }));
     await expect(
       service.atualizarPrecosRevenda('p', [{ produtoId: 'z', valor: 1 }], 'v', 'ADMINISTRADOR'),
@@ -298,6 +334,25 @@ describe('PedidosService', () => {
       'ADMINISTRADOR',
     );
     expect(prisma.pedido.update.mock.calls[1][0].data.precosRevenda).toEqual({ a: 45 });
+
+    // Abaixo do sugerido: antes da aprovação marca para autorização; depois, recusa
+    prisma.loteProduto.findMany.mockResolvedValue([{ id: 'l1', precoSugeridoVenda: 50 }]);
+    await service.atualizarPrecosRevenda(
+      'p',
+      [{ produtoId: 'a', valor: 45 }],
+      'v',
+      'ADMINISTRADOR',
+    );
+    expect(prisma.pedido.update.mock.calls[2][0].data.aguardandoAutorizacaoPreco).toBe(true);
+    prisma.pedido.findUnique.mockResolvedValue(
+      pedido({ status: 'APROVADO', etiqueta: { id: 'e', tokenPublico: 'tk' } }),
+    );
+    await expect(
+      service.atualizarPrecosRevenda('p', [{ produtoId: 'a', valor: 45 }], 'v', 'ADMINISTRADOR'),
+    ).rejects.toThrow('abaixo do preço sugerido');
+    expect((await service.findOne('p', 'v', 'VENDEDOR')).linkRastreio).toBe(
+      'https://cliente/rastreio/tk',
+    );
 
     expect(await service.rastreioLotes('p')).toBe('rastreio');
   });
@@ -525,6 +580,19 @@ describe('PedidosService', () => {
       }
       expect(prisma.notificacaoCliente.create).toHaveBeenCalledTimes(2);
       expect(prisma.pedido.update.mock.calls.at(-1)![0].data.caixasEtiquetadas).toBe(1);
+    });
+
+    it('preço abaixo do sugerido: só administrador/financeiro autoriza', async () => {
+      prisma.etiqueta.findUnique.mockResolvedValue({ id: 'e' });
+      prisma.pedido.findUnique.mockResolvedValue(pedido({ aguardandoAutorizacaoPreco: true }));
+      await expect(service.aprovar('p', 'u', 'SUPERVISOR' as any)).rejects.toThrow(
+        'só o administrador pode autorizar',
+      );
+      await service.aprovar('p', 'u', 'ADMINISTRATIVO' as any);
+      expect(prisma.pedido.update.mock.calls[0][0].data.aguardandoAutorizacaoPreco).toBe(false);
+      expect(prisma.logAuditoria.create.mock.calls[0][0].data.detalhes).toMatchObject({
+        autorizouPrecoAbaixoDoSugerido: true,
+      });
     });
   });
 

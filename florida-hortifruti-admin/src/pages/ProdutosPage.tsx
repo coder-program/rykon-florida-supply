@@ -20,6 +20,8 @@ import { TableScroll } from '../components/ui/TableScroll'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Input, MoneyInput, Select } from '../components/ui/Input'
+import { Paginacao } from '../components/ui/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 const EMPTY = {
   codigoInterno: '',
@@ -91,6 +93,7 @@ export function ProdutosPage() {
       return matchBusca && matchCategoria && matchEstoque
     })
   }, [produtos, busca, categoriaFiltro, estoqueFiltro, statusFiltro])
+  const pag = usePaginado(produtosFiltrados)
 
   const { data: historico = [] } = useQuery({
     queryKey: ['historico-precos', editando?.id],
@@ -323,7 +326,7 @@ export function ProdutosPage() {
           {!isLoading && produtosFiltrados.length === 0 && (
             <p className="py-8 text-center text-sm text-gray-400">Nenhum produto encontrado</p>
           )}
-          {produtosFiltrados.map((p: any) => (
+          {pag.itens.map((p: any) => (
             <div
               key={p.id}
               className={`rounded-xl border border-gray-200 bg-white p-4 ${p.ativo === false ? 'opacity-60' : ''}`}
@@ -426,7 +429,7 @@ export function ProdutosPage() {
                     </td>
                   </tr>
                 )}
-                {produtosFiltrados.map((p: any) => (
+                {pag.itens.map((p: any) => (
                   <tr
                     key={p.id}
                     className={`hover:bg-gray-50 ${p.ativo === false ? 'opacity-60' : ''}`}
@@ -509,6 +512,7 @@ export function ProdutosPage() {
             </table>
           </TableScroll>
         </div>
+        <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
       </div>
 
       <Modal open={modal} onClose={fechar} title={editando ? 'Editar Produto' : 'Novo Produto'}>

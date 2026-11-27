@@ -64,10 +64,33 @@ describe('calcularMetasDoMes', () => {
     expect(dia(r, '2026-11-03').meta).toBe(1400);
   });
 
-  it('sobra não abate a meta do dia seguinte', () => {
-    const r = base({ '2026-11-02': 5000 });
-    expect(dia(r, '2026-11-02').atingida).toBe(true);
-    expect(dia(r, '2026-11-03').meta).toBe(1000);
+  it('sobra reduz a meta do dia seguinte (exemplo do cliente)', () => {
+    const r = base(
+      { '2026-11-02': 1708.6 },
+      { valores: [{ valor: 1250, vigenteDesde: '2026-01-01' }] },
+    );
+    expect(dia(r, '2026-11-02').saldo).toBe(458.6);
+    expect(dia(r, '2026-11-03').acumulado).toBe(-458.6);
+    expect(dia(r, '2026-11-03').meta).toBe(791.4);
+  });
+
+  it('crédito maior que a meta continua para os dias seguintes', () => {
+    const r = base({ '2026-11-02': 3500 });
+    // Sobra de 2.500 cobre a meta de 1.000 por dois dias e ainda abate 500 do terceiro
+    expect(dia(r, '2026-11-03').acumulado).toBe(-2500);
+    expect(dia(r, '2026-11-03').meta).toBe(0);
+    expect(dia(r, '2026-11-03').atingida).toBe(true);
+    expect(dia(r, '2026-11-04').acumulado).toBe(-1500);
+    expect(dia(r, '2026-11-04').meta).toBe(0);
+    expect(dia(r, '2026-11-05').acumulado).toBe(-500);
+    expect(dia(r, '2026-11-05').meta).toBe(500);
+  });
+
+  it('falta e sobra se compensam', () => {
+    const r = base({ '2026-11-02': 600, '2026-11-03': 1600 });
+    expect(dia(r, '2026-11-02').saldo).toBe(-400);
+    expect(dia(r, '2026-11-03').meta).toBe(1400);
+    expect(dia(r, '2026-11-04').meta).toBe(800);
   });
 
   it('dia sem meta não mexe no acumulado', () => {

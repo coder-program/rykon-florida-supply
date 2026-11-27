@@ -108,7 +108,7 @@ export class PedidosController {
   @Post(':id/aprovar')
   @Roles(...EQUIPE)
   aprovar(@Param('id') id: string, @Request() req: any) {
-    return this.pedidosService.aprovar(id, req.user.id);
+    return this.pedidosService.aprovar(id, req.user.id, req.user.papel);
   }
 
   @Post(':id/rejeitar')

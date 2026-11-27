@@ -8,6 +8,8 @@ import { TableScroll } from '../components/ui/TableScroll'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Input, MoneyInput, Select } from '../components/ui/Input'
+import { Paginacao } from '../components/ui/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 type StatusInvestimento = 'FALTA_DEVOLVER' | 'PARCIAL' | 'DEVOLVIDO'
 
@@ -77,6 +79,7 @@ export function InvestimentosPage() {
       return [inv.nome, inv.motivo].some((v) => v.toLowerCase().includes(termo))
     })
   }, [investimentos, busca, filtroStatus])
+  const pag = usePaginado(filtrados)
 
   const totais = useMemo(
     () =>
@@ -269,7 +272,7 @@ export function InvestimentosPage() {
           {!isLoading && filtrados.length === 0 && (
             <p className="py-8 text-center text-sm text-gray-400">Nenhum aporte encontrado</p>
           )}
-          {filtrados.map((inv) => (
+          {pag.itens.map((inv) => (
             <div key={inv.id} className="rounded-xl border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -323,7 +326,7 @@ export function InvestimentosPage() {
                     </td>
                   </tr>
                 )}
-                {filtrados.map((inv) => (
+                {pag.itens.map((inv) => (
                   <tr key={inv.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{inv.nome}</td>
                     <td className="px-4 py-3 text-gray-600">{formatDate(inv.data)}</td>
@@ -346,6 +349,7 @@ export function InvestimentosPage() {
             </table>
           </TableScroll>
         </div>
+        <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
       </div>
 
       <Modal open={modal} onClose={fechar} title={editando ? 'Editar aporte' : 'Novo aporte'}>

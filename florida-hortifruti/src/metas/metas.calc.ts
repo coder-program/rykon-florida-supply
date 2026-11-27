@@ -1,6 +1,7 @@
 // Regras da meta diária de lucro (definidas pelo P.O.):
-// - Meta do dia = valor base vigente + o que faltou para bater a meta no último dia com meta.
-// - Lucro acima da meta NÃO abate a meta do dia seguinte.
+// - Meta do dia = valor base vigente + o saldo do último dia com meta, nos dois sentidos:
+//   o que faltou aumenta a meta do próximo dia; o que sobrou reduz (alívio). Se a sobra passar
+//   da meta do dia, o crédito restante continua para os dias seguintes.
 // - O acumulado zera todo mês (o cálculo sempre começa no dia 1º).
 // - Domingos e dias marcados como "sem meta" (feriados) não têm meta e não mexem no acumulado.
 // - Abatimento (admin/financeiro): o dia marcado como batido não deixa falta; o valor abatido
@@ -14,9 +15,10 @@ export type DiaMeta = {
   temMeta: boolean;
   motivoSemMeta?: 'DOMINGO' | 'SEM_META' | 'SEM_VALOR';
   base: number;
-  acumulado: number; // quanto veio do(s) dia(s) anterior(es)
+  acumulado: number; // saldo vindo do(s) dia(s) anterior(es): > 0 faltou, < 0 crédito (sobra)
   meta: number;
   falta: number; // quanto falta (hoje) ou faltou (dias passados) para bater a meta
+  saldo: number; // o que o dia deixa para o próximo: > 0 sobra (alívio), < 0 falta
   atingida: boolean;
   emAndamento: boolean; // é hoje
   abatimento: number; // valor abatido à mão
@@ -87,6 +89,7 @@ export function calcularMetasDoMes(params: {
         acumulado: 0,
         meta: 0,
         falta: 0,
+        saldo: 0,
         atingida: false,
         emAndamento,
         abatimento: 0,
@@ -94,11 +97,14 @@ export function calcularMetasDoMes(params: {
       };
     }
 
-    const meta = centavos(base! + acumulado);
+    const metaBruta = centavos(base! + acumulado); // negativa = crédito maior que a base
+    const meta = Math.max(0, metaBruta);
     const abatido = abatimentos.get(data);
     const abatimento = centavos(abatido?.valor ?? 0);
     const marcadaBatida = !!abatido?.batida;
-    const falta = marcadaBatida ? 0 : centavos(Math.max(0, meta - lucro - abatimento));
+    let proximo = centavos(metaBruta - lucro - abatimento);
+    if (marcadaBatida) proximo = Math.min(0, proximo); // batida à mão não deixa falta
+    const falta = Math.max(0, proximo);
     const dia: DiaMeta = {
       data,
       lucro,
@@ -107,12 +113,13 @@ export function calcularMetasDoMes(params: {
       acumulado,
       meta,
       falta,
+      saldo: centavos(-proximo),
       atingida: falta === 0,
       emAndamento,
       abatimento,
       marcadaBatida,
     };
-    acumulado = falta; // o que faltou vai para o próximo dia com meta (sobra não abate)
+    acumulado = proximo; // falta aumenta, sobra reduz a meta do próximo dia com meta
     return dia;
   });
 }

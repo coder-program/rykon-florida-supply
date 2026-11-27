@@ -212,7 +212,11 @@ export class EntregasService {
     this.geocodificacao.agendar([...new Set(ordemGeo)]);
 
     const localizacoes = await this.prisma.localizacaoMotorista.findMany({
-      include: { usuario: { select: { id: true, nome: true, ativo: true, papel: true } } },
+      include: {
+        usuario: {
+          select: { id: true, nome: true, ativo: true, papel: true, tambemMotorista: true },
+        },
+      },
     });
 
     const motoristas = new Map<
@@ -235,7 +239,8 @@ export class EntregasService {
       const recente = Date.now() - loc.atualizadoEm.getTime() < POSICAO_RECENTE_MS;
       const entrega =
         loc.usuario.papel === PapelUsuario.MOTORISTA ||
-        loc.usuario.papel === PapelUsuario.SUPERVISOR;
+        loc.usuario.papel === PapelUsuario.SUPERVISOR ||
+        loc.usuario.tambemMotorista;
       if (!motoristas.has(loc.usuarioId) && recente && loc.usuario.ativo && entrega) {
         motoristas.set(loc.usuarioId, {
           id: loc.usuarioId,

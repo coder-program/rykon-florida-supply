@@ -223,7 +223,9 @@ export class DevolucoesService {
   private filtroDoUsuario(usuarioId: string, papel: PapelUsuario): Prisma.PedidoWhereInput {
     if (papel === PapelUsuario.MOTORISTA) return { entregadorId: usuarioId };
     if (PAPEIS_APROVAM.has(papel)) return {};
-    return { vendedorId: usuarioId };
+    // Revendedor que também é motorista vê o que vendeu e o que entregou
+    // (para os demais, entregadorId nunca é o próprio usuário)
+    return { OR: [{ vendedorId: usuarioId }, { entregadorId: usuarioId }] };
   }
 
   private pertenceAoUsuario(
@@ -233,7 +235,7 @@ export class DevolucoesService {
   ) {
     if (papel === PapelUsuario.MOTORISTA) return pedido.entregadorId === usuarioId;
     if (PAPEIS_APROVAM.has(papel)) return true;
-    return pedido.vendedorId === usuarioId;
+    return pedido.vendedorId === usuarioId || pedido.entregadorId === usuarioId;
   }
 
   // A etiqueta dá acesso ao endereço e ao telefone do cliente: o revendedor não recebe

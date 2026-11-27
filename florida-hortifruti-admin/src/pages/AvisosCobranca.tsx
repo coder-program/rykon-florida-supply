@@ -6,6 +6,8 @@ import { formatDateTime } from '../lib/utils'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Select } from '../components/ui/Input'
+import { Paginacao } from '../components/ui/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 const TIPO_LABEL: Record<string, string> = {
   COMPRA_A_PRAZO: 'Compra registrada',
@@ -40,6 +42,7 @@ export function AvisosCobranca() {
     queryFn: () =>
       api.get('/financeiro/notificacoes', { params: status ? { status } : {} }).then((r) => r.data),
   })
+  const pag = usePaginado(avisos as any[])
 
   const marcarEnviado = useMutation({
     mutationFn: (id: string) => api.post(`/financeiro/notificacoes/${id}/enviada`),
@@ -85,7 +88,7 @@ export function AvisosCobranca() {
       </div>
 
       <div className="divide-y divide-gray-100">
-        {avisos.map((aviso: any) => {
+        {pag.itens.map((aviso: any) => {
           const telefone = aviso.cliente?.whatsapp || aviso.cliente?.telefone
           // Avisos novos já trazem o fecho; os antigos ganham o mesmo fecho aqui
           const fecho = String(aviso.mensagem).includes('Florida Supply Hortifruti')
@@ -157,6 +160,7 @@ export function AvisosCobranca() {
           <p className="px-4 py-6 text-center text-sm text-gray-400">Nenhum aviso</p>
         )}
       </div>
+      <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
     </div>
   )
 }

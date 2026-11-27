@@ -50,6 +50,23 @@ describe('AuthService.login', () => {
     );
   });
 
+  it('revendedor que também é motorista entra nos dois apps com o mesmo login', async () => {
+    prisma.usuario.findUnique.mockResolvedValue(usuario('REVENDEDOR', { tambemMotorista: true }));
+    const r = await service.login('a@a', 'certa', 'motorista');
+    expect(r.usuario.tambemMotorista).toBe(true);
+    expect(jwt.sign.mock.calls[0][0]).toMatchObject({ papel: 'REVENDEDOR', motorista: true });
+    await service.login('a@a', 'certa', 'vendedor');
+    prisma.usuario.findUnique.mockResolvedValue(usuario('REVENDEDOR'));
+    await expect(service.login('a@a', 'certa', 'motorista')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    // A marca só vale para revendedor
+    prisma.usuario.findUnique.mockResolvedValue(usuario('VENDEDOR', { tambemMotorista: true }));
+    await expect(service.login('a@a', 'certa', 'motorista')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
   it('sessão longa para motorista, cliente e TV; padrão para os demais', async () => {
     prisma.usuario.findUnique.mockResolvedValue(usuario('VENDEDOR'));
     const r = await service.login('a@a', 'certa', 'vendedor');
@@ -141,6 +158,7 @@ describe('acesso', () => {
       id: 'u',
       email: 'e',
       papel: 'ADMINISTRADOR',
+      motorista: false,
     });
   });
 
@@ -158,6 +176,16 @@ describe('acesso', () => {
     expect(guard(['ADMINISTRADOR']).canActivate(contexto('VENDEDOR'))).toBe(false);
     expect(guard(['ADMINISTRADOR']).canActivate(contexto())).toBe(false);
     expect(guard(['ADMINISTRADOR']).canActivate(contexto('ADMINISTRADOR'))).toBe(true);
+    // Revendedor que também é motorista passa nas rotas do motorista
+    const hugo = {
+      getHandler: () => null,
+      getClass: () => null,
+      switchToHttp: () => ({
+        getRequest: () => ({ user: { papel: 'REVENDEDOR', motorista: true } }),
+      }),
+    } as any;
+    expect(guard(['MOTORISTA', 'SUPERVISOR']).canActivate(hugo)).toBe(true);
+    expect(guard(['ADMINISTRADOR']).canActivate(hugo)).toBe(false);
   });
 
   it('JwtAuthGuard: TV só entra onde a rota libera', async () => {

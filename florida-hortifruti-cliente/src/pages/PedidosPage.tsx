@@ -5,6 +5,8 @@ import { ArrowRight, CalendarDays, ClipboardList, Package2, Wallet } from 'lucid
 import { api } from '../lib/api'
 import { formatBRL, formatDate, STATUS_COLOR, STATUS_LABEL } from '../lib/utils'
 import { AtivarNotificacoes } from '../components/AtivarNotificacoes'
+import { Paginacao } from '../components/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 export function PedidosPage() {
   const { data: pedidos = [], isLoading } = useQuery({
@@ -26,6 +28,7 @@ export function PedidosPage() {
       { total: 0, entregues: 0, abertos: 0, valor: 0 },
     )
   }, [listaPedidos])
+  const pag = usePaginado(listaPedidos)
 
   if (isLoading)
     return (
@@ -97,7 +100,7 @@ export function PedidosPage() {
       )}
 
       <div className="space-y-3">
-        {listaPedidos.map((p) => (
+        {pag.itens.map((p) => (
           <Link
             key={p.id}
             to={`/pedidos/${p.id}`}
@@ -156,6 +159,7 @@ export function PedidosPage() {
           </Link>
         ))}
       </div>
+      <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
     </div>
   )
 }

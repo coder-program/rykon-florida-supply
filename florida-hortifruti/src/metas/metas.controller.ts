@@ -45,6 +45,17 @@ export class MetasController {
     return this.service.mes(mes);
   }
 
+  @Get('periodo')
+  @Roles(
+    PapelUsuario.ADMINISTRADOR,
+    PapelUsuario.ADMINISTRATIVO,
+    PapelUsuario.SUPERVISOR,
+    PapelUsuario.VISAO_GERAL,
+  )
+  periodo(@Query('inicio') inicio: string, @Query('fim') fim: string) {
+    return this.service.periodo(inicio, fim);
+  }
+
   @Get('valores')
   @Roles(
     PapelUsuario.ADMINISTRADOR,

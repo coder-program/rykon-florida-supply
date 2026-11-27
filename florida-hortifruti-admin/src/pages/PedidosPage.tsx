@@ -45,6 +45,11 @@ import {
 import { RastreioLotesPedido } from './RastreioLotesPedido'
 import { baixarReciboVenda } from '../lib/recibo'
 import { useAuth } from '../contexts/useAuth'
+import { CompartilharWhatsApp } from '../components/CompartilharWhatsApp'
+import { Paginacao } from '../components/ui/Paginacao'
+
+// Lista paginada na API: só a página atual vem do servidor (a lista inteira deixava a tela lenta)
+const POR_PAGINA_PEDIDOS = 50
 
 type LoteDisponivel = {
   id: string
@@ -168,6 +173,10 @@ export function PedidosPage() {
   const entregaSemFoto = usuario?.papel === 'ADMINISTRADOR' || usuario?.papel === 'ADMINISTRATIVO'
   const podeMarcarEntregue = entregaSemFoto || usuario?.papel === 'SUPERVISOR'
   const podeExcluirPedido = podeMarcarEntregue
+  // Venda de revendedor abaixo do preço sugerido: só administrador/financeiro autoriza
+  const podeAutorizarPreco = entregaSemFoto
+  // Pedido que acabou de ser aprovado: destaca o envio pelo WhatsApp
+  const [recemAprovado, setRecemAprovado] = useState<string | null>(null)
   const [entregando, setEntregando] = useState<{ id: string; numero: number } | null>(null)
   const acoesLote = (Object.keys(ACOES_LOTE) as AcaoLote[]).filter((a) =>
     ACOES_LOTE[a].papeis.includes(usuario?.papel ?? ''),
@@ -241,13 +250,41 @@ export function PedidosPage() {
       .reduce((acc: number, i: any) => acc + Number(i.quantidade), 0)
   }
 
-  const { data: pedidos = [], isLoading } = useQuery({
-    queryKey: ['pedidos', filtroStatus],
+  const [pagina, setPagina] = useState(1)
+  // Busca vai para a API depois de uma pausa na digitação
+  const [buscaApi, setBuscaApi] = useState('')
+  useEffect(() => {
+    const t = window.setTimeout(() => setBuscaApi(busca.trim()), 350)
+    return () => window.clearTimeout(t)
+  }, [busca])
+  useEffect(() => setPagina(1), [filtroStatus, buscaApi])
+  const filtrosLista = {
+    ...(filtroStatus ? { status: filtroStatus } : {}),
+    ...(buscaApi ? { busca: buscaApi } : {}),
+  }
+
+  const { data: respostaPedidos, isLoading } = useQuery({
+    queryKey: ['pedidos', filtroStatus, buscaApi, pagina],
     queryFn: () =>
       api
-        .get('/pedidos', { params: filtroStatus ? { status: filtroStatus } : {} })
+        .get('/pedidos', { params: { ...filtrosLista, pagina, porPagina: POR_PAGINA_PEDIDOS } })
         .then((r) => r.data),
+    placeholderData: (anterior) => anterior,
   })
+  // A API devolve { itens, total } com página; lista simples (versão antiga) também funciona
+  const pedidos: any[] = Array.isArray(respostaPedidos)
+    ? respostaPedidos
+    : (respostaPedidos?.itens ?? [])
+  const totalPedidos: number = Array.isArray(respostaPedidos)
+    ? respostaPedidos.length
+    : (respostaPedidos?.total ?? 0)
+
+  // Exportação leva todos os pedidos do filtro, não só a página
+  async function pedidosParaExportar() {
+    const r = await api.get('/pedidos', { params: filtrosLista })
+    const todos: any[] = Array.isArray(r.data) ? r.data : (r.data?.itens ?? [])
+    return todos
+  }
 
   const { data: usuarios = [] } = useQuery({
     queryKey: ['usuarios-motoristas'],
@@ -255,7 +292,7 @@ export function PedidosPage() {
   })
   // Entregadores: motoristas e supervisores (às vezes fazem entregas)
   const motoristas = (usuarios as any[]).filter(
-    (u) => (u.papel === 'MOTORISTA' || u.papel === 'SUPERVISOR') && u.ativo,
+    (u) => (u.papel === 'MOTORISTA' || u.papel === 'SUPERVISOR' || u.tambemMotorista) && u.ativo,
   )
 
   // Vindo do QR da etiqueta (/abrir-pedido/:token): abre o detalhe do pedido direto
@@ -291,6 +328,16 @@ export function PedidosPage() {
       qc.invalidateQueries({ queryKey: ['pedidos'] })
       if (acao === 'aprovar') {
         const payload = res.data
+        const aprovadoId = payload.pedido?.id ?? payload.id
+        setRecemAprovado(aprovadoId ?? null)
+        // Detalhe completo traz o WhatsApp do cliente e o link de rastreio para compartilhar
+        if (aprovadoId)
+          api
+            .get(`/pedidos/${aprovadoId}`)
+            .then((r) =>
+              setPedidoSelecionado((prev: any) => (prev?.id === aprovadoId ? r.data : prev)),
+            )
+            .catch(() => {})
         setPedidoSelecionado((prev: any) =>
           prev
             ? {
@@ -473,7 +520,7 @@ export function PedidosPage() {
   }
 
   async function exportarExcel() {
-    const linhas = pedidosFiltrados.map((p: any) => ({
+    const linhas = (await pedidosParaExportar()).map((p: any) => ({
       'Nº Pedido': p.numero ?? '',
       Data: p.data ? formatDate(p.data) : '',
       Cliente: p.cliente?.razaoSocialOuNome ?? '',
@@ -512,7 +559,8 @@ export function PedidosPage() {
     URL.revokeObjectURL(url)
   }
 
-  function exportarPdf() {
+  async function exportarPdf() {
+    const todos = await pedidosParaExportar()
     const doc = new jsPDF({ orientation: 'landscape' })
     doc.setFontSize(14)
     doc.text('Relatório de Pedidos', 14, 14)
@@ -522,7 +570,7 @@ export function PedidosPage() {
     autoTable(doc, {
       startY: 26,
       head: [['Nº', 'Cliente', 'Vendedor', 'Status', 'Pagamento', 'NF', 'Total']],
-      body: pedidosFiltrados.map((p: any) => [
+      body: todos.map((p: any) => [
         `#${String(p.numero ?? '').padStart(6, '0')}`,
         p.cliente?.razaoSocialOuNome ?? '',
         p.vendedor?.nome ?? '',
@@ -543,7 +591,7 @@ export function PedidosPage() {
     <div>
       <PageHeader
         title="Pedidos"
-        subtitle={`${pedidos.length} pedido(s) encontrado(s)`}
+        subtitle={`${totalPedidos} pedido(s) encontrado(s)`}
         actions={
           <div className="flex flex-wrap gap-2 justify-end">
             <Button
@@ -859,6 +907,15 @@ export function PedidosPage() {
             </table>
           </TableScroll>
         </div>
+        <Paginacao
+          pagina={pagina}
+          total={totalPedidos}
+          porPagina={POR_PAGINA_PEDIDOS}
+          onChange={(p) => {
+            setPagina(p)
+            window.scrollTo({ top: 0 })
+          }}
+        />
       </div>
 
       {/* Modal de detalhe + ações */}
@@ -873,6 +930,24 @@ export function PedidosPage() {
             <Badge className={statusPedidoVisivel(pedidoSelecionado).className}>
               {statusPedidoVisivel(pedidoSelecionado).label}
             </Badge>
+            {pedidoSelecionado.aguardandoAutorizacaoPreco &&
+              pedidoSelecionado.status === 'AGUARDANDO_APROVACAO' && (
+                <p className="rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-900">
+                  ⚠️ O revendedor informou um preço de venda abaixo do preço sugerido.{' '}
+                  {podeAutorizarPreco
+                    ? 'Ao aprovar, você autoriza a venda por esse valor.'
+                    : 'Só o administrador ou o financeiro pode autorizar.'}
+                </p>
+              )}
+            {!['AGUARDANDO_APROVACAO', 'REJEITADO', 'CANCELADO'].includes(
+              pedidoSelecionado.status,
+            ) && (
+              <CompartilharWhatsApp
+                key={pedidoSelecionado.id}
+                pedido={pedidoSelecionado}
+                destaque={recemAprovado === pedidoSelecionado.id}
+              />
+            )}
             {(pedidoSelecionado.entregueEm ||
               pedidoSelecionado.recebidoPor ||
               pedidoSelecionado.fotoEntrega) && (
@@ -1621,9 +1696,17 @@ export function PedidosPage() {
                       }
                       mudarStatus.mutate({ id: pedidoSelecionado.id, acao: next })
                     }}
-                    disabled={mudarStatus.isPending || pedidoSelecionado.aguardandoAlteracao}
+                    disabled={
+                      mudarStatus.isPending ||
+                      pedidoSelecionado.aguardandoAlteracao ||
+                      (next === 'aprovar' &&
+                        pedidoSelecionado.aguardandoAutorizacaoPreco &&
+                        !podeAutorizarPreco)
+                    }
                   >
-                    {label}
+                    {next === 'aprovar' && pedidoSelecionado.aguardandoAutorizacaoPreco
+                      ? 'Autorizar e aprovar'
+                      : label}
                   </Button>
                 ))}
                 {podeMarcarEntregue && STATUS_ENTREGAVEL.includes(pedidoSelecionado.status) && (

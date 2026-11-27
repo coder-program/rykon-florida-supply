@@ -20,6 +20,7 @@ import {
   AjusteEstoqueDto,
   AtualizarLoteDto,
   AtualizarCompraDto,
+  PagamentoCompraDto,
 } from './dto/estoque.dto';
 
 @Controller('estoque')
@@ -84,6 +85,13 @@ export class EstoqueController {
   @Patch('compras/:id')
   atualizarCompra(@Param('id') id: string, @Body() dto: AtualizarCompraDto, @Request() req: any) {
     return this.estoqueService.atualizarCompra(id, dto, req.user.id);
+  }
+
+  // Pagamento ao fornecedor: só administrador e financeiro
+  @Patch('compras/:id/pagamento')
+  @Roles(PapelUsuario.ADMINISTRATIVO, PapelUsuario.ADMINISTRADOR)
+  pagamentoCompra(@Param('id') id: string, @Body() dto: PagamentoCompraDto, @Request() req: any) {
+    return this.estoqueService.registrarPagamentoCompra(id, dto, req.user.id);
   }
 
   @Post('ajuste')

@@ -102,6 +102,11 @@ export class CreateUsuarioDto {
   @IsEnum(PapelUsuario)
   papel: PapelUsuario;
 
+  // Só para revendedor: também entra no app do Motorista (ex.: Hugo)
+  @IsOptional()
+  @IsBoolean()
+  tambemMotorista?: boolean;
+
   @IsOptional()
   @ValidateNested()
   @Type(() => CreateEnderecoUsuarioDto)
@@ -150,6 +155,11 @@ export class UpdateUsuarioDto {
   @IsOptional()
   @IsEnum(PapelUsuario)
   papel?: PapelUsuario;
+
+  // Só para revendedor: também entra no app do Motorista (ex.: Hugo)
+  @IsOptional()
+  @IsBoolean()
+  tambemMotorista?: boolean;
 
   @IsOptional()
   @ValidateNested()

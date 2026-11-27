@@ -121,8 +121,9 @@ export class MetasService {
   async hoje(papel: PapelUsuario) {
     const { hoje, dias } = await this.mes();
     const dia = dias.find((d) => d.data === hoje);
+    // Meta zerada por crédito acumulado já conta como batida
     const percentual =
-      dia && dia.temMeta && dia.meta > 0 ? Math.min(100, (dia.lucro / dia.meta) * 100) : 0;
+      dia && dia.temMeta ? (dia.meta > 0 ? Math.min(100, (dia.lucro / dia.meta) * 100) : 100) : 0;
 
     // Vendedor não vê valores financeiros da empresa (escopo, item 3.1): só o progresso.
     if (papel === PapelUsuario.VENDEDOR) {
@@ -137,6 +138,38 @@ export class MetasService {
     }
 
     return { ...dia, data: hoje, percentual: Math.round(percentual * 10) / 10 };
+  }
+
+  /** Relatório: dias de um período (pode cruzar meses; o acumulado continua zerando todo mês) */
+  async periodo(inicio: string, fim: string) {
+    const DIA = /^\d{4}-\d{2}-\d{2}$/;
+    if (!DIA.test(inicio) || !DIA.test(fim) || inicio > fim) {
+      throw new BadRequestException('Informe início e fim (AAAA-MM-DD), com início antes do fim');
+    }
+    const meses: string[] = [];
+    for (let m = inicio.slice(0, 7); m <= fim.slice(0, 7);) {
+      meses.push(m);
+      const [y, mm] = m.split('-').map(Number);
+      m = mm === 12 ? `${y + 1}-01` : `${y}-${String(mm + 1).padStart(2, '0')}`;
+    }
+    if (meses.length > 24) throw new BadRequestException('Período máximo de 24 meses');
+    const resultados = await Promise.all(meses.map((m) => this.mes(m)));
+    const dias = resultados.flatMap((r) => r.dias).filter((d) => d.data >= inicio && d.data <= fim);
+    const comMeta = dias.filter((d) => d.temMeta && !d.emAndamento);
+    const soma = (n: number[]) => Math.round(n.reduce((a, b) => a + b, 0) * 100) / 100;
+    return {
+      inicio,
+      fim,
+      dias,
+      resumo: {
+        diasComMeta: comMeta.length,
+        diasAtingidos: comMeta.filter((d) => d.atingida).length,
+        lucroTotal: soma(dias.map((d) => d.lucro)),
+        metaTotal: soma(comMeta.map((d) => d.meta)),
+        sobraTotal: soma(comMeta.map((d) => Math.max(0, d.saldo))),
+        faltaTotal: soma(comMeta.map((d) => Math.max(0, -d.saldo))),
+      },
+    };
   }
 
   async valores() {

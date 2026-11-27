@@ -26,6 +26,11 @@ export const APP = 'motorista'
 export const PAPEIS_DO_APP: string[] = ['MOTORISTA', 'SUPERVISOR']
 export const MENSAGEM_APP_ERRADO = 'Este usuário não tem acesso a este app.'
 
+// Revendedor que também é motorista (ex.: Hugo) entra aqui com o mesmo login
+export function podeUsarApp(usuario: { papel?: string; tambemMotorista?: boolean } | null) {
+  return !!usuario && (PAPEIS_DO_APP.includes(usuario.papel ?? '') || !!usuario.tambemMotorista)
+}
+
 /** Usuário salvo só vale se o perfil for deste app; senão a sessão é descartada */
 export function usuarioSalvo<T extends { papel: string }>(): T | null {
   let usuario: T | null = null
@@ -35,7 +40,7 @@ export function usuarioSalvo<T extends { papel: string }>(): T | null {
   } catch {
     usuario = null
   }
-  if (usuario && PAPEIS_DO_APP.includes(usuario.papel)) return usuario
+  if (usuario && podeUsarApp(usuario)) return usuario
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USUARIO_KEY)
   return null

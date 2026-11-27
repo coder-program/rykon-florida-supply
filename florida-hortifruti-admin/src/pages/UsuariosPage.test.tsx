@@ -85,6 +85,7 @@ describe('Usuários', () => {
         nome: 'Valderir',
         email: 'val@x',
         papel: 'REVENDEDOR',
+        tambemMotorista: false,
         senha: 'novaSenha',
       }),
     )

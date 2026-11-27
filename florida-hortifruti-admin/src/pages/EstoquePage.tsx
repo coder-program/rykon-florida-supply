@@ -23,6 +23,8 @@ import { Badge } from '../components/ui/Badge'
 import { EditarEntradaModal } from '../components/EditarEntradaModal'
 import { FornecedorSelect } from '../components/FornecedorSelect'
 import { previewRateio } from '../lib/rateio'
+import { Paginacao } from '../components/ui/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 const MOTIVOS_AJUSTE = [
   'Correção de cadastro',
@@ -100,6 +102,8 @@ export function EstoquePage() {
     queryFn: () => api.get(`/estoque/${produtoHistorico.produtoId}/historico`).then((r) => r.data),
     enabled: !!produtoHistorico,
   })
+  const pag = usePaginado(saldos)
+  const pagHist = usePaginado(historico)
 
   const rateio = useMemo(
     () => previewRateio(formEntrada.itens, formEntrada.valorFrete, formEntrada.valorComissao),
@@ -295,7 +299,7 @@ export function EstoquePage() {
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {saldos.map((s: any) => (
+          {pag.itens.map((s: any) => (
             <div
               key={s.produtoId}
               className={`bg-white rounded-xl border p-4 ${
@@ -333,6 +337,7 @@ export function EstoquePage() {
             </div>
           ))}
         </div>
+        <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
       </div>
 
       <Modal
@@ -605,12 +610,15 @@ export function EstoquePage() {
 
       <Modal
         open={!!produtoHistorico}
-        onClose={() => setProdutoHistorico(null)}
+        onClose={() => {
+          setProdutoHistorico(null)
+          pagHist.setPagina(1)
+        }}
         title={`Histórico — ${produtoHistorico?.nome}`}
         size="xl"
       >
         <div className="space-y-3">
-          {historico.map((m: any) => {
+          {pagHist.itens.map((m: any) => {
             const compra = m.itemCompra?.compra
             const itensCompra = compra?.itens ?? []
             const totalCompra = itensCompra.reduce(
@@ -704,6 +712,7 @@ export function EstoquePage() {
           {historico.length === 0 && (
             <p className="text-center py-4 text-sm text-gray-400">Nenhuma movimentação</p>
           )}
+          <Paginacao pagina={pagHist.pagina} total={pagHist.total} onChange={pagHist.setPagina} />
         </div>
       </Modal>
 

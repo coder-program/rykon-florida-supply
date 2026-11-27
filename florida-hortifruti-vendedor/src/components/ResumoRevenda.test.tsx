@@ -48,7 +48,10 @@ describe('Resumo da revenda', () => {
   })
 
   it('erro ao salvar e pedido aprovado sem preços', async () => {
-    fake.quando('PATCH /pedidos/:id/precos-revenda', new ErroApi(400))
+    fake.quando(
+      'PATCH /pedidos/:id/precos-revenda',
+      new ErroApi(400, 'O valor informado está abaixo do preço sugerido.'),
+    )
     renderTela(
       <ResumoRevenda
         pedido={{
@@ -63,7 +66,7 @@ describe('Resumo da revenda', () => {
     expect(screen.queryByText(/pode ser ajustado/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Editar preços' }))
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
-    expect(await screen.findByText('Não foi possível salvar os preços.')).toBeTruthy()
+    expect(await screen.findByText('O valor informado está abaixo do preço sugerido.')).toBeTruthy()
   })
 
   it('margem positiva', () => {

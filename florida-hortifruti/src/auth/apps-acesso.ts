@@ -26,7 +26,9 @@ const NOME_APP: Record<AppAcesso, string> = {
   cliente: 'app do Cliente',
 };
 
-export function papelPodeEntrar(app: AppAcesso, papel: PapelUsuario) {
+export function papelPodeEntrar(app: AppAcesso, papel: PapelUsuario, tambemMotorista = false) {
+  // Revendedor que também é motorista entra no app do Motorista com o mesmo login
+  if (app === 'motorista' && tambemMotorista) return true;
   return (PAPEIS_POR_APP[app] as PapelUsuario[]).includes(papel);
 }
 

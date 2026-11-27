@@ -20,12 +20,14 @@ import { api } from '../lib/api'
 import { useAuth } from '../contexts/useAuth'
 import { PageHeader } from '../components/ui/PageHeader'
 import { TableScroll } from '../components/ui/TableScroll'
+import { Paginacao } from '../components/ui/Paginacao'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Input } from '../components/ui/Input'
 import { ClienteFormModal, type Cliente } from '../components/ClienteFormModal'
 import { ContatosClienteModal } from '../components/ContatosClienteModal'
 import { formatDate, hojeISO } from '../lib/utils'
+import { usePaginado } from '../lib/usePaginado'
 
 export function ClientesPage() {
   const qc = useQueryClient()
@@ -67,6 +69,7 @@ export function ClientesPage() {
   const clientes = soPendentes
     ? todosClientes.filter((c: any) => c.ativo !== false && contatoPendente(c.id))
     : todosClientes
+  const pag = usePaginado(clientes)
 
   function resumoContato(id: string) {
     const ultimo = contatoPorCliente.get(id)
@@ -279,7 +282,7 @@ export function ClientesPage() {
           {!isLoading && clientes.length === 0 && (
             <p className="py-8 text-center text-sm text-gray-400">Nenhum cliente encontrado</p>
           )}
-          {clientes.map((c: any) => {
+          {pag.itens.map((c: any) => {
             const principal = getPrincipalEndereco(c)
             const cidade = principal?.cidade?.nome ?? ''
             const estado = principal?.cidade?.estado?.sigla ?? ''
@@ -406,7 +409,7 @@ export function ClientesPage() {
                     </td>
                   </tr>
                 )}
-                {clientes.map((c: any) => {
+                {pag.itens.map((c: any) => {
                   const principal = getPrincipalEndereco(c)
                   const cidade = principal?.cidade?.nome ?? ''
                   const estado = principal?.cidade?.estado?.sigla ?? ''
@@ -513,6 +516,7 @@ export function ClientesPage() {
             </table>
           </TableScroll>
         </div>
+        <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
       </div>
 
       <ClienteFormModal open={modal} cliente={editando} onClose={fecharModal} />

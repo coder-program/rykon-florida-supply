@@ -32,6 +32,8 @@ import {
   RegistrarPagamentoModal,
   type PedidoPagamento,
 } from '../components/RegistrarPagamentoModal'
+import { Paginacao } from '../components/ui/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 const SITUACAO_CONFIG: Record<string, { label: string; badge: string; row: string }> = {
   PAGO: { label: 'Pago', badge: 'bg-green-100 text-green-700', row: '' },
@@ -150,6 +152,8 @@ export function FinanceiroPage() {
       String(c.numero ?? '').padStart(6, '0'),
     ].some((v) => v && String(v).toLowerCase().includes(termo))
   })
+
+  const pag = usePaginado(contas)
 
   // Conta aberta no modal de pagamento (pede a data em que o cliente pagou)
   const [pagando, setPagando] = useState<PedidoPagamento | null>(null)
@@ -371,7 +375,7 @@ export function FinanceiroPage() {
           {!loadingContas && contas.length === 0 && (
             <p className="py-8 text-center text-sm text-gray-400">Nenhuma conta encontrada</p>
           )}
-          {contas.map((c: any) => {
+          {pag.itens.map((c: any) => {
             const sit = SITUACAO_CONFIG[c.situacaoCalculada] ?? SITUACAO_CONFIG['EM_ABERTO']
             return (
               <div
@@ -458,7 +462,7 @@ export function FinanceiroPage() {
                     </td>
                   </tr>
                 )}
-                {contas.map((c: any) => {
+                {pag.itens.map((c: any) => {
                   const sit = SITUACAO_CONFIG[c.situacaoCalculada] ?? SITUACAO_CONFIG['EM_ABERTO']
                   const aberto = expandido === c.id
                   return (
@@ -593,6 +597,7 @@ export function FinanceiroPage() {
               </tbody>
             </table>
           </div>
+          <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
 
           {/* Totalizador */}
           {contas.length > 0 && (

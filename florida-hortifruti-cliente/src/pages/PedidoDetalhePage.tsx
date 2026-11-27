@@ -212,6 +212,14 @@ export function PedidoDetalhePage() {
           <div className="flex items-center gap-2">
             <Truck className="h-4 w-4 text-emerald-700" />
             <p className="text-sm font-semibold text-gray-900">Acompanhamento da rota</p>
+            {p.rastreioToken && (
+              <Link
+                to={`/rastreio/${p.rastreioToken}`}
+                className="ml-auto text-xs font-semibold text-emerald-700"
+              >
+                {p.status === 'EM_ENTREGA' ? 'Ver motorista no mapa' : 'Abrir rastreio'}
+              </Link>
+            )}
           </div>
           <ol className="mt-4 space-y-4">
             {ETAPAS_ROTA.map((etapa, index) => {

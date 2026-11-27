@@ -289,6 +289,34 @@ export class EstoqueService {
     return compra;
   }
 
+  async registrarPagamentoCompra(
+    id: string,
+    dto: { pago: boolean; dataPagamento?: string },
+    usuarioId: string,
+  ) {
+    const compra = await this.prisma.compraEstoque.findUnique({ where: { id } });
+    if (!compra) throw new NotFoundException('Compra não encontrada');
+    // Meio-dia UTC: a data não "volta um dia" no fuso de Brasília
+    const dataPagamento = dto.pago
+      ? dto.dataPagamento
+        ? new Date(`${dto.dataPagamento}T12:00:00Z`)
+        : new Date()
+      : null;
+    await this.prisma.$transaction([
+      this.prisma.compraEstoque.update({ where: { id }, data: { dataPagamento } }),
+      this.prisma.logAuditoria.create({
+        data: {
+          usuarioId,
+          acao: dto.pago ? 'PAGAR_COMPRA' : 'REABRIR_PAGAMENTO_COMPRA',
+          entidade: 'CompraEstoque',
+          entidadeId: id,
+          detalhes: { dataPagamento: dataPagamento?.toISOString() ?? null },
+        },
+      }),
+    ]);
+    return { id, dataPagamento };
+  }
+
   // Entrada de estoque com seus itens e o lote gerado por cada item
   async buscarCompra(id: string) {
     const compra = await this.carregarCompra(this.prisma, id);

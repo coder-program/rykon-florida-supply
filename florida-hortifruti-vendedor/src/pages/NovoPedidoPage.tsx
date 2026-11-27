@@ -365,6 +365,9 @@ function EtapaCliente({
 // ── Etapa 2: seleção de produtos ────────────────────────────────────────────
 // Cada linha é produto + lote. O vendedor escolhe o lote (nunca automático) e pode dividir
 // o mesmo produto entre lotes, ex.: 20 cx do lote 1 + 10 cx do lote 2.
+const AVISO_ABAIXO_SUGERIDO =
+  '⚠️ O valor informado está abaixo do preço sugerido. Entre em contato com seu responsável para solicitar a autorização da venda por esse valor.'
+
 function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: Item[]) => void }) {
   // Revendedor digita o preço que cobra do cliente dele; o da Flórida vem na aprovação
   const revendedor = useAuth().usuario?.papel === 'REVENDEDOR'
@@ -386,8 +389,15 @@ function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: I
     return lotes.find((l) => l.id === loteId)?.quantidadeDisponivel ?? 0
   }
 
-  function precoSugeridoLote(loteId?: string) {
-    return lotes.find((l) => l.id === loteId)?.precoSugeridoVenda ?? null
+  // Preço sugerido do lote; para o revendedor cai no preço sugerido do produto (mesma regra
+  // da API, que pede autorização quando ele vende abaixo disso)
+  function precoSugerido(item: Item) {
+    const doLote = lotes.find((l) => l.id === item.loteId)?.precoSugeridoVenda ?? null
+    if (doLote != null || !revendedor) return doLote
+    const doProduto = Number(
+      (produtos as any[]).find((p) => p.id === item.produtoId)?.precoSugerido,
+    )
+    return doProduto > 0 ? doProduto : null
   }
 
   function atualizar(index: number, patch: Partial<Item>) {
@@ -544,19 +554,6 @@ function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: I
                         <Plus className="w-4 h-4" />
                       </button>
                     </div>
-                    {(() => {
-                      const sugerido = precoSugeridoLote(item.loteId)
-                      if (sugerido == null) return null
-                      const abaixo = item.valorUnitario > 0 && item.valorUnitario < sugerido
-                      return (
-                        <p
-                          className={`text-xs ${abaixo ? 'font-medium text-amber-700' : 'text-gray-500'}`}
-                        >
-                          Preço sugerido: {formatBRL(sugerido)}/cx
-                          {abaixo ? ' • preço abaixo do sugerido' : ''}
-                        </p>
-                      )
-                    })()}
                     {item.loteId && item.quantidade > saldo && (
                       <p className="text-xs text-red-600">
                         Saldo insuficiente: o lote tem {saldo} cx. Selecione outro lote ou divida.
@@ -584,6 +581,29 @@ function EtapaProdutos({ itens, onChange }: { itens: Item[]; onChange: (itens: I
                         = {formatBRL(item.quantidade * item.valorUnitario)}
                       </span>
                     </div>
+                    {(() => {
+                      const sugerido = precoSugerido(item)
+                      if (sugerido == null) return null
+                      const abaixo = item.valorUnitario < sugerido
+                      return (
+                        <>
+                          <p
+                            className={`text-xs ${abaixo ? 'font-medium text-amber-700' : 'text-gray-500'}`}
+                          >
+                            Preço sugerido: {formatBRL(sugerido)}/cx
+                            {abaixo && !revendedor ? ' • preço abaixo do sugerido' : ''}
+                          </p>
+                          {abaixo && revendedor && (
+                            <p
+                              role="alert"
+                              className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-800"
+                            >
+                              {AVISO_ABAIXO_SUGERIDO}
+                            </p>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
                 )
               })}

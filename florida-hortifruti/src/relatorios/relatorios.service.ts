@@ -71,6 +71,122 @@ export class RelatoriosService {
     return `"${text}"`;
   }
 
+  // Relatório de Compras por Período: tudo sai das entradas de lote já lançadas
+  // (CompraEstoque + itens); a data da compra é a data do lote. Uma linha por lote/produto,
+  // com frete e comissão rateados como no custo da caixa.
+  async compras(
+    query: {
+      dataInicio?: string;
+      dataFim?: string;
+      fornecedorId?: string;
+      produtoId?: string;
+      statusPagamento?: string; // PAGO | PENDENTE
+    } = {},
+  ) {
+    const periodo = this.periodoWhere(query.dataInicio, query.dataFim);
+    const status = query.statusPagamento;
+    const itens = await this.prisma.itemCompraEstoque.findMany({
+      where: {
+        ...(query.produtoId ? { produtoId: query.produtoId } : {}),
+        ...(periodo
+          ? { movimentacao: { lotes: { some: { lote: { dataEntrada: periodo } } } } }
+          : {}),
+        compra: {
+          ...(query.fornecedorId ? { fornecedorId: query.fornecedorId } : {}),
+          ...(status === 'PAGO'
+            ? { dataPagamento: { not: null } }
+            : status === 'PENDENTE'
+              ? { dataPagamento: null }
+              : {}),
+        },
+      },
+      include: {
+        produto: { select: { id: true, nome: true } },
+        compra: {
+          select: {
+            id: true,
+            fornecedor: true,
+            fornecedorId: true,
+            data: true,
+            dataPagamento: true,
+          },
+        },
+        movimentacao: {
+          select: {
+            lotes: {
+              take: 1,
+              orderBy: { data: 'asc' },
+              select: { lote: { select: { numero: true, dataEntrada: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    const linhas = itens
+      .map((item) => {
+        const lote = item.movimentacao?.lotes[0]?.lote;
+        const quantidade = Number(item.quantidade);
+        const mercadorias = Number(item.valorProdutoInformado);
+        const comissao = Number(item.rateioComissao);
+        const frete = Number(item.rateioFrete);
+        return {
+          id: item.id,
+          compraId: item.compra.id,
+          data: lote?.dataEntrada ?? item.compra.data,
+          fornecedor: item.compra.fornecedor,
+          lote: lote?.numero ?? null,
+          produtoId: item.produto.id,
+          produto: item.produto.nome,
+          quantidade,
+          valorUnitario: quantidade > 0 ? r2(mercadorias / quantidade) : 0,
+          mercadorias: r2(mercadorias),
+          comissao: r2(comissao),
+          frete: r2(frete),
+          custoTotal: r2(mercadorias + comissao + frete),
+          pago: !!item.compra.dataPagamento,
+          dataPagamento: item.compra.dataPagamento,
+        };
+      })
+      .sort(
+        (a, b) => +new Date(a.data) - +new Date(b.data) || a.fornecedor.localeCompare(b.fornecedor),
+      );
+
+    const somar = (
+      lista: typeof linhas,
+      campo: 'quantidade' | 'mercadorias' | 'comissao' | 'frete' | 'custoTotal',
+    ) => r2(lista.reduce((acc, l) => acc + l[campo], 0));
+    const totais = (lista: typeof linhas) => {
+      const caixas = somar(lista, 'quantidade');
+      const custoTotal = somar(lista, 'custoTotal');
+      return {
+        caixas,
+        mercadorias: somar(lista, 'mercadorias'),
+        comissoes: somar(lista, 'comissao'),
+        fretes: somar(lista, 'frete'),
+        custoTotal,
+        custoMedioCaixa: caixas > 0 ? r2(custoTotal / caixas) : 0,
+      };
+    };
+
+    const porProduto = new Map<string, typeof linhas>();
+    for (const l of linhas) porProduto.set(l.produto, [...(porProduto.get(l.produto) ?? []), l]);
+
+    return {
+      resumo: {
+        compras: new Set(linhas.map((l) => l.compraId)).size,
+        ...totais(linhas),
+        pago: r2(linhas.filter((l) => l.pago).reduce((a, l) => a + l.custoTotal, 0)),
+        pendente: r2(linhas.filter((l) => !l.pago).reduce((a, l) => a + l.custoTotal, 0)),
+      },
+      itens: linhas,
+      porTipo: [...porProduto.entries()]
+        .map(([produto, lista]) => ({ produto, ...totais(lista) }))
+        .sort((a, b) => b.custoTotal - a.custoTotal),
+    };
+  }
+
   async vendasPorPeriodo(query: RelatorioQuery = {}) {
     const { produtoId } = query;
     return this.prisma.pedido.findMany({

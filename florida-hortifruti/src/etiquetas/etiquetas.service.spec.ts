@@ -147,4 +147,50 @@ describe('EtiquetasService', () => {
       estado: '',
     });
   });
+
+  it('rastreio público: link, timeline e motorista só com o pedido em rota', async () => {
+    expect(service.urlRastreio('tok')).toBe('http://localhost:5201/rastreio/tok');
+    config.PWA_CLIENTE_PUBLIC_URL = 'https://app.x/cliente/';
+    expect(service.urlRastreio('tok')).toBe('https://app.x/cliente/rastreio/tok');
+
+    await expect(service.rastreio('tok')).rejects.toThrow('Pedido não encontrado');
+    const agora = new Date();
+    const comPedido = (extra: object) =>
+      etiqueta({
+        pedido: {
+          ...pedido(),
+          dataPrevistaEntrega: null,
+          entregueEm: null,
+          historicoStatus: [{ status: 'APROVADO', alteradoEm: agora }],
+          entregador: {
+            nome: 'Hugo Silva',
+            localizacao: { latitude: -23.5, longitude: -46.6, atualizadoEm: agora },
+          },
+          ...extra,
+        },
+      });
+    prisma.etiqueta.findUnique.mockResolvedValue(comPedido({}));
+    const aprovado = await service.rastreio('tok');
+    expect(aprovado).toMatchObject({ numero: 181, cliente: 'VV', motorista: null, destino: null });
+    expect(JSON.stringify(aprovado)).not.toMatch(/valor|telefone|Rua/i);
+
+    prisma.etiqueta.findUnique.mockResolvedValue(comPedido({ status: 'EM_ENTREGA' }));
+    prisma.endereco.findFirst.mockResolvedValue({ latitude: -23.6, longitude: -46.7 });
+    expect(await service.rastreio('tok')).toMatchObject({
+      motorista: { nome: 'Hugo', posicao: { latitude: -23.5 } },
+      destino: { latitude: -23.6 },
+    });
+
+    // Posição antiga (app fechado) não aparece
+    prisma.etiqueta.findUnique.mockResolvedValue(
+      comPedido({
+        status: 'EM_ENTREGA',
+        entregador: {
+          nome: 'Hugo',
+          localizacao: { latitude: 1, longitude: 1, atualizadoEm: new Date(0) },
+        },
+      }),
+    );
+    expect((await service.rastreio('tok')).motorista).toEqual({ nome: 'Hugo', posicao: null });
+  });
 });

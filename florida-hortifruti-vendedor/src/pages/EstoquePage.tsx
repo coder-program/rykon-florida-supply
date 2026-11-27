@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { api } from '../lib/api'
+import { Paginacao } from '../components/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 type Produto = { id: string; nome: string; unidadeVenda?: string; ativo?: boolean }
 type Lote = {
@@ -45,6 +47,7 @@ export function EstoquePage() {
         .sort((a, b) => b.total - a.total || a.produto.nome.localeCompare(b.produto.nome)),
     [produtos, lotes],
   )
+  const pag = usePaginado(linhas)
 
   const carregando = carregandoProdutos || carregandoLotes
 
@@ -62,7 +65,7 @@ export function EstoquePage() {
 
       <div className="mt-4 space-y-2">
         {!carregando &&
-          linhas.map(({ produto, lotes: lotesProduto, total }) => (
+          pag.itens.map(({ produto, lotes: lotesProduto, total }) => (
             <div
               key={produto.id}
               className={`rounded-xl border bg-white px-4 py-3 ${total > 0 ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}
@@ -90,6 +93,7 @@ export function EstoquePage() {
             </div>
           ))}
       </div>
+      {!carregando && <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />}
     </div>
   )
 }

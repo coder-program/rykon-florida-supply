@@ -144,8 +144,16 @@ export function ResumoRevenda({ pedido }: { pedido: any }) {
             O preço da Flórida pode ser ajustado na aprovação do pedido.
           </p>
         )}
+        {pedido.aguardandoAutorizacaoPreco && (
+          <p className="mt-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-800">
+            ⚠️ O valor informado está abaixo do preço sugerido. Entre em contato com seu responsável
+            para solicitar a autorização da venda por esse valor.
+          </p>
+        )}
         {salvar.isError && (
-          <p className="text-xs text-red-600">Não foi possível salvar os preços.</p>
+          <p className="text-xs text-red-600">
+            {(salvar.error as any)?.response?.data?.message ?? 'Não foi possível salvar os preços.'}
+          </p>
         )}
       </div>
     </div>

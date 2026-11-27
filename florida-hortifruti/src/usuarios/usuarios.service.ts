@@ -21,6 +21,7 @@ const usuarioSelect = {
   whatsapp: true,
   enderecoPrincipalId: true,
   papel: true,
+  tambemMotorista: true,
   ativo: true,
   criadoEm: true,
 } satisfies Prisma.UsuarioSelect;
@@ -142,6 +143,8 @@ export class UsuariosService {
     delete dados.senha;
 
     this.validarPerfilOperacionalCompleto(dto.papel, dados, endereco ?? null);
+    // "Também é motorista" só vale para revendedor
+    dados.tambemMotorista = dto.papel === PapelUsuario.REVENDEDOR && !!dados.tambemMotorista;
 
     let usuario;
     try {
@@ -173,8 +176,14 @@ export class UsuariosService {
   // Quem pode ser entregador de um pedido: motoristas e supervisores (às vezes fazem entregas)
   motoristas() {
     return this.prisma.usuario.findMany({
-      where: { papel: { in: [PapelUsuario.MOTORISTA, PapelUsuario.SUPERVISOR] }, ativo: true },
-      select: { id: true, nome: true, papel: true, ativo: true },
+      where: {
+        OR: [
+          { papel: { in: [PapelUsuario.MOTORISTA, PapelUsuario.SUPERVISOR] } },
+          { tambemMotorista: true },
+        ],
+        ativo: true,
+      },
+      select: { id: true, nome: true, papel: true, ativo: true, tambemMotorista: true },
       orderBy: { nome: 'asc' },
     });
   }
@@ -251,6 +260,7 @@ export class UsuariosService {
         };
 
     this.validarPerfilOperacionalCompleto(papelFinal, perfilFinal, enderecoFinal);
+    if (papelFinal !== PapelUsuario.REVENDEDOR) dados.tambemMotorista = false;
 
     let usuarioAtualizado;
     try {

@@ -10,6 +10,8 @@ import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Input, Select } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
+import { Paginacao } from '../components/ui/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 const PAPEL_COLOR: Record<string, string> = {
   ADMINISTRADOR: 'bg-purple-100 text-purple-700',
@@ -27,6 +29,7 @@ const EMPTY = {
   email: '',
   senha: '',
   papel: 'VENDEDOR',
+  tambemMotorista: false,
   cpf: '',
   dataNascimento: '',
   telefone: '',
@@ -68,6 +71,7 @@ type Usuario = {
   telefone?: string | null
   whatsapp?: string | null
   papel: string
+  tambemMotorista?: boolean
   ativo: boolean
   criadoEm: string
   enderecos?: Endereco[]
@@ -224,6 +228,7 @@ export function UsuariosPage() {
     queryKey: ['usuarios'],
     queryFn: () => api.get('/usuarios').then((r) => r.data),
   })
+  const pag = usePaginado(usuarios)
 
   const { data: estados = [] } = useQuery({
     queryKey: ['localidades-estados'],
@@ -306,6 +311,7 @@ export function UsuariosPage() {
     setForm({
       ...EMPTY,
       ...usuario,
+      tambemMotorista: !!usuario.tambemMotorista,
       senha: '',
       cpf: formatarCpf(usuario.cpf ?? ''),
       dataNascimento: formatDateInput(usuario.dataNascimento),
@@ -375,7 +381,7 @@ export function UsuariosPage() {
           {isLoading && (
             <p className="brand-loading py-8 text-center text-sm text-gray-400">Carregando...</p>
           )}
-          {usuarios.map((u) => {
+          {pag.itens.map((u) => {
             const principal = getPrincipalEndereco(u)
             return (
               <div
@@ -387,7 +393,10 @@ export function UsuariosPage() {
                     <p className="font-semibold text-gray-900">{u.nome}</p>
                     <p className="text-xs text-gray-500">{u.email}</p>
                   </div>
-                  <Badge className={PAPEL_COLOR[u.papel]}>{u.papel}</Badge>
+                  <Badge className={PAPEL_COLOR[u.papel]}>
+                    {u.papel}
+                    {u.tambemMotorista && ' + MOTORISTA'}
+                  </Badge>
                 </div>
 
                 <div className="mt-3 space-y-1 text-xs text-gray-600">
@@ -488,7 +497,7 @@ export function UsuariosPage() {
                     </td>
                   </tr>
                 )}
-                {usuarios.map((u) => {
+                {pag.itens.map((u) => {
                   const principal = getPrincipalEndereco(u)
                   return (
                     <tr
@@ -580,6 +589,7 @@ export function UsuariosPage() {
             </table>
           </TableScroll>
         </div>
+        <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
       </div>
 
       <Modal
@@ -599,6 +609,7 @@ export function UsuariosPage() {
               nome: form.nome.trim(),
               email: form.email.trim(),
               papel: form.papel,
+              ...(form.papel === 'REVENDEDOR' && { tambemMotorista: !!form.tambemMotorista }),
               cpf: form.cpf.trim() || undefined,
               dataNascimento: form.dataNascimento || undefined,
               telefone: form.telefone.trim() || undefined,
@@ -674,6 +685,23 @@ export function UsuariosPage() {
               <option value="ADMINISTRATIVO">Administrativo/Financeiro</option>
               <option value="ADMINISTRADOR">Administrador</option>
             </Select>
+            {form.papel === 'REVENDEDOR' && (
+              <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 accent-green-600"
+                  checked={form.tambemMotorista}
+                  onChange={(e) => set('tambemMotorista', e.target.checked)}
+                />
+                <span>
+                  <span className="font-medium">Também é motorista</span>
+                  <span className="block text-xs text-amber-800">
+                    Com o mesmo login, entra no app do Motorista e pode receber entregas, além de
+                    vender como revendedor.
+                  </span>
+                </span>
+              </label>
+            )}
             <Input
               label="CPF"
               value={form.cpf}

@@ -89,6 +89,9 @@ export class PedidosService implements OnApplicationBootstrap {
     // o pedido sai com o preço da Flórida para ele, que o financeiro ajusta antes de aprovar
     const precosRevenda = revendedor ? this.mapaPrecosRevenda(dto.itens) : undefined;
     const itensBase = revendedor ? await this.comPrecoFlorida(dto.itens) : dto.itens;
+    // Preço da Flórida (itensBase) = preço sugerido; abaixo dele precisa de autorização
+    const aguardandoAutorizacaoPreco =
+      revendedor && this.abaixoDoSugerido(precosRevenda!, itensBase);
     const itensCalculados = itensBase.map((item) => ({
       ...item,
       valorTotal: item.quantidade * item.valorUnitario,
@@ -118,6 +121,7 @@ export class PedidosService implements OnApplicationBootstrap {
           descontoPercentual: revendedor ? null : dto.descontoPercentual,
           totalFinal,
           precosRevenda,
+          aguardandoAutorizacaoPreco,
           formaPagamento: dto.formaPagamento,
           dataVencimento: dto.dataVencimento ? new Date(dto.dataVencimento) : undefined,
           condicaoNegociada: dto.condicaoNegociada,
@@ -155,7 +159,12 @@ export class PedidosService implements OnApplicationBootstrap {
 
   // Seção 19 do escopo: filtros por data, cliente, vendedor, status, forma de pagamento
   // Seção 3.1: vendedor só vê os próprios pedidos
-  findAll(filtros: FiltrosPedidoDto = {}, usuarioId?: string, papel?: PapelUsuario) {
+  // any: lista simples (sem página) ou { itens, total, pagina, porPagina }
+  async findAll(
+    filtros: FiltrosPedidoDto = {},
+    usuarioId?: string,
+    papel?: PapelUsuario,
+  ): Promise<any> {
     const where: any = {};
 
     if (vendeSoOSeu(papel)) {
@@ -175,9 +184,29 @@ export class PedidosService implements OnApplicationBootstrap {
       if (filtros.dataFim) where.data.lte = new Date(filtros.dataFim);
     }
 
-    return this.prisma.pedido
+    const busca = filtros.busca?.trim();
+    if (busca) {
+      const numero = Number(busca.replace(/\D/g, ''));
+      where.AND = [
+        {
+          OR: [
+            ...(numero && numero < 2 ** 31 ? [{ numero }] : []),
+            { cliente: { razaoSocialOuNome: { contains: busca, mode: 'insensitive' } } },
+            { cliente: { nomeFantasia: { contains: busca, mode: 'insensitive' } } },
+            { vendedor: { nome: { contains: busca, mode: 'insensitive' } } },
+          ],
+        },
+      ];
+    }
+
+    const paginar = !!filtros.pagina;
+    const porPagina = filtros.porPagina ?? 50;
+    const pagina = filtros.pagina ?? 1;
+
+    const lista = await this.prisma.pedido
       .findMany({
         where,
+        ...(paginar ? { skip: (pagina - 1) * porPagina, take: porPagina } : {}),
         include: {
           cliente: true,
           vendedor: true,
@@ -201,6 +230,9 @@ export class PedidosService implements OnApplicationBootstrap {
       .then((pedidos) =>
         pedidos.map((p) => this.semCustoParaRevendedor(this.marcarAguardandoAlteracao(p), papel)),
       );
+    if (!paginar) return lista;
+    const total = await this.prisma.pedido.count({ where });
+    return { itens: lista, total, pagina, porPagina };
   }
 
   async findOne(id: string, usuarioId?: string, papel?: PapelUsuario) {
@@ -254,8 +286,14 @@ export class PedidosService implements OnApplicationBootstrap {
       };
     });
 
+    // Link de rastreio (sem login) para compartilhar no WhatsApp do cliente após a aprovação
+    const linkRastreio =
+      pedido.etiqueta && papel !== PapelUsuario.REVENDEDOR
+        ? this.etiquetasService.urlRastreio(pedido.etiqueta.tokenPublico)
+        : null;
+
     return this.semCustoParaRevendedor(
-      this.marcarAguardandoAlteracao({ ...pedido, devolucoes }),
+      this.marcarAguardandoAlteracao({ ...pedido, devolucoes, linkRastreio }),
       papel,
     );
   }
@@ -308,6 +346,15 @@ export class PedidosService implements OnApplicationBootstrap {
     return mapa;
   }
 
+  private abaixoDoSugerido(
+    precos: Record<string, number>,
+    sugeridos: { produtoId: string; valorUnitario: number }[],
+  ) {
+    return sugeridos.some(
+      (s) => precos[s.produtoId] !== undefined && precos[s.produtoId] < Number(s.valorUnitario),
+    );
+  }
+
   // Preço inicial da Flórida para o revendedor: o preço sugerido do lote, senão o do produto
   private async comPrecoFlorida<
     T extends { produtoId: string; loteId?: string | null; valorUnitario: number },
@@ -347,7 +394,27 @@ export class PedidosService implements OnApplicationBootstrap {
       }
       novo[p.produtoId] = Number(p.valor) || 0;
     }
-    await this.prisma.pedido.update({ where: { id }, data: { precosRevenda: novo } });
+    const sugeridos = await this.comPrecoFlorida(
+      pedido.itens.map((i: any) => ({
+        produtoId: i.produtoId,
+        loteId: i.loteId,
+        valorUnitario: Number(i.valorUnitario),
+      })),
+    );
+    const abaixo = this.abaixoDoSugerido(novo, sugeridos);
+    const aguardando = pedido.status === StatusPedido.AGUARDANDO_APROVACAO;
+    if (abaixo && !aguardando) {
+      throw new BadRequestException(
+        'O valor informado está abaixo do preço sugerido. Entre em contato com seu responsável para solicitar a autorização da venda por esse valor.',
+      );
+    }
+    await this.prisma.pedido.update({
+      where: { id },
+      data: {
+        precosRevenda: novo,
+        ...(aguardando ? { aguardandoAutorizacaoPreco: abaixo } : {}),
+      },
+    });
     return this.findOne(id, usuarioId, papel);
   }
 
@@ -840,8 +907,19 @@ export class PedidosService implements OnApplicationBootstrap {
 
   // Fluxo do item 34.5: pedido aprovado -> saída de estoque -> etiqueta gerada -> QR vinculado
   // Tudo dentro de uma $transaction para garantir atomicidade
-  async aprovar(id: string, usuarioId: string) {
+  async aprovar(id: string, usuarioId: string, papel?: PapelUsuario) {
     const pedido = await this.findOne(id);
+
+    // Venda do revendedor abaixo do preço sugerido: só administrador/financeiro autoriza
+    if (
+      pedido.aguardandoAutorizacaoPreco &&
+      papel !== PapelUsuario.ADMINISTRADOR &&
+      papel !== PapelUsuario.ADMINISTRATIVO
+    ) {
+      throw new ForbiddenException(
+        'Venda abaixo do preço sugerido: só o administrador pode autorizar este pedido',
+      );
+    }
 
     if (pedido.status !== StatusPedido.AGUARDANDO_APROVACAO) {
       throw new BadRequestException(
@@ -870,7 +948,11 @@ export class PedidosService implements OnApplicationBootstrap {
     const pedidoAprovado = await this.prisma.$transaction(async (tx) => {
       const pedidoAtualizado = await tx.pedido.update({
         where: { id },
-        data: { status: StatusPedido.APROVADO, caixasEtiquetadas: Math.max(1, totalCaixas) },
+        data: {
+          status: StatusPedido.APROVADO,
+          caixasEtiquetadas: Math.max(1, totalCaixas),
+          aguardandoAutorizacaoPreco: false,
+        },
       });
 
       await this.sincronizarLotesEmTx(tx, pedido, itensLote, usuarioId, `Pedido ${pedido.numero}`);
@@ -882,7 +964,11 @@ export class PedidosService implements OnApplicationBootstrap {
           acao: 'APROVAR_PEDIDO',
           entidade: 'Pedido',
           entidadeId: id,
-          detalhes: { numeroPedido: pedido.numero, totalFinal: pedido.totalFinal },
+          detalhes: {
+            numeroPedido: pedido.numero,
+            totalFinal: pedido.totalFinal,
+            autorizouPrecoAbaixoDoSugerido: pedido.aguardandoAutorizacaoPreco,
+          },
         },
       });
       await registrarHistoricoStatus(tx, id, StatusPedido.APROVADO);
@@ -1062,10 +1148,11 @@ export class PedidosService implements OnApplicationBootstrap {
 
     if (dto.entregadorId) {
       const entregador = await this.prisma.usuario.findUnique({ where: { id: dto.entregadorId } });
-      // Supervisor também faz entregas
+      // Supervisor e revendedor que também é motorista fazem entregas
       const entrega =
         entregador?.papel === PapelUsuario.MOTORISTA ||
-        entregador?.papel === PapelUsuario.SUPERVISOR;
+        entregador?.papel === PapelUsuario.SUPERVISOR ||
+        !!entregador?.tambemMotorista;
       if (!entregador || !entrega || !entregador.ativo) {
         throw new BadRequestException('Entregador precisa ser um motorista ou supervisor ativo');
       }

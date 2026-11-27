@@ -144,6 +144,7 @@ export class PortalClienteService {
       where: { clienteId: cliente.id, ...FORA_DA_REVENDA },
       include: {
         itens: { include: { produto: { select: { nome: true, unidadeVenda: true } } } },
+        etiqueta: { select: { tokenPublico: true } },
       },
       orderBy: { criadoEm: 'desc' },
     });
@@ -160,6 +161,7 @@ export class PortalClienteService {
           select: { nomeRecebedor: true, dataHora: true, fotoUrl: true },
         },
         historicoStatus: { orderBy: { alteradoEm: 'asc' } },
+        etiqueta: { select: { tokenPublico: true } },
       },
     });
     if (!pedido) throw new NotFoundException('Pedido não encontrado');
@@ -277,6 +279,8 @@ export class PortalClienteService {
         valorUnitario: this.exibirPreco() ? Number(i.valorUnitario) : null,
       })),
       comprovante: p.comprovanteEntrega ?? null,
+      // Página pública de rastreio (/rastreio/:token), existe depois da aprovação
+      rastreioToken: p.etiqueta?.tokenPublico ?? null,
       // Timeline de acompanhamento da rota, só presente na tela de detalhe do pedido
       historicoStatus: p.historicoStatus?.map((h: any) => ({
         status: h.status,

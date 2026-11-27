@@ -1,7 +1,16 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, CalendarOff, CheckCircle2, Target, Trash2, TrendingUp } from 'lucide-react'
+import {
+  AlertTriangle,
+  CalendarOff,
+  CheckCircle2,
+  FileSpreadsheet,
+  FileText,
+  Target,
+  Trash2,
+  TrendingUp,
+} from 'lucide-react'
 import { api } from '../lib/api'
 import { cn, formatBRL } from '../lib/utils'
 import { useAuth } from '../contexts/useAuth'
@@ -10,6 +19,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input, MoneyInput } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
+import {
+  VERDE_OK,
+  VERMELHO,
+  exportarRelatorioExcel,
+  exportarRelatorioPdf,
+  type Relatorio,
+} from '../lib/relatorioMarca'
 
 type DiaMeta = {
   data: string
@@ -21,6 +37,7 @@ type DiaMeta = {
   acumulado: number
   meta: number
   falta: number
+  saldo: number // o que o dia deixou: > 0 sobra (alívio), < 0 faltou
   atingida: boolean
   emAndamento: boolean
   abatimento: number
@@ -65,6 +82,162 @@ const MOTIVO_SEM_META: Record<string, string> = {
   DOMINGO: 'Domingo',
   SEM_META: 'Sem meta',
   SEM_VALOR: 'Meta não definida',
+}
+
+// Acumulado vindo dos dias anteriores: > 0 faltou (vermelho), < 0 sobrou (verde, alívio)
+function Acumulado({ valor }: { valor: number }) {
+  if (!valor) return null
+  return valor > 0 ? (
+    <span className="block text-[11px] font-medium text-red-600">
+      +{formatBRL(valor)} que faltou antes
+    </span>
+  ) : (
+    <span className="block text-[11px] font-medium text-green-700">
+      −{formatBRL(-valor)} de sobra antes
+    </span>
+  )
+}
+
+type PeriodoResponse = {
+  inicio: string
+  fim: string
+  dias: DiaMeta[]
+  resumo: {
+    diasComMeta: number
+    diasAtingidos: number
+    lucroTotal: number
+    metaTotal: number
+    sobraTotal: number
+    faltaTotal: number
+  }
+}
+
+const corSinal = (n: number) => (n > 0 ? VERDE_OK : n < 0 ? VERMELHO : undefined)
+
+function relatorioMetas(p: PeriodoResponse): Relatorio {
+  return {
+    titulo: 'Relatório de Metas Diárias',
+    subtitulo: `Período: ${dataBR(p.inicio)} a ${dataBR(p.fim)}`,
+    arquivo: `relatorio-metas-${p.inicio}-a-${p.fim}`,
+    resumo: [
+      { label: 'Dias com meta', valor: String(p.resumo.diasComMeta) },
+      { label: 'Meta batida', valor: `${p.resumo.diasAtingidos} dia(s)` },
+      { label: 'Lucro no período', valor: formatBRL(p.resumo.lucroTotal) },
+      { label: 'Soma das metas', valor: formatBRL(p.resumo.metaTotal) },
+      { label: 'Sobras (alívio)', valor: formatBRL(p.resumo.sobraTotal), cor: VERDE_OK },
+      { label: 'Faltas', valor: formatBRL(p.resumo.faltaTotal), cor: VERMELHO },
+    ],
+    secoes: [
+      {
+        titulo: 'Dias',
+        headers: [
+          'Dia',
+          'Meta base',
+          'Acumulado anterior',
+          'Meta do dia',
+          'Lucro',
+          'Abatimento',
+          'Saldo do dia',
+          'Resultado',
+        ],
+        moeda: [1, 2, 3, 4, 5, 6],
+        linhas: p.dias.map((d) => [
+          dataCurta(d.data),
+          d.temMeta ? d.base : '—',
+          d.temMeta ? d.acumulado : '—',
+          d.temMeta ? d.meta : '—',
+          d.lucro,
+          d.marcadaBatida ? 'Marcada batida' : d.abatimento || '—',
+          d.temMeta ? d.saldo : '—',
+          !d.temMeta
+            ? `${MOTIVO_SEM_META[d.motivoSemMeta ?? ''] ?? ''}${d.motivo ? ` — ${d.motivo}` : ''}`
+            : d.emAndamento
+              ? 'Em andamento'
+              : d.atingida
+                ? 'Batida'
+                : 'Não batida',
+        ]),
+        // Acumulado > 0 = faltou antes (vermelho); saldo > 0 = sobrou no dia (verde)
+        cores: p.dias.map((d) =>
+          d.temMeta
+            ? [
+                undefined,
+                undefined,
+                corSinal(-d.acumulado),
+                undefined,
+                undefined,
+                undefined,
+                corSinal(d.saldo),
+              ]
+            : [],
+        ),
+      },
+    ],
+  }
+}
+
+function RelatorioMetasCard({ hoje }: { hoje: string }) {
+  const [inicio, setInicio] = useState('')
+  const [fim, setFim] = useState('')
+  const [gerando, setGerando] = useState<'pdf' | 'excel' | null>(null)
+  const [erro, setErro] = useState('')
+  const ini = inicio || (hoje ? `${hoje.slice(0, 7)}-01` : '')
+  const ate = fim || hoje
+
+  async function gerar(formato: 'pdf' | 'excel') {
+    setErro('')
+    setGerando(formato)
+    try {
+      const { data } = await api.get<PeriodoResponse>('/metas/periodo', {
+        params: { inicio: ini, fim: ate },
+      })
+      const rel = relatorioMetas(data)
+      await (formato === 'pdf' ? exportarRelatorioPdf(rel) : exportarRelatorioExcel(rel))
+    } catch (e: any) {
+      setErro(e?.response?.data?.message ?? 'Não foi possível gerar o relatório.')
+    } finally {
+      setGerando(null)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Relatório de metas</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end">
+          <Input
+            label="De"
+            type="date"
+            value={ini}
+            max={ate}
+            onChange={(e) => setInicio(e.target.value)}
+          />
+          <Input
+            label="Até"
+            type="date"
+            value={ate}
+            min={ini}
+            max={hoje}
+            onChange={(e) => setFim(e.target.value)}
+          />
+          <Button type="button" disabled={!ini || !ate || !!gerando} onClick={() => gerar('pdf')}>
+            <FileText className="h-4 w-4" /> {gerando === 'pdf' ? 'Gerando…' : 'PDF'}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!ini || !ate || !!gerando}
+            onClick={() => gerar('excel')}
+          >
+            <FileSpreadsheet className="h-4 w-4" /> {gerando === 'excel' ? 'Gerando…' : 'Excel'}
+          </Button>
+        </div>
+        {erro && <p className="mt-2 text-xs text-red-600">{erro}</p>}
+      </CardContent>
+    </Card>
+  )
 }
 
 export function MetasPage() {
@@ -190,7 +363,7 @@ export function MetasPage() {
     if (
       retroativo &&
       !window.confirm(
-        `A meta vai valer desde ${dataBR(desde)}. Os dias anteriores a hoje sem lucro suficiente vão entrar como "faltou" e somar na meta de hoje. Continuar?`,
+        `A meta vai valer desde ${dataBR(desde)}. Os dias anteriores a hoje vão entrar no acúmulo (falta soma e sobra reduz a meta de hoje). Continuar?`,
       )
     )
       return
@@ -203,7 +376,7 @@ export function MetasPage() {
     <div className="min-w-0">
       <PageHeader
         title="Metas"
-        subtitle="Meta diária de lucro — o que faltar em um dia é somado na meta do dia seguinte"
+        subtitle="Meta diária de lucro — o que faltar soma na meta do dia seguinte; o que sobrar reduz"
       />
 
       <div className="space-y-5 p-4 md:p-6">
@@ -232,8 +405,17 @@ export function MetasPage() {
                       <>
                         {' '}
                         +{' '}
-                        <span className="font-semibold text-ember">
+                        <span className="font-semibold text-red-300">
                           {formatBRL(hoje.acumulado)} que faltou antes
+                        </span>
+                      </>
+                    )}
+                    {hoje.acumulado < 0 && (
+                      <>
+                        {' '}
+                        −{' '}
+                        <span className="font-semibold text-green-200">
+                          {formatBRL(-hoje.acumulado)} de sobra antes
                         </span>
                       </>
                     )}
@@ -318,8 +500,8 @@ export function MetasPage() {
                   {retroativo && (
                     <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                      Data no passado: os dias anteriores sem lucro suficiente vão contar como
-                      “faltou” e somar na meta de hoje.
+                      Data no passado: os dias anteriores entram no acúmulo (falta soma e sobra
+                      reduz a meta de hoje).
                     </p>
                   )}
                   {salvarValor.isError && (
@@ -464,6 +646,8 @@ export function MetasPage() {
           </Card>
         </div>
 
+        <RelatorioMetasCard hoje={hojeStr} />
+
         {/* ---------- acompanhamento do mês ---------- */}
         <Card>
           <CardHeader className="flex flex-wrap items-center justify-between gap-3">
@@ -523,11 +707,7 @@ export function MetasPage() {
                           {d.temMeta ? (
                             <>
                               {formatBRL(d.meta)}
-                              {d.acumulado > 0 && (
-                                <span className="block text-[11px] text-ember">
-                                  +{formatBRL(d.acumulado)} acumulado
-                                </span>
-                              )}
+                              <Acumulado valor={d.acumulado} />
                             </>
                           ) : (
                             '—'
@@ -546,6 +726,9 @@ export function MetasPage() {
                             ) : d.atingida ? (
                               <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700">
                                 <CheckCircle2 className="h-4 w-4" /> Batida
+                                {d.saldo > 0 && !d.emAndamento && (
+                                  <span className="font-medium">· sobrou {formatBRL(d.saldo)}</span>
+                                )}
                               </span>
                             ) : d.emAndamento ? (
                               <span className="text-xs text-gray-600">
@@ -627,8 +810,8 @@ export function MetasPage() {
               onChange={(e) => setFormAbate((f) => ({ ...f, motivo: e.target.value }))}
             />
             <p className="text-xs text-gray-500">
-              O abatimento vale só para a meta: o que deixar de faltar não passa para o dia
-              seguinte. O lucro dos relatórios não muda.
+              O abatimento vale só para a meta (conta como lucro do dia no acúmulo). O lucro dos
+              relatórios não muda.
             </p>
             {abater.isError && (
               <p className="text-xs text-red-600">

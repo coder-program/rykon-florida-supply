@@ -5,6 +5,8 @@ interface Usuario {
   nome: string
   email: string
   papel: string
+  // Revendedor que também é motorista
+  tambemMotorista?: boolean
 }
 export interface AuthCtx {
   usuario: Usuario | null

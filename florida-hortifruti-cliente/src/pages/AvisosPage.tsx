@@ -5,6 +5,8 @@ import { Bell, ArrowRight } from 'lucide-react'
 import { api } from '../lib/api'
 import { formatDate } from '../lib/utils'
 import { AtivarNotificacoes } from '../components/AtivarNotificacoes'
+import { Paginacao } from '../components/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 type Aviso = {
   id: string
@@ -29,6 +31,7 @@ export function AvisosPage() {
     queryKey: ['portal-avisos'],
     queryFn: () => api.get('/portal-cliente/notificacoes').then((r) => r.data),
   })
+  const pag = usePaginado(avisos)
 
   const marcarLidas = useMutation({
     mutationFn: () => api.post('/portal-cliente/notificacoes/lidas'),
@@ -62,7 +65,7 @@ export function AvisosPage() {
         </p>
       )}
 
-      {avisos.map((aviso) => (
+      {pag.itens.map((aviso) => (
         <div
           key={aviso.id}
           className={`rounded-2xl border border-l-4 border-gray-100 bg-white px-4 py-3 shadow-sm ${COR_TIPO[aviso.tipo] ?? 'border-l-gray-300'}`}
@@ -89,6 +92,7 @@ export function AvisosPage() {
           </div>
         </div>
       ))}
+      <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
     </div>
   )
 }

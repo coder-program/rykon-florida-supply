@@ -7,6 +7,8 @@ import { BrowserQRCodeReader } from '@zxing/browser'
 import { api, resolveAssetUrl } from '../lib/api'
 import { MotivosDevolucao } from '../components/MotivosDevolucao'
 import { SELECAO_VAZIA, erroSelecao, type SelecaoMotivos } from '../lib/motivosDevolucao'
+import { Paginacao } from '../components/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 function toDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -92,6 +94,8 @@ export function DevolucoesPage() {
           .includes(termo),
     )
   }, [pedidos, busca])
+  const pagPedidos = usePaginado(pedidosFiltrados)
+  const pag = usePaginado(devolucoes as any[])
 
   // Com um item só não há o que separar: o seletor geral vale para ele
   const usarMotivoGeral = mesmoMotivo || pedido?.itens.length === 1
@@ -335,7 +339,7 @@ export function DevolucoesPage() {
                     {busca ? 'Nenhum pedido encontrado.' : 'Nenhum pedido entregue ainda.'}
                   </p>
                 )}
-                {pedidosFiltrados.map((p) => (
+                {pagPedidos.itens.map((p) => (
                   <button
                     key={p.pedidoId}
                     type="button"
@@ -355,6 +359,11 @@ export function DevolucoesPage() {
                     <p className="truncate text-xs text-gray-600">{p.cliente ?? 'Cliente'}</p>
                   </button>
                 ))}
+                <Paginacao
+                  pagina={pagPedidos.pagina}
+                  total={pagPedidos.total}
+                  onChange={pagPedidos.setPagina}
+                />
               </div>
             </div>
 
@@ -538,7 +547,7 @@ export function DevolucoesPage() {
           </p>
         )}
         <div className="space-y-2">
-          {(devolucoes as any[]).map((item) => (
+          {pag.itens.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -588,6 +597,7 @@ export function DevolucoesPage() {
             </button>
           ))}
         </div>
+        <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
       </div>
 
       {devolucaoSelecionada && (

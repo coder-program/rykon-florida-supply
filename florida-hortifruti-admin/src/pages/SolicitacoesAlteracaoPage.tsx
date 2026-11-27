@@ -9,6 +9,8 @@ import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Select } from '../components/ui/Input'
+import { Paginacao } from '../components/ui/Paginacao'
+import { usePaginado } from '../lib/usePaginado'
 
 const STATUS_LABEL: Record<string, string> = {
   PENDENTE: 'Pendente',
@@ -44,6 +46,7 @@ export function SolicitacoesAlteracaoPage() {
         .get('/solicitacoes-alteracao', { params: filtro ? { status: filtro } : {} })
         .then((r) => r.data),
   })
+  const pag = usePaginado(solicitacoes as any[])
 
   const aprovar = useMutation({
     mutationFn: (id: string) => api.post(`/solicitacoes-alteracao/${id}/aprovar`),
@@ -95,7 +98,7 @@ export function SolicitacoesAlteracaoPage() {
         )}
 
         <div className="space-y-3">
-          {solicitacoes.map((s: any) => {
+          {pag.itens.map((s: any) => {
             const aumento = s.delta > 0
             return (
               <div key={s.id} className="rounded-xl border border-gray-200 bg-white p-4">
@@ -188,6 +191,7 @@ export function SolicitacoesAlteracaoPage() {
             )
           })}
         </div>
+        <Paginacao pagina={pag.pagina} total={pag.total} onChange={pag.setPagina} />
       </div>
 
       <Modal open={!!negarId} onClose={() => setNegarId(null)} title="Negar solicitação" size="sm">

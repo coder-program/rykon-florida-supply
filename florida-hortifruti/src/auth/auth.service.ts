@@ -37,11 +37,17 @@ export class AuthService {
     }
 
     // Conferido só depois da senha, para não revelar o perfil de quem errou a senha
-    if (app && !papelPodeEntrar(app, usuario.papel)) {
+    const tambemMotorista = usuario.papel === PapelUsuario.REVENDEDOR && usuario.tambemMotorista;
+    if (app && !papelPodeEntrar(app, usuario.papel, tambemMotorista)) {
       throw new ForbiddenException(mensagemAppErrado(usuario.papel));
     }
 
-    const payload = { sub: usuario.id, email: usuario.email, papel: usuario.papel };
+    const payload = {
+      sub: usuario.id,
+      email: usuario.email,
+      papel: usuario.papel,
+      ...(tambemMotorista ? { motorista: true } : {}),
+    };
     // TV do salão (Visão geral) fica logada direto, como motorista e cliente
     const longaSessao =
       usuario.papel === PapelUsuario.MOTORISTA ||
@@ -55,6 +61,7 @@ export class AuthService {
         nome: usuario.nome,
         email: usuario.email,
         papel: usuario.papel,
+        tambemMotorista,
         clienteId: usuario.cliente?.id ?? null,
       },
     };

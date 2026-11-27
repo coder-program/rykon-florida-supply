@@ -175,7 +175,7 @@ describe('Metas', () => {
     expect(screen.getAllByText('Batida').length).toBe(3)
     expect(screen.getByText(/Faltam R\$\s400,00/)).toBeTruthy()
     expect(screen.getByText('hoje')).toBeTruthy()
-    expect(screen.getByText(/\+R\$\s200,00 acumulado/)).toBeTruthy()
+    expect(screen.getByText(/\+R\$\s200,00 que faltou antes/)).toBeTruthy()
     expect(screen.getByText('Marcada como batida — aporte')).toBeTruthy()
     expect(screen.getByText(/Abatido R\$\s100,00 — chuva/)).toBeTruthy()
 
